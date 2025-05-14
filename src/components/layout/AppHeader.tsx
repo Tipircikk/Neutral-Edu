@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BookOpenText, LogOut, UserCircle, Settings, Loader2 } from "lucide-react";
+import { BookOpenText, LogOut, UserCircle, Settings, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -25,7 +25,7 @@ export default function AppHeader() {
 
   const handleSignOut = async () => {
     await signOut();
-    router.push("/login");
+    router.push("/landing"); 
   };
 
   const getInitials = (email?: string | null) => {
@@ -38,7 +38,7 @@ export default function AppHeader() {
       <div className="container flex h-16 items-center justify-between">
         <Link href="/dashboard" className="flex items-center gap-2">
           <BookOpenText className="h-7 w-7 text-primary" />
-          <span className="text-xl font-semibold text-foreground">NeutralEdu AI</span>
+          <span className="text-xl font-semibold text-foreground">Scholar Summarizer</span>
         </Link>
         <div className="flex items-center gap-4">
           {userProfileLoading ? (
@@ -46,16 +46,24 @@ export default function AppHeader() {
           ) : userProfile ? (
             <QuotaDisplay 
               remaining={userProfile.dailyRemainingQuota} 
-              total={userProfile.plan === 'free' ? 5 : 5} /* TODO: Get total from plan config */
+              total={userProfile.plan === 'free' ? 5 : 50} // Assuming premium gets 50
             />
           ) : null}
           
+          {userProfile?.isAdmin && (
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/admin">
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                Admin Panel
+              </Link>
+            </Button>
+          )}
+
           {user && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-9 w-9 rounded-full">
                   <Avatar className="h-9 w-9">
-                    {/* Placeholder for user avatar image if available */}
                     {/* <AvatarImage src={user.photoURL || ""} alt={user.displayName || "User"} /> */}
                     <AvatarFallback className="bg-primary text-primary-foreground">
                       {getInitials(user.email)}

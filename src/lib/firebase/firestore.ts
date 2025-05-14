@@ -18,12 +18,13 @@ export const createUserDocument = async (
     plan: "free",
     dailyRemainingQuota: FREE_PLAN_DAILY_QUOTA,
     lastSummaryDate: null, // Will be set on first summary or quota check
+    isAdmin: false, // Default isAdmin to false
   };
-  await setDoc(userRef, { ...userProfile, createdAt: serverTimestamp() });
+  await setDoc(userRef, { ...userProfile, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
   return userProfile;
 };
 
-export const getUserProfile = async (uid: string): Promise<UserProfile | null> => {
+export const getUserProfile = async (uid:string): Promise<UserProfile | null> => {
   const userRef = doc(db, "users", uid);
   const docSnap = await getDoc(userRef);
   if (docSnap.exists()) {
@@ -34,6 +35,9 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
     }
     return data;
   }
+  // Optionally create profile if it doesn't exist, though signup should handle this.
+  // For this app, we assume signup creates the profile.
+  console.warn(`User profile for ${uid} not found. It should be created on signup.`);
   return null;
 };
 
@@ -51,7 +55,11 @@ export const getDefaultQuota = (plan: UserProfile["plan"]): number => {
   switch (plan) {
     case "free":
       return FREE_PLAN_DAILY_QUOTA;
+    // Add other plans here if needed
+    // case "premium":
+    //   return PREMIUM_PLAN_DAILY_QUOTA;
     default:
       return FREE_PLAN_DAILY_QUOTA;
   }
 };
+

@@ -1,17 +1,17 @@
 
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google'; // Changed from Geist to Inter as per style guide
+import { Inter } from 'next/font/google';
 import './globals.css';
 import { AppProviders } from '@/providers/AppProviders';
 import { cn } from '@/lib/utils';
 
 const inter = Inter({
   subsets: ['latin'],
-  variable: '--font-sans', // Using --font-sans for Inter
+  variable: '--font-sans',
 });
 
 export const metadata: Metadata = {
-  title: 'NeutralEdu AI',
+  title: 'Scholar Summarizer',
   description: 'AI-powered PDF summarization for students.',
 };
 

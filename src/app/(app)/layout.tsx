@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import AppHeader from "@/components/layout/AppHeader";
 import { Loader2 } from "lucide-react";
+import Footer from "@/components/layout/Footer"; 
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -14,12 +15,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!loading && !user) {
-      router.replace("/login");
+      router.replace("/landing"); 
     }
   }, [user, loading, router]);
 
   if (loading || !user) {
-    // This case handles initial loading and also the state where user is null after loading (meaning not authenticated)
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -33,9 +33,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <main className="flex-grow container mx-auto px-4 py-8">
         {children}
       </main>
-      <footer className="py-6 text-center text-sm text-muted-foreground border-t border-border/40">
-        © {new Date().getFullYear()} NeutralEdu AI. All rights reserved.
-      </footer>
+      <Footer appName="Scholar Summarizer" />
     </div>
   );
 }

@@ -15,7 +15,7 @@ export default function HomePage() {
       if (user) {
         router.replace("/dashboard");
       } else {
-        router.replace("/login");
+        router.replace("/landing"); // Redirect to landing page if not authenticated
       }
     }
   }, [user, loading, router]);
@@ -23,7 +23,8 @@ export default function HomePage() {
   return (
     <div className="flex h-screen w-screen items-center justify-center bg-background">
       <Loader2 className="h-16 w-16 animate-spin text-primary" />
-      <p className="sr-only">Loading NeutralEdu AI...</p>
+      <p className="sr-only">Loading Scholar Summarizer...</p>
     </div>
   );
 }
+

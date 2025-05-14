@@ -1,0 +1,40 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      // Allow users to read their own profile.
+      // Allow admins to read any user profile.
+      allow read: if request.auth != null &&
+                     (request.auth.uid == userId ||
+                      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
+
+      // Allow users to create their own profile document upon signup.
+      allow create: if request.auth != null && request.auth.uid == userId;
+
+      // Allow users to update specific fields of their own profile (e.g., displayName).
+      // Quota updates are handled by application logic (useUser hook), so this rule needs to permit those specific updates.
+      // Critically, users cannot change their 'plan' or 'isAdmin' status themselves.
+      // Admins can update any field on any user profile.
+      allow update: if request.auth != null && (
+        // Case 1: User updating their own profile
+        (request.auth.uid == userId &&
+         // Ensure they are not trying to change their plan or admin status
+         request.resource.data.plan == resource.data.plan &&
+         request.resource.data.isAdmin == resource.data.isAdmin
+         // Further restrictions on which fields a user can self-update can be added here if needed, e.g.,
+         // request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'dailyRemainingQuota', 'lastSummaryDate', 'updatedAt'])
+        ) ||
+        // Case 2: Admin updating the profile
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true)
+      );
+
+      // Only admins can delete user documents.
+      allow delete: if request.auth != null &&
+                       get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // By default, Firestore rules deny access to all other paths/collections
+    // unless explicitly allowed. No need for a global deny rule if all allowed paths are specified.
+  }
+}

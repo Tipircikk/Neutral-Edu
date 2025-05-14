@@ -9,10 +9,12 @@ export interface UserProfile {
   plan: "free"; // For now, only "free" plan
   dailyRemainingQuota: number;
   lastSummaryDate: Timestamp | string | null; // Store as Firestore Timestamp, allow string for new objects before conversion
+  isAdmin?: boolean; // Added for admin role
 }
 
 export interface AuthContextType {
   user: FirebaseUser | null;
   loading: boolean;
-  isAdmin?: boolean; // Example, if you have admin roles
+  isAdmin?: boolean; // Keeping this, though profile.isAdmin will be primary
 }
+

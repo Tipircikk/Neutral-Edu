@@ -3,13 +3,9 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: 'Inter', sans-serif; /* Changed to Inter as an example of modern font */
-}
-
 @layer base {
   :root {
-    /* These are fallbacks or for users preferring light explicitly, but app will be dark by default */
+    /* Fallback light theme (app is dark by default) */
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
     --card: 0 0% 100%;
@@ -23,12 +19,12 @@ body {
     --muted: 0 0% 96.1%;
     --muted-foreground: 0 0% 45.1%;
     --accent: 240 67% 94%; /* #E6E6FA */
-    --accent-foreground: 271 76% 30%; /* Darker version of primary for text on light accent */
+    --accent-foreground: 271 76% 30%; /* Darker purple on light accent */
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
-    --ring: 271 76% 65%; /* Lighter shade of primary for ring */
+    --ring: 271 76% 65%; /* Lighter shade of primary */
     --radius: 0.5rem;
 
     --chart-1: 12 76% 61%;
@@ -37,7 +33,6 @@ body {
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
 
-    /* Sidebar variables, kept for completeness if shadcn/ui sidebar is used later */
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
@@ -49,21 +44,21 @@ body {
   }
 
   .dark {
-    --background: 0 0% 0%; /* #000000 */
+    --background: 0 0% 0%; /* Black */
     --foreground: 0 0% 98%; /* White */
-    --card: 0 0% 11.8%; /* #1e1e1e */
+    --card: 0 0% 11.8%; /* #1e1e1e Dark Gray */
     --card-foreground: 0 0% 98%;
     --popover: 0 0% 11.8%; /* #1e1e1e */
     --popover-foreground: 0 0% 98%;
-    --primary: 271 76% 53%; /* #8A2BE2 */
+    --primary: 271 76% 53%; /* #8A2BE2 Purple */
     --primary-foreground: 0 0% 98%; /* White text on primary */
     --secondary: 0 0% 14.9%; /* Darker gray for secondary elements */
     --secondary-foreground: 0 0% 98%;
     --muted: 0 0% 14.9%;
     --muted-foreground: 0 0% 63.9%; /* Lighter gray for muted text */
     --accent: 240 67% 94%; /* #E6E6FA Lavender */
-    --accent-foreground: 271 76% 30%; /* Darker version of primary for text on light accent */
-    --destructive: 0 72.2% 50.6%; /* Adjusted destructive for dark theme */
+    --accent-foreground: 271 76% 20%; /* Darker purple for text on lavender accent */
+    --destructive: 0 62.8% 30.6%; /* Adjusted destructive for dark theme */
     --destructive-foreground: 0 0% 98%;
     --border: 0 0% 20%; /* Slightly lighter border for dark theme */
     --input: 0 0% 20%;
@@ -95,6 +90,3 @@ body {
     font-feature-settings: "rlig" 1, "calt" 1; /* Improves font rendering */
   }
 }
-
-/* Add Inter font from Google Fonts or use system fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
