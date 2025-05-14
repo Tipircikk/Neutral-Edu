@@ -14,24 +14,24 @@ const aiTools = [
   },
   {
     name: "AI Soru Çözücü",
-    description: "Karmaşık sorularınıza adım adım çözümler ve açıklamalar alın. (Yakında)",
+    description: "Karmaşık sorularınıza adım adım çözümler ve açıklamalar alın. İsterseniz soru içeren bir görsel de yükleyebilirsiniz.",
     icon: <HelpCircle className="h-10 w-10 text-primary mb-4" />,
     link: "/dashboard/ai-tools/question-solver",
-    status: "soon",
+    status: "active", // Changed from soon
   },
   {
     name: "AI Test Oluşturucu",
-    description: "Belirlediğiniz konulardan veya yüklediğiniz materyallerden pratik testler oluşturun. (Yakında)",
+    description: "Belirlediğiniz konulardan pratik testler oluşturun.",
     icon: <FileTextIcon className="h-10 w-10 text-primary mb-4" />,
     link: "/dashboard/ai-tools/test-generator",
-    status: "soon",
+    status: "active", // Changed from soon
   },
   {
     name: "AI Konu Özetleyici",
-    description: "Geniş konuları veya metinleri temel kavramlarına indirgeyerek hızlıca öğrenin. (Yakında)",
+    description: "Geniş konuları veya metinleri temel kavramlarına indirgeyerek hızlıca öğrenin.",
     icon: <Lightbulb className="h-10 w-10 text-primary mb-4" />,
     link: "/dashboard/ai-tools/topic-summarizer",
-    status: "soon",
+    status: "active", // Changed from soon
   },
 ];
 
@@ -60,5 +60,3 @@ export default function AiToolsPage() {
     </div>
   );
 }
-
-    

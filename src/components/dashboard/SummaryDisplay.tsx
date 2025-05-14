@@ -3,13 +3,13 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Copy, Download, Save, Loader2 } from "lucide-react"; // Added Loader2
+import { Copy, Download, Save, Loader2, AlertTriangle } from "lucide-react"; 
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { SummarizePdfForStudentOutput } from "@/ai/flows/summarize-pdf"; // Import the type
+import type { SummarizePdfForStudentOutput } from "@/ai/flows/summarize-pdf"; 
 
 type SummaryDisplayProps = {
-  summaryOutput: SummarizePdfForStudentOutput | null; // Changed prop name and type
+  summaryOutput: SummarizePdfForStudentOutput | null; 
   originalFileName?: string;
   onSave?: () => Promise<void>; 
   isSaving?: boolean;
@@ -18,11 +18,11 @@ type SummaryDisplayProps = {
 export default function SummaryDisplay({ summaryOutput, originalFileName, onSave, isSaving }: SummaryDisplayProps) {
   const { toast } = useToast();
 
-  if (!summaryOutput || !summaryOutput.formattedStudyOutput) { // Check for formattedStudyOutput
+  if (!summaryOutput || !summaryOutput.formattedStudyOutput) { 
     return null;
   }
 
-  const { formattedStudyOutput } = summaryOutput; // Destructure formattedStudyOutput
+  const { formattedStudyOutput } = summaryOutput; 
 
   const handleCopyToClipboard = () => {
     navigator.clipboard.writeText(formattedStudyOutput)
@@ -49,7 +49,6 @@ export default function SummaryDisplay({ summaryOutput, originalFileName, onSave
     toast({ title: "İndirildi", description: "Özet metin dosyası olarak indirildi." });
   };
 
-  // Basic markdown-like formatting. More robust parsing might be needed for complex markdown.
   const formatOutputForDisplay = (text: string): JSX.Element[] => {
     return text.split('\n').map((line, index) => {
       if (line.trim().startsWith('## ')) {
@@ -62,7 +61,7 @@ export default function SummaryDisplay({ summaryOutput, originalFileName, onSave
         return <li key={index} className="ml-4 list-disc text-muted-foreground">{line.substring(line.indexOf(' ') + 1)}</li>;
       }
       if (line.trim() === "") {
-        return <div key={index} className="h-2"></div>; // Empty line for spacing
+        return <div key={index} className="h-2"></div>; 
       }
       return <p key={index} className="mb-2 last:mb-0 text-muted-foreground">{line}</p>;
     });
@@ -84,11 +83,6 @@ export default function SummaryDisplay({ summaryOutput, originalFileName, onSave
                 <Button variant="outline" size="icon" onClick={handleDownloadText} title="Metin Olarak İndir">
                     <Download className="h-4 w-4" />
                 </Button>
-                {/* {onSave && ( // Save functionality can be re-enabled when implemented
-                    <Button variant="outline" size="icon" onClick={onSave} disabled={isSaving} title="Buluta Kaydet">
-                        {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                    </Button>
-                )} */}
             </div>
         </div>
       </CardHeader>
@@ -98,6 +92,10 @@ export default function SummaryDisplay({ summaryOutput, originalFileName, onSave
             {formatOutputForDisplay(formattedStudyOutput)}
           </div>
         </ScrollArea>
+        <div className="mt-4 p-3 text-xs text-destructive-foreground bg-destructive/80 rounded-md flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4" />
+          <span>NeutralEdu AI bir yapay zekadır bu nedenle hata yapabilir, bu yüzden verdiği bilgileri doğrulayınız.</span>
+        </div>
       </CardContent>
     </Card>
   );

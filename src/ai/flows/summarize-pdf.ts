@@ -43,18 +43,19 @@ const prompt = ai.definePrompt({
   name: 'summarizePdfForStudentPrompt',
   input: {schema: SummarizePdfForStudentInputSchema},
   output: {schema: SummarizePdfForStudentOutputSchema},
-  prompt: `You are an AI assistant that helps students understand academic texts and prepare for exams.
+  prompt: `Sen, öğrencilerin akademik metinleri anlamalarına ve sınavlara hazırlanmalarına yardımcı olan uzman bir AI eğitim asistanısın. 
+Görevn, karmaşık bilgileri basitleştirmek ve öğrencilerin öğrenme süreçlerini desteklemektir.
 
-Given a text extracted from a PDF, perform the following tasks in a clear and student-friendly tone. Structure your response clearly to fit the output schema.
+Bir PDF'den çıkarılan aşağıdaki metin verildiğinde, öğrenci dostu ve teşvik edici bir tonda aşağıdaki görevleri yerine getir. Yanıtını, çıktı şemasına uyacak şekilde açıkça yapılandır.
 
-1.  **Summary**: Summarize the text in simple language.
-2.  **Key Points**: List the most important points as bullet points.
-3.  **Main Idea**: Extract the main idea or topic of the passage.
-4.  **Exam Tips**: Identify key parts that are likely to appear in an exam (e.g., definitions, examples, important events or formulas). List these as bullet points.
-5.  **Practice Questions**: If relevant to the content, generate 3-5 multiple-choice questions (with answer keys, options, and optionally a brief explanation for the correct answer) based on the content. Make sure the questions test understanding, not just memorization. If not relevant, this field can be omitted.
-6.  **Formatted Study Output**: Combine all the above sections (Summary, Key Points, Main Idea, Exam Tips, and Practice Questions if generated) into a single string with clear Markdown formatting. Use headings like "## Özet", "## Anahtar Noktalar", "## Ana Fikir", "## Sınav İpuçları", "## Alıştırma Soruları". This combined output will be used directly.
+1.  **Özet**: Metni basit ve anlaşılır bir dille özetle. Öğrencinin konuyu genel hatlarıyla kavramasını sağla.
+2.  **Anahtar Noktalar**: En önemli noktaları madde işaretleri halinde listele. Bu, öğrencinin hızlı bir tekrar yapmasına yardımcı olmalı.
+3.  **Ana Fikir**: Parçanın ana fikrini veya konusunu çıkar. Tek bir cümleyle konunun özünü belirt.
+4.  **Sınav İpuçları**: Sınavda çıkması muhtemel kilit bölümleri (örneğin tanımlar, önemli örnekler, formüller, tarihler) madde işaretleri halinde belirt.
+5.  **Alıştırma Soruları (isteğe bağlı)**: Eğer içerikle ilgiliyse, anlama düzeyini test eden 3-5 adet çoktan seçmeli soru (cevap anahtarı, seçenekler ve isteğe bağlı olarak doğru cevap için kısa bir açıklama ile birlikte) oluştur. Sorular sadece ezberi değil, konunun anlaşılmasını ölçmelidir. İçerik uygun değilse, bu alan atlanabilir.
+6.  **Formatlanmış Çalışma Çıktısı**: Yukarıdaki tüm bölümleri (Özet, Anahtar Noktalar, Ana Fikir, Sınav İpuçları ve Alıştırma Soruları - eğer oluşturulduysa) net Markdown formatlaması kullanarak tek bir dizede birleştir. "## Özet", "## Anahtar Noktalar", "## Ana Fikir", "## Sınav İpuçları", "## Alıştırma Soruları" gibi başlıklar kullan. Bu birleştirilmiş çıktı doğrudan kullanılacaktır.
 
-Text to be processed:
+İşlenecek Metin:
 {{{pdfText}}}`,
 });
 
@@ -69,11 +70,6 @@ const summarizePdfForStudentFlow = ai.defineFlow(
     if (!output) {
       throw new Error("AI failed to generate a response that matches the schema.");
     }
-    // The prompt now asks for the formattedStudyOutput directly.
-    // We still expect the individual fields to be populated by the LLM as per the schema.
-    // If only formattedStudyOutput is needed, we can simplify the output schema,
-    // but for now, we'll assume the model tries to fill all.
     return output;
   }
 );
-

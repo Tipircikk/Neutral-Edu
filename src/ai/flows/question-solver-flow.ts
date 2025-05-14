@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview Bir AI soru çözme ajanı.
+ * @fileOverview Bir AI soru çözme ajanı. Görsel veya metin tabanlı soruları çözebilir.
  *
  * - solveQuestion - Kullanıcının sorduğu bir soruyu çözme işlemini yöneten fonksiyon.
  * - SolveQuestionInput - solveQuestion fonksiyonu için giriş tipi.
@@ -11,16 +11,12 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-// Bu şema, kullanıcıdan alınacak soruyu tanımlar.
 const SolveQuestionInputSchema = z.object({
-  questionText: z.string().describe('Kullanıcının çözülmesini istediği soru metni.'),
-  // Gerekirse, sorunun bağlamı (örneğin, hangi dersle ilgili olduğu) veya ek materyaller (resim URL'si gibi) eklenebilir.
-  // context: z.string().optional().describe('Sorunun ait olduğu konu veya ders bağlamı.'),
-  // image_url: z.string().optional().url().describe('Soruyla ilgili bir resmin URLsi (eğer varsa).')
+  questionText: z.string().optional().describe('Kullanıcının çözülmesini istediği soru metni.'),
+  imageDataUri: z.string().optional().describe("Soruyla ilgili bir görselin data URI'si (Base64 formatında). 'data:<mimetype>;base64,<encoded_data>' formatında olmalıdır."),
 });
 export type SolveQuestionInput = z.infer<typeof SolveQuestionInputSchema>;
 
-// Bu şema, AI'nın üreteceği çözümü ve açıklamayı tanımlar.
 const SolveQuestionOutputSchema = z.object({
   solution: z.string().describe('Sorunun adım adım çözümü ve açıklaması.'),
   relatedConcepts: z.array(z.string()).optional().describe('Çözümle ilgili anahtar kavramlar veya konular.'),
@@ -29,7 +25,6 @@ const SolveQuestionOutputSchema = z.object({
 export type SolveQuestionOutput = z.infer<typeof SolveQuestionOutputSchema>;
 
 export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQuestionOutput> {
-  // TODO: Kullanıcı kotasını ve yetkilendirmesini burada kontrol et.
   return questionSolverFlow(input);
 }
 
@@ -37,18 +32,32 @@ const prompt = ai.definePrompt({
   name: 'questionSolverPrompt',
   input: {schema: SolveQuestionInputSchema},
   output: {schema: SolveQuestionOutputSchema},
-  prompt: `Sen öğrencilere çeşitli konulardaki soruları çözmelerinde yardımcı olan uzman bir AI asistanısın.
-Amacın, sadece cevabı vermek değil, aynı zamanda sorunun nasıl çözüldüğünü adım adım açıklamak ve ilgili kavramları belirtmektir.
+  prompt: `Sen, öğrencilere çeşitli konulardaki soruları çözmelerinde yardımcı olan, son derece bilgili, sabırlı ve anlayışlı bir AI uzman öğretmenisin. 
+Amacın sadece cevabı vermek değil, aynı zamanda sorunun nasıl çözüldüğünü adım adım açıklamak, altında yatan prensipleri vurgulamak ve öğrencinin konuyu tam olarak kavramasına yardımcı olmaktır.
 
-Kullanıcının Sorusu:
+Kullanıcının girdileri aşağıdadır. Lütfen bu girdilere dayanarak bir çözüm üret:
+
+{{#if imageDataUri}}
+Görsel Soru:
+{{media url=imageDataUri}}
+{{/if}}
+
+{{#if questionText}}
+Metinsel Soru/Açıklama:
 {{{questionText}}}
+{{/if}}
 
-Lütfen bu soruyu çöz ve aşağıdaki formatta bir yanıt hazırla:
-1.  **Çözüm**: Sorunun detaylı, adım adım çözümünü ve mantığını açıkla. Eğer birden fazla çözüm yolu varsa, en yaygın veya anlaşılır olanı tercih et.
-2.  **İlgili Kavramlar (isteğe bağlı)**: Çözümde kullanılan veya soruyla yakından ilişkili önemli akademik kavramları listele.
+Lütfen bu soruyu/soruları analiz et ve aşağıdaki formatta bir yanıt hazırla:
+1.  **Çözüm**: Sorunun detaylı, adım adım çözümünü ve mantığını açıkla. Eğer birden fazla çözüm yolu varsa, en yaygın veya anlaşılır olanı tercih et. Öğrencinin her adımı neden attığımızı anlamasını sağla.
+2.  **İlgili Kavramlar (isteğe bağlı)**: Çözümde kullanılan veya soruyla yakından ilişkili önemli akademik kavramları listele. Bu kavramların kısa tanımlarını veya çözümle bağlantılarını ekleyebilirsin.
 3.  **Güven Skoru (isteğe bağlı)**: Verdiğin çözümden ne kadar emin olduğunu 0 (emin değilim) ile 1 (çok eminim) arasında bir değerle belirt.
 
-Yanıtını öğrencinin kolayca anlayabileceği, açık ve eğitici bir dille yaz.
+Davranış Kuralları:
+*   Eğer hem görsel hem de metin girdisi varsa, bunları birbiriyle ilişkili kabul et ve çözümü buna göre oluştur. Metin, görseldeki soruyu açıklıyor veya ek bilgi veriyor olabilir.
+*   Eğer sadece görsel varsa, görseldeki soruyu tanımla ve çöz.
+*   Eğer sadece metin varsa, metindeki soruyu çöz.
+*   Eğer girdi yetersiz veya anlamsızsa, nazikçe daha fazla bilgi iste veya soruyu çözemeyeceğini belirt.
+*   Yanıtını öğrencinin kolayca anlayabileceği, açık, teşvik edici ve eğitici bir dille yaz. Karmaşık terminolojiden kaçın veya açıkladığından emin ol.
 `,
 });
 
@@ -59,7 +68,9 @@ const questionSolverFlow = ai.defineFlow(
     outputSchema: SolveQuestionOutputSchema,
   },
   async (input) => {
-    // Burada Genkit prompt'unu çağırıyoruz.
+    if (!input.questionText && !input.imageDataUri) {
+      throw new Error("Soru çözmek için metin veya görsel sağlanmalıdır.");
+    }
     const {output} = await prompt(input);
     if (!output) {
       throw new Error("AI, soru için bir çözüm ve açıklama üretemedi.");
@@ -67,21 +78,3 @@ const questionSolverFlow = ai.defineFlow(
     return output;
   }
 );
-
-// Örnek Kullanım (Geliştirme için):
-/*
-async function testSolveQuestion() {
-  try {
-    const result = await solveQuestion({ questionText: "Bir dik üçgenin hipotenüsü 13 cm, bir dik kenarı 5 cm ise diğer dik kenarı kaç cm'dir?" });
-    console.log("AI Çözümü:", result.solution);
-    if (result.relatedConcepts) {
-      console.log("İlgili Kavramlar:", result.relatedConcepts.join(", "));
-    }
-  } catch (error) {
-    console.error("Soru çözme testi sırasında hata:", error);
-  }
-}
-// testSolveQuestion();
-*/
-
-    

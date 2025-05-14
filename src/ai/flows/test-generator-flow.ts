@@ -11,7 +11,6 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-// Kullanıcıdan alınacak test konusunu ve istenen soru sayısını tanımlar.
 const GenerateTestInputSchema = z.object({
   topic: z.string().describe('Testin oluşturulacağı ana konu veya ders materyali özeti.'),
   numQuestions: z.number().min(3).max(20).default(5).describe('Testte olması istenen soru sayısı (çoktan seçmeli, doğru/yanlış vb. karışık olabilir).'),
@@ -20,8 +19,6 @@ const GenerateTestInputSchema = z.object({
 });
 export type GenerateTestInput = z.infer<typeof GenerateTestInputSchema>;
 
-// AI'nın üreteceği testin yapısını tanımlar.
-// Her soru için soru metni, seçenekler (eğer varsa), doğru cevap ve kısa bir açıklama içerebilir.
 const QuestionSchema = z.object({
     questionText: z.string().describe("Sorunun metni."),
     questionType: z.enum(["multiple_choice", "true_false", "short_answer"]).describe("Sorunun tipi."),
@@ -33,12 +30,10 @@ const QuestionSchema = z.object({
 const GenerateTestOutputSchema = z.object({
   testTitle: z.string().describe("Oluşturulan test için başlık (örn: '{topic} Değerlendirme Testi')."),
   questions: z.array(QuestionSchema).describe('Oluşturulan test soruları listesi.'),
-  // testBody: z.string().describe("Oluşturulan testin tamamı, sorular ve cevap anahtarı ile birlikte formatlanmış metin.") // Veya daha yapısal
 });
 export type GenerateTestOutput = z.infer<typeof GenerateTestOutputSchema>;
 
 export async function generateTest(input: GenerateTestInput): Promise<GenerateTestOutput> {
-  // TODO: Kullanıcı kotasını ve yetkilendirmesini burada kontrol et.
   return testGeneratorFlow(input);
 }
 
@@ -46,8 +41,8 @@ const prompt = ai.definePrompt({
   name: 'testGeneratorPrompt',
   input: {schema: GenerateTestInputSchema},
   output: {schema: GenerateTestOutputSchema},
-  prompt: `Sen öğrencilere yönelik, belirli bir akademik konuda pratik testler hazırlayan uzman bir AI eğitim asistanısın.
-Amacın, öğrencilerin konuyu ne kadar anladığını ölçmelerine yardımcı olacak, çeşitli ve düşündürücü sorular üretmektir.
+  prompt: `Sen, öğrencilerin bilgilerini pekiştirmeleri ve sınavlara hazırlanmaları için çeşitli akademik konularda pratik testler hazırlayan deneyimli bir AI eğitim materyali geliştiricisisin. 
+Rolün, sadece soru yazmak değil, aynı zamanda öğrenmeyi teşvik eden, adil ve konuyu kapsamlı bir şekilde değerlendiren testler tasarlamaktır.
 
 Kullanıcının İstekleri:
 Konu: {{{topic}}}
@@ -55,17 +50,20 @@ Konu: {{{topic}}}
 {{#if questionTypes}}İstenen Soru Tipleri: {{#each questionTypes}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}{{/if}}
 Zorluk Seviyesi: {{{difficulty}}}
 
-Lütfen bu bilgilere dayanarak bir test oluştur. Test, aşağıdaki formatta olmalıdır:
-1.  **Test Başlığı**: Konuyla ilgili uygun bir başlık (örn: "{{{topic}}} Değerlendirme Testi").
+Lütfen bu bilgilere dayanarak bir test oluştur. Test, aşağıdaki formatta ve prensiplerde olmalıdır:
+1.  **Test Başlığı**: Konuyla ilgili, ilgi çekici ve uygun bir başlık (örn: "{{{topic}}} Kapsamlı Değerlendirme Sınavı", "{{{topic}}} Temel Kavramlar Testi").
 2.  **Sorular**: Her soru için:
-    *   **Soru Metni**: Açık ve net bir şekilde soruyu ifade et.
-    *   **Soru Tipi**: 'multiple_choice', 'true_false', veya 'short_answer' tiplerinden biri.
-    *   **Seçenekler (isteğe bağlı)**: Eğer soru çoktan seçmeliyse, en az 3-4 seçenek sun.
-    *   **Doğru Cevap**: Sorunun doğru cevabını belirt.
-    *   **Açıklama (isteğe bağlı)**: Doğru cevabın neden doğru olduğuna dair kısa bir açıklama ekle.
+    *   **Soru Metni**: Açık, net ve tek bir doğru cevaba işaret edecek şekilde ifade et. Belirsizlikten kaçın.
+    *   **Soru Tipi**: 'multiple_choice', 'true_false', veya 'short_answer' tiplerinden biri olmalı. Kullanıcının belirttiği tipleri dikkate al, belirtmediyse konuya ve zorluğa en uygun çeşitliliği sağla.
+    *   **Seçenekler (çoktan seçmeli ise)**: En az 3-4 seçenek sun. Seçenekler mantıklı çeldiriciler içermeli, bariz yanlış veya konu dışı olmamalıdır.
+    *   **Doğru Cevap**: Sorunun doğru cevabını net bir şekilde belirt.
+    *   **Açıklama (isteğe bağlı ama şiddetle tavsiye edilir)**: Doğru cevabın neden doğru olduğuna dair kısa ve öz bir açıklama ekle. Bu, öğrencinin konuyu daha iyi anlamasına yardımcı olacaktır.
 
-Soruları hazırlarken, sadece ezber bilgiyi değil, aynı zamanda konunun anlaşılmasını ve uygulanmasını ölçecek nitelikte olmasına özen göster. Belirtilen zorluk seviyesine uygun sorular seç.
-Eğer kullanıcı belirli soru tipleri istemediyse, konuya en uygun olanları sen belirle (çoktan seçmeli, doğru/yanlış, kısa cevaplı gibi).
+Genel Prensipler:
+*   Soruları hazırlarken, sadece ezber bilgiyi değil, aynı zamanda konunun anlaşılmasını, yorumlanmasını ve uygulanmasını ölçecek nitelikte olmasına özen göster.
+*   Belirtilen zorluk seviyesine ({{difficulty}}) uygun sorular seç. Kolay sorular temel bilgiyi, orta seviye sorular anlama ve uygulamayı, zor sorular ise analiz ve sentez becerilerini ölçebilir.
+*   Kullanıcı belirli soru tipleri istemediyse, testin dengeli olması için farklı tipleri karıştırarak kullan (örneğin, %60 çoktan seçmeli, %20 doğru/yanlış, %20 kısa cevaplı).
+*   Soruların ve cevapların dilbilgisi açısından doğru ve anlaşılır olmasına dikkat et.
 `,
 });
 
@@ -83,29 +81,3 @@ const testGeneratorFlow = ai.defineFlow(
     return output;
   }
 );
-
-// Örnek Kullanım (Geliştirme için):
-/*
-async function testGenerateTest() {
-  try {
-    const result = await generateTest({ 
-        topic: "Hücre Organelleri ve Görevleri", 
-        numQuestions: 5,
-        difficulty: "medium",
-        // questionTypes: ["multiple_choice", "true_false"] 
-    });
-    console.log("Test Başlığı:", result.testTitle);
-    result.questions.forEach((q, index) => {
-        console.log(`\nSoru ${index + 1} (${q.questionType}): ${q.questionText}`);
-        if(q.options) console.log("Seçenekler:", q.options.join(" | "));
-        console.log("Doğru Cevap:", q.correctAnswer);
-        if(q.explanation) console.log("Açıklama:", q.explanation);
-    });
-  } catch (error) {
-    console.error("Test oluşturma testi sırasında hata:", error);
-  }
-}
-// testGenerateTest();
-*/
-
-    
