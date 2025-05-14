@@ -3,9 +3,9 @@
 
 import type { ReactNode } from "react";
 import { useEffect } from "react";
-import { useRouter, usePathname } from "next/navigation"; // Added usePathname
+import { useRouter, usePathname } from "next/navigation"; 
 import { useAuth } from "@/hooks/useAuth";
-import { useUser } from "@/hooks/useUser"; // Added useUser
+import { useUser } from "@/hooks/useUser"; 
 import {
   SidebarProvider,
   Sidebar,
@@ -19,20 +19,16 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-  SidebarGroup,
-  SidebarGroupLabel,
-  SidebarInset,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Card, CardContent } from "@/components/ui/card"; // Added this import
-import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, Settings, LogOut, Star, Gem, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, MessageSquareQuestion } from "lucide-react"; // Added MessageSquareQuestion
 import Link from "next/link";
 import QuotaDisplay from "@/components/dashboard/QuotaDisplay";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
-import { signOut } from "@/hooks/useAuth";
-import { cn } from "@/lib/utils";
-import Footer from "@/components/layout/Footer"; // Re-added for nested layout consistency
+import { signOut as firebaseSignOut } from "@/hooks/useAuth"; // Renamed signOut to firebaseSignOut to avoid conflict
+import Footer from "@/components/layout/Footer"; 
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
@@ -47,7 +43,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   }, [user, authLoading, router]);
 
   const handleSignOut = async () => {
-    await signOut();
+    await firebaseSignOut(); // Use renamed signOut
     router.push("/");
   };
 
@@ -58,7 +54,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   
   const totalQuota = userProfile ? getDefaultQuota(userProfile.plan) : 0;
 
-  // Loading state for the entire layout
   if (authLoading || userProfileLoading || !user) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
@@ -68,7 +63,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   }
 
   const isAiToolsPath = pathname.startsWith('/dashboard/ai-tools');
-
+  const isSupportPath = pathname === "/dashboard/support";
 
   return (
     <SidebarProvider defaultOpen>
@@ -138,6 +133,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                   </SidebarMenuSub>
                 </SidebarMenuItem>
 
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isSupportPath} tooltip="Destek Talebi">
+                    <Link href="/dashboard/support"><MessageSquareQuestion /><span>Destek Talebi</span></Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+
                 {userProfile?.isAdmin && (
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild isActive={pathname.startsWith("/dashboard/admin")} tooltip="Admin Paneli">
@@ -154,25 +155,20 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                     <div className="flex flex-col items-center text-center group-data-[collapsible=icon]:hidden">
                       <Gem className="h-8 w-8 text-primary mb-2" />
                       <p className="font-semibold text-foreground">Premium'a Yükselt!</p>
-                      <p className="text-xs text-muted-foreground mb-3">Sınırsız özelliklerin kilidini açın.</p>
+                      <p className="text-xs text-muted-foreground mb-3">Daha fazla özellik ve kota için.</p>
                       <Button size="sm" className="w-full" asChild>
-                        <Link href="/pricing">Şimdi Yükselt</Link>
+                        <Link href="/pricing">Planları Gör</Link>
                       </Button>
                     </div>
                      <div className="hidden group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
                        <SidebarMenuButton asChild tooltip="Premium'a Yükselt" className="bg-primary/80 hover:bg-primary text-primary-foreground hover:text-primary-foreground">
-                          <Link href="/pricing"><Star/></Link>
+                          <Link href="/pricing"><Gem/></Link>
                        </SidebarMenuButton>
                     </div>
                   </CardContent>
                 </Card>
                )}
               <SidebarMenu>
-                {/* <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/dashboard/settings"} tooltip="Ayarlar">
-                    <Link href="#"><Settings /><span>Ayarlar</span></Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem> */}
                 <SidebarMenuItem>
                   <SidebarMenuButton onClick={handleSignOut} tooltip="Çıkış Yap">
                     <LogOut /><span>Çıkış Yap</span>

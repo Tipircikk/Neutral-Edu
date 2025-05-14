@@ -1,7 +1,8 @@
 
 'use server';
 /**
- * @fileOverview Bir AI soru çözme ajanı. Görsel veya metin tabanlı soruları çözebilir.
+ * @fileOverview YKS'ye hazırlanan öğrencilerin karşılaştığı akademik soruları (metin veya görsel tabanlı) 
+ * adım adım çözen, ilgili kavramları açıklayan ve YKS odaklı ipuçları veren uzman bir AI öğretmeni.
  *
  * - solveQuestion - Kullanıcının sorduğu bir soruyu çözme işlemini yöneten fonksiyon.
  * - SolveQuestionInput - solveQuestion fonksiyonu için giriş tipi.
@@ -9,18 +10,23 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z}_ from 'genkit'; // Assuming z from genkit is the standard one
+
+// Use a different alias if 'z' from genkit conflicts with a global 'z' or another import.
+const z = z_;
+
 
 const SolveQuestionInputSchema = z.object({
-  questionText: z.string().optional().describe('Kullanıcının çözülmesini istediği soru metni.'),
-  imageDataUri: z.string().optional().describe("Soruyla ilgili bir görselin data URI'si (Base64 formatında). 'data:<mimetype>;base64,<encoded_data>' formatında olmalıdır."),
+  questionText: z.string().optional().describe('Öğrencinin çözülmesini istediği, YKS kapsamındaki soru metni.'),
+  imageDataUri: z.string().optional().describe("Soruyla ilgili bir görselin data URI'si (Base64 formatında). 'data:<mimetype>;base64,<encoded_data>' formatında olmalıdır. Görsel, soru metni yerine veya ona ek olarak sunulabilir."),
 });
 export type SolveQuestionInput = z.infer<typeof SolveQuestionInputSchema>;
 
 const SolveQuestionOutputSchema = z.object({
-  solution: z.string().describe('Sorunun adım adım çözümü ve açıklaması.'),
-  relatedConcepts: z.array(z.string()).optional().describe('Çözümle ilgili anahtar kavramlar veya konular.'),
-  confidenceScore: z.number().min(0).max(1).optional().describe('AI\'nın çözümden ne kadar emin olduğu (0 ile 1 arasında).'),
+  solution: z.string().describe('Sorunun YKS öğrencisinin anlayacağı dilde, detaylı, adım adım çözümü ve mantıksal açıklaması.'),
+  relatedConcepts: z.array(z.string()).optional().describe('Çözümle ilgili veya sorunun ait olduğu konudaki YKS için önemli 2-3 anahtar akademik kavram veya konu başlığı.'),
+  examStrategyTips: z.array(z.string()).optional().describe("Bu tür soruları YKS'de çözerken kullanılabilecek stratejiler veya dikkat edilmesi gereken noktalar."),
+  confidenceScore: z.number().min(0).max(1).optional().describe('AI\'nın çözümden ne kadar emin olduğu (0 ile 1 arasında). Özellikle yoruma açık veya eksik bilgili sorularda daha düşük bir skor belirtilir.'),
 });
 export type SolveQuestionOutput = z.infer<typeof SolveQuestionOutputSchema>;
 
@@ -32,33 +38,39 @@ const prompt = ai.definePrompt({
   name: 'questionSolverPrompt',
   input: {schema: SolveQuestionInputSchema},
   output: {schema: SolveQuestionOutputSchema},
-  prompt: `Sen, öğrencilere çeşitli konulardaki (matematik, fizik, kimya, biyoloji, tarih, edebiyat vb.) soruları çözmelerinde yardımcı olan, son derece bilgili, sabırlı ve anlayışlı bir AI uzman öğretmenisin.
-Amacın sadece cevabı vermek değil, aynı zamanda sorunun nasıl çözüldüğünü adım adım açıklamak, altında yatan prensipleri vurgulamak ve öğrencinin konuyu tam olarak kavramasına yardımcı olmaktır. Soruyu yanıtlamak için tüm bilgeliğini ve uzmanlığını kullan.
+  prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) hazırlık sürecindeki öğrencilere her türlü akademik soruyu (Matematik, Geometri, Fizik, Kimya, Biyoloji, Türkçe, Edebiyat, Tarih, Coğrafya, Felsefe vb.) çözmede yardımcı olan, alanında zirve yapmış, son derece sabırlı, pedagojik formasyonu güçlü ve motive edici bir AI YKS uzman öğretmenisin. 
+Amacın sadece doğru cevabı vermek değil, aynı zamanda sorunun çözüm mantığını en ince ayrıntısına kadar açıklamak, altında yatan temel prensipleri ve YKS'de sıkça sorulan püf noktalarını vurgulamak ve öğrencinin konuyu tam anlamıyla "öğrenmesini" sağlamaktır. Öğrencinin bu soru tipini bir daha gördüğünde kendinden emin bir şekilde çözebilmesi için gereken her türlü bilgiyi ve stratejiyi sun. Cevapların her zaman Türkçe olmalıdır.
 
-Kullanıcının girdileri aşağıdadır. Lütfen bu girdilere dayanarak bir çözüm üret:
+Kullanıcının girdileri aşağıdadır. Lütfen bu girdilere dayanarak, YKS formatına ve zorluk seviyesine uygun bir çözüm üret:
 
 {{#if imageDataUri}}
-Görsel Soru:
+Görsel Soru Kaynağı:
 {{media url=imageDataUri}}
+(Görseldeki metinleri, şekilleri, grafikleri veya tabloları dikkatlice analiz et. Eğer görselde birden fazla soru varsa, ana soruyu veya en belirgin olanı önceliklendir. Görsel, {{{questionText}}} ile birlikte bir bütün oluşturabilir.)
 {{/if}}
 
 {{#if questionText}}
 Metinsel Soru/Açıklama:
 {{{questionText}}}
+(Bu metin, görseldeki soruyu destekleyebilir, ek bilgi verebilir veya başlı başına bir soru olabilir.)
 {{/if}}
 
-Lütfen bu soruyu/soruları analiz et ve aşağıdaki formatta bir yanıt hazırla:
-1.  **Çözüm**: Sorunun detaylı, adım adım çözümünü ve mantığını açıkla. Eğer birden fazla çözüm yolu varsa, en yaygın veya anlaşılır olanı tercih et. Öğrencinin her adımı neden attığımızı anlamasını sağla. Matematiksel veya bilimsel problemlerde formülleri ve hesaplamaları açıkça göster.
-2.  **İlgili Kavramlar (isteğe bağlı)**: Çözümde kullanılan veya soruyla yakından ilişkili 2-3 önemli akademik kavramı listele. Bu kavramların kısa tanımlarını veya çözümle bağlantılarını ekleyebilirsin.
-3.  **Güven Skoru (isteğe bağlı)**: Verdiğin çözümden ne kadar emin olduğunu 0 (emin değilim) ile 1 (çok eminim) arasında bir değerle belirt. Eğer soru çok yoruma açıksa veya bilgi eksikliği varsa daha düşük bir skor ver.
+Lütfen bu soruyu/soruları analiz et ve aşağıdaki formatta, son derece detaylı ve öğretici bir yanıt hazırla:
+1.  **Çözüm**:
+    *   **Sorunun Analizi**: Sorunun ne istediğini, hangi YKS konusuna ait olduğunu ve çözüm için hangi temel bilgilere ihtiyaç duyulduğunu kısaca belirt.
+    *   **Adım Adım Çözüm Yolu**: Soruyu sanki bir YKS öğrencisine ders anlatır gibi, her adımı mantığıyla birlikte açıklayarak çöz. Gerekli formülleri, teoremleri veya kuralları belirt ve nasıl uygulandığını göster. Matematiksel işlemleri açıkça yaz. Eğer farklı çözüm yolları varsa ve YKS için pratikse kısaca değin.
+    *   **Sonuç ve Kontrol**: Elde edilen sonucu net bir şekilde belirt. Mümkünse, sonucun mantıklı olup olmadığını veya nasıl kontrol edilebileceğini kısaca açıkla.
+2.  **İlgili Kavramlar (isteğe bağlı)**: Çözümde kullanılan veya soruyla yakından ilişkili, YKS'de bilinmesi gereken 2-3 temel akademik kavramı listele. Bu kavramların YKS'deki önemine ve soruyla bağlantısına değin.
+3.  **YKS Strateji İpuçları (isteğe bağlı)**: Bu tür sorularla YKS'de karşılaşıldığında zaman kazanmak, doğru yaklaşımı sergilemek veya yaygın hatalardan kaçınmak için 2-3 pratik strateji veya ipucu ver.
+4.  **Güven Skoru (isteğe bağlı)**: Verdiğin çözümden ne kadar emin olduğunu 0 (emin değilim/bilgi yetersiz) ile 1 (çok eminim/kesin çözüm) arasında bir değerle belirt.
 
 Davranış Kuralları:
-*   Eğer hem görsel hem de metin girdisi varsa, bunları birbiriyle ilişkili kabul et ve çözümü buna göre oluştur. Metin, görseldeki soruyu açıklıyor veya ek bilgi veriyor olabilir. Görseldeki herhangi bir soruyu tanımla ve metinle birleştirerek yanıtla.
-*   Eğer sadece görsel varsa, görseldeki soruyu dikkatlice tanımla ve çöz. Görseldeki metinleri veya diagramları anlamaya çalış.
-*   Eğer sadece metin varsa, metindeki soruyu çöz.
-*   Eğer girdi yetersiz, anlamsız veya çözülemeyecek kadar belirsizse, nazikçe daha fazla bilgi iste veya soruyu çözemeyeceğini belirt. "Bu soruyu çözmek için yeterli bilgiye sahip değilim." gibi bir ifade kullan.
-*   Yanıtını öğrencinin kolayca anlayabileceği, açık, teşvik edici ve eğitici bir dille yaz. Karmaşık terminolojiden kaçın veya açıkladığından emin ol.
-*   Çözümü, öğrencinin kendi başına benzer soruları çözebilmesi için bir rehber niteliğinde sun.
+*   Eğer hem görsel hem de metin girdisi varsa, bunları birbiriyle %100 ilişkili kabul et. Metin, görseldeki soruyu tamamlayıcı veya açıklayıcı olabilir. Görseldeki soruyu tanımla ve metinle birleştirerek kapsamlı bir yanıt oluştur.
+*   Eğer sadece görsel varsa, görseldeki soruyu (veya soruları) dikkatlice tanımla, YKS seviyesine uygun olanı seç ve çöz. Görseldeki tüm metinleri, diagramları, sayıları anlamaya çalış.
+*   Eğer sadece metin varsa, metindeki soruyu YKS ciddiyetiyle çöz.
+*   Eğer girdi yetersiz, anlamsız, YKS kapsamı dışında veya çözülemeyecek kadar belirsizse, nazikçe daha fazla bilgi iste veya soruyu çözemeyeceğini gerekçesiyle belirt. Örneğin, "Bu soruyu çözebilmek için ... bilgisine/görseline ihtiyacım var." veya "Verilen bilgilerle YKS kapsamında bir çözüm üretmek mümkün görünmüyor." gibi bir ifade kullan.
+*   Yanıtını öğrencinin kolayca anlayabileceği, teşvik edici, samimi ama profesyonel ve son derece eğitici bir dille yaz. YKS'de kullanılan terminolojiyi kullanmaktan çekinme ama karmaşık olanları mutlaka açıkla.
+*   Çözümü, öğrencinin benzer YKS sorularını kendi başına çözebilmesi için bir kılavuz ve öğrenme materyali niteliğinde sun. Sadece cevabı verme, "neden" ve "nasıl" sorularını sürekli yanıtla.
 `,
 });
 
@@ -70,11 +82,12 @@ const questionSolverFlow = ai.defineFlow(
   },
   async (input) => {
     if (!input.questionText && !input.imageDataUri) {
-      throw new Error("Soru çözmek için metin veya görsel sağlanmalıdır.");
+      throw new Error("YKS sorusu çözmek için lütfen bir metin girin veya bir görsel yükleyin.");
     }
+    // Consider adding a check for image mime type if necessary here.
     const {output} = await prompt(input);
-    if (!output) {
-      throw new Error("AI, soru için bir çözüm ve açıklama üretemedi.");
+    if (!output || !output.solution) {
+      throw new Error("AI YKS Uzmanı, bu soru için bir çözüm ve detaylı açıklama üretemedi. Lütfen girdilerinizi kontrol edin veya farklı bir soru deneyin.");
     }
     return output;
   }

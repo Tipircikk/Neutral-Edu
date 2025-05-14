@@ -6,14 +6,34 @@ export interface UserProfile {
   uid: string;
   email: string | null;
   displayName?: string | null;
-  plan: "free" | "premium"; // Updated to include premium
+  plan: "free" | "premium";
   dailyRemainingQuota: number;
-  lastSummaryDate: Timestamp | string | null; // Store as Firestore Timestamp, allow string for new objects before conversion
-  isAdmin?: boolean; // Added for admin role
+  lastSummaryDate: Timestamp | string | null; 
+  isAdmin?: boolean; 
+  // Optional: Add fields for tracking total summaries made for more detailed admin views
+  // totalSummariesMade?: number; 
 }
 
 export interface AuthContextType {
   user: FirebaseUser | null;
   loading: boolean;
-  isAdmin?: boolean; // Corresponds to userProfile.isAdmin, primary source is userProfile
+  isAdmin?: boolean; 
+}
+
+export type SupportTicketStatus = "open" | "answered" | "closed_by_user" | "closed_by_admin";
+export type SupportTicketSubject = "premium" | "ai_tools" | "account" | "bug_report" | "other";
+
+export interface SupportTicket {
+  id?: string; // Firestore document ID
+  userId: string;
+  userEmail: string | null;
+  userName?: string | null;
+  subject: SupportTicketSubject;
+  message: string;
+  status: SupportTicketStatus;
+  createdAt: Timestamp;
+  updatedAt?: Timestamp;
+  adminReply?: string;
+  repliedBy?: string; // Admin UID
+  lastReplyAt?: Timestamp;
 }

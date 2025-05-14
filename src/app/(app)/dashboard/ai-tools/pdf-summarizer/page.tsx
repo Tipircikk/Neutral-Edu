@@ -5,29 +5,32 @@ import { useState, useEffect, useCallback } from "react";
 import PdfUploadForm from "@/components/dashboard/PdfUploadForm";
 import SummaryDisplay from "@/components/dashboard/SummaryDisplay";
 import { extractTextFromPdf } from "@/lib/pdfUtils";
-import { summarizePdfForStudent, type SummarizePdfForStudentOutput } from "@/ai/flows/summarize-pdf";
+import { summarizePdfForStudent, type SummarizePdfForStudentOutput, type SummarizePdfForStudentInput } from "@/ai/flows/summarize-pdf";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal, Loader2, AlertTriangle, FileScan } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"; // Added CardHeader, CardTitle, CardDescription
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 
 export default function PdfSummarizerPage() {
   const [summaryOutput, setSummaryOutput] = useState<SummarizePdfForStudentOutput | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [pdfTextContent, setPdfTextContent] = useState<string | null>(null);
   const [currentFileName, setCurrentFileName] = useState<string | undefined>(undefined);
+  const [summaryLength, setSummaryLength] = useState<"short" | "medium" | "detailed">("medium");
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
 
   const [canSummarize, setCanSummarize] = useState(false);
 
   const memoizedCheckAndResetQuota = useCallback(() => {
-    // Ensure checkAndResetQuota is only called if it exists
     if (checkAndResetQuota) {
       return checkAndResetQuota();
     }
-    return Promise.resolve(userProfile); // Return current profile or null if not available
+    return Promise.resolve(userProfile); 
   }, [checkAndResetQuota, userProfile]);
 
 
@@ -37,7 +40,6 @@ export default function PdfSummarizerPage() {
         if (updatedProfile) {
           setCanSummarize(updatedProfile.dailyRemainingQuota > 0);
         } else {
-          // Fallback if updatedProfile is null (e.g., checkAndResetQuota was not available)
           setCanSummarize(userProfile.dailyRemainingQuota > 0);
         }
       });
@@ -71,7 +73,8 @@ export default function PdfSummarizerPage() {
       setPdfTextContent(text);
       toast({ title: "Metin Çıkarıldı", description: "Şimdi özetiniz oluşturuluyor..." });
 
-      const result = await summarizePdfForStudent({ pdfText: text });
+      const input: SummarizePdfForStudentInput = { pdfText: text, summaryLength };
+      const result = await summarizePdfForStudent(input);
       
       if (result && result.formattedStudyOutput) { 
         setSummaryOutput(result); 
@@ -116,9 +119,28 @@ export default function PdfSummarizerPage() {
                 <CardTitle className="text-2xl">AI PDF Özetleyici</CardTitle>
             </div>
           <CardDescription>
-            PDF belgenizi yükleyin ve yapay zekanın sizin için kapsamlı bir özet oluşturmasına izin verin.
+            PDF belgenizi yükleyin, özet uzunluğunu seçin ve yapay zekanın sizin için kapsamlı bir özet oluşturmasına izin verin.
           </CardDescription>
         </CardHeader>
+         <CardContent>
+          <div className="mb-4 max-w-xs">
+            <Label htmlFor="summaryLength" className="mb-1 block">Özet Uzunluğu</Label>
+            <Select
+              value={summaryLength}
+              onValueChange={(value: "short" | "medium" | "detailed") => setSummaryLength(value)}
+              disabled={isSummarizing || (!canSummarize && !isSummarizing && userProfile?.dailyRemainingQuota === 0)}
+            >
+              <SelectTrigger id="summaryLength">
+                <SelectValue placeholder="Özet uzunluğunu seçin" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="short">Kısa (Ana Fikir)</SelectItem>
+                <SelectItem value="medium">Orta (Dengeli)</SelectItem>
+                <SelectItem value="detailed">Detaylı (Kapsamlı)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
       </Card>
 
       {!canSummarize && !isSummarizing && userProfile && userProfile.dailyRemainingQuota <=0 && (

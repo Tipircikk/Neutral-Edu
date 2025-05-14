@@ -5,9 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Input as ShadInput } from "@/components/ui/input"; // Renamed to avoid conflict with HTML input
+import { Input as ShadInput } from "@/components/ui/input"; 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { FileTextIcon, Wand2, Loader2, AlertTriangle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
@@ -16,6 +17,7 @@ import { generateTest, type GenerateTestOutput, type GenerateTestInput } from "@
 export default function TestGeneratorPage() {
   const [topic, setTopic] = useState("");
   const [numQuestions, setNumQuestions] = useState(5);
+  const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">("medium");
   const [testOutput, setTestOutput] = useState<GenerateTestOutput | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
@@ -55,7 +57,7 @@ export default function TestGeneratorPage() {
     setCanProcess(true);
 
     try {
-      const input: GenerateTestInput = { topic, numQuestions };
+      const input: GenerateTestInput = { topic, numQuestions, difficulty };
       const result = await generateTest(input);
 
       if (result && result.questions && result.questions.length > 0) {
@@ -101,7 +103,7 @@ export default function TestGeneratorPage() {
             <CardTitle className="text-2xl">AI Test Oluşturucu</CardTitle>
           </div>
           <CardDescription>
-            Belirlediğiniz konularda özel pratik testleri anında oluşturun.
+            Belirlediğiniz konularda, istediğiniz zorluk seviyesinde ve soru sayısında YKS odaklı pratik testleri anında oluşturun.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -123,7 +125,7 @@ export default function TestGeneratorPage() {
               <Label htmlFor="topic" className="block text-sm font-medium text-foreground mb-1">Test Konusu</Label>
               <Textarea
                 id="topic"
-                placeholder="Örneğin: Hücre Biyolojisi, Osmanlı Tarihi Yükselme Dönemi, Limit ve Türev..."
+                placeholder="Örneğin: YKS Matematik - Fonksiyonlar, YKS Türk Dili ve Edebiyatı - Divan Edebiyatı, YKS Coğrafya - Türkiye'nin İklimi..."
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 rows={3}
@@ -131,22 +133,41 @@ export default function TestGeneratorPage() {
                 disabled={isGenerating || !canProcess}
               />
             </div>
-            <div>
-                <Label htmlFor="numQuestions" className="block text-sm font-medium text-foreground mb-1">Soru Sayısı</Label>
-                <ShadInput 
-                    type="number" 
-                    id="numQuestions"
-                    value={numQuestions}
-                    onChange={(e) => setNumQuestions(parseInt(e.target.value,10))}
-                    min="3"
-                    max="20"
-                    className="w-full p-2 border rounded-md bg-input border-border"
-                    disabled={isGenerating || !canProcess}
-                />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <Label htmlFor="numQuestions" className="block text-sm font-medium text-foreground mb-1">Soru Sayısı</Label>
+                    <ShadInput 
+                        type="number" 
+                        id="numQuestions"
+                        value={numQuestions}
+                        onChange={(e) => setNumQuestions(parseInt(e.target.value,10))}
+                        min="3"
+                        max="20"
+                        className="w-full p-2 border rounded-md bg-input border-border"
+                        disabled={isGenerating || !canProcess}
+                    />
+                </div>
+                <div>
+                    <Label htmlFor="difficulty" className="block text-sm font-medium text-foreground mb-1">Zorluk Seviyesi</Label>
+                    <Select
+                        value={difficulty}
+                        onValueChange={(value: "easy" | "medium" | "hard") => setDifficulty(value)}
+                        disabled={isGenerating || !canProcess}
+                    >
+                        <SelectTrigger id="difficulty">
+                            <SelectValue placeholder="Zorluk seçin" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="easy">Kolay</SelectItem>
+                            <SelectItem value="medium">Orta</SelectItem>
+                            <SelectItem value="hard">Zor</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
             </div>
             <Button type="submit" className="w-full" disabled={isSubmitDisabled}>
               {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-              Test Oluştur
+              YKS Testi Oluştur
             </Button>
           </CardContent>
         </Card>
@@ -159,7 +180,7 @@ export default function TestGeneratorPage() {
               <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
               <p className="text-lg font-medium text-foreground">Test Oluşturuluyor...</p>
               <p className="text-sm text-muted-foreground">
-                Yapay zeka sihrini yapıyor... Bu işlem biraz zaman alabilir.
+                YKS odaklı yapay zeka, sorularınızı hazırlıyor... Bu işlem biraz zaman alabilir.
               </p>
             </div>
           </CardContent>
