@@ -1,6 +1,22 @@
 
 "use client";
 
+// This component is now largely superseded by the new sidebar layout in (app)/layout.tsx
+// It might be used for mobile or a simpler top bar if needed, but for now,
+// its primary user-specific functionalities (avatar, quota, admin link, sign out)
+// have been integrated into the new (app)/layout.tsx.
+
+// If you intend to keep a top header in addition to the sidebar,
+// this component would need to be re-evaluated and potentially simplified.
+
+// For the current request, (app)/layout.tsx handles the main header-like elements
+// (sidebar trigger for mobile, avatar, quota on the right).
+
+// Therefore, this file can be considered deprecated for the primary app view
+// or kept for potential future use with a different layout strategy.
+// No changes are made to this file as its role is diminished.
+
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BookOpenText, LogOut, UserCircle, Settings, Loader2, ShieldCheck } from "lucide-react";
@@ -17,7 +33,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth, signOut } from "@/hooks/useAuth";
 import { useUser } from "@/hooks/useUser";
 import QuotaDisplay from "@/components/dashboard/QuotaDisplay";
-import { getDefaultQuota } from "@/lib/firebase/firestore"; // Import getDefaultQuota
+import { getDefaultQuota } from "@/lib/firebase/firestore"; 
 
 export default function AppHeader() {
   const { user } = useAuth();
@@ -26,7 +42,7 @@ export default function AppHeader() {
 
   const handleSignOut = async () => {
     await signOut();
-    router.push("/"); // Redirect to main landing page
+    router.push("/"); 
   };
 
   const getInitials = (email?: string | null) => {
@@ -53,14 +69,15 @@ export default function AppHeader() {
             />
           ) : null}
           
-          {userProfile?.isAdmin && (
+          {/* Admin panel link is now primarily in the sidebar, this can be removed or kept for quick access */}
+          {/* {userProfile?.isAdmin && (
             <Button variant="ghost" size="sm" asChild>
-              <Link href="/admin">
+              <Link href="/admin"> // This should be /dashboard/admin now
                 <ShieldCheck className="mr-2 h-4 w-4" />
                 Admin Paneli
               </Link>
             </Button>
-          )}
+          )} */}
 
           {user && (
             <DropdownMenu>
@@ -102,3 +119,5 @@ export default function AppHeader() {
     </header>
   );
 }
+
+    
