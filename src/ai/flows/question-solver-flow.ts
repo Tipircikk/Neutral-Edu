@@ -10,10 +10,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z}_ from 'genkit'; // Assuming z from genkit is the standard one
-
-// Use a different alias if 'z' from genkit conflicts with a global 'z' or another import.
-const z = z_;
+import {z} from 'genkit'; 
 
 
 const SolveQuestionInputSchema = z.object({
@@ -92,3 +89,4 @@ const questionSolverFlow = ai.defineFlow(
     return output;
   }
 );
+

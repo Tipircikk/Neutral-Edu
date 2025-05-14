@@ -61,7 +61,7 @@ Bir PDF'den çıkarılan aşağıdaki metin verildiğinde, {{summaryLength}} uzu
     *   **Seçenekler**: A, B, C, D, E şeklinde 5 seçenek sun. Çeldiriciler mantıklı ve konuya yakın olmalı.
     *   **Doğru Cevap**: Sadece doğru seçeneğin harfini belirt (örn: "C").
     *   **Açıklama**: Doğru cevabın neden doğru olduğunu ve diğer seçeneklerin neden yanlış olduğunu kısaca YKS öğrencisinin anlayacağı dilde açıkla.
-    Eğer içerik soru üretmeye uygun değilse, bu bölümü atla ve `practiceQuestions` alanını boş bırak.
+    Eğer içerik soru üretmeye uygun değilse, bu bölümü atla ve 'practiceQuestions' alanını boş bırak.
 6.  **Formatlanmış Çalışma Çıktısı**: Yukarıdaki tüm bölümleri (Özet, Anahtar Noktalar, Ana Fikir, YKS Sınav İpuçları ve Alıştırma Soruları - eğer oluşturulduysa) net Markdown formatlaması kullanarak tek bir dizede birleştir. "## Özet", "## Anahtar Noktalar", "## Ana Fikir", "## YKS Sınav İpuçları", "## YKS Tarzı Alıştırma Soruları" gibi başlıklar kullan. Bu birleştirilmiş çıktı doğrudan kullanılacaktır.
 
 Unutma, hedefin öğrencinin YKS'de başarılı olmasına yardımcı olmak. Bilgiyi en sindirilebilir ve en akılda kalıcı şekilde sun.

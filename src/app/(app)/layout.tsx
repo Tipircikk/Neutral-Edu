@@ -23,12 +23,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
-import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, MessageSquareQuestion } from "lucide-react"; // Added MessageSquareQuestion
+import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy } from "lucide-react"; // Changed MessageSquareQuestion to LifeBuoy
 import Link from "next/link";
 import QuotaDisplay from "@/components/dashboard/QuotaDisplay";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
-import { signOut as firebaseSignOut } from "@/hooks/useAuth"; // Renamed signOut to firebaseSignOut to avoid conflict
+import { signOut as firebaseSignOut } from "@/hooks/useAuth"; 
 import Footer from "@/components/layout/Footer"; 
+import { SidebarInset } from "@/components/ui/sidebar"; 
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
@@ -43,7 +44,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   }, [user, authLoading, router]);
 
   const handleSignOut = async () => {
-    await firebaseSignOut(); // Use renamed signOut
+    await firebaseSignOut(); 
     router.push("/");
   };
 
@@ -135,7 +136,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isSupportPath} tooltip="Destek Talebi">
-                    <Link href="/dashboard/support"><MessageSquareQuestion /><span>Destek Talebi</span></Link>
+                    <Link href="/dashboard/support"><LifeBuoy /><span>Destek Talebi</span></Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
