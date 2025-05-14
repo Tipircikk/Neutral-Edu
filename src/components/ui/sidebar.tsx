@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -538,6 +539,7 @@ const SidebarMenuButton = React.forwardRef<
   React.ComponentProps<"button"> & {
     asChild?: boolean
     isActive?: boolean
+    isSubmenu?: boolean // Added isSubmenu to prop types
     tooltip?: string | React.ComponentProps<typeof TooltipContent>
   } & VariantProps<typeof sidebarMenuButtonVariants>
 >(
@@ -545,11 +547,12 @@ const SidebarMenuButton = React.forwardRef<
     {
       asChild = false,
       isActive = false,
+      isSubmenu, // Destructured isSubmenu
       variant = "default",
       size = "default",
       tooltip,
       className,
-      ...props
+      ...rest // Changed from props to rest to avoid passing isSubmenu
     },
     ref
   ) => {
@@ -563,7 +566,7 @@ const SidebarMenuButton = React.forwardRef<
         data-size={size}
         data-active={isActive}
         className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
-        {...props}
+        {...rest} // Spreading rest here
       />
     )
 
