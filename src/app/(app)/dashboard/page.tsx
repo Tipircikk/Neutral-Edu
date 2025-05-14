@@ -2,10 +2,10 @@
 "use client";
 
 import { useUser } from "@/hooks/useUser";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ArrowRight } from "lucide-react";
+import { Wand2, FileScan, HelpCircle, ArrowRight } from "lucide-react";
 
 export default function DashboardHomePage() {
   const { userProfile } = useUser();
@@ -60,7 +60,7 @@ export default function DashboardHomePage() {
             </Card>
           </Link>
         </CardContent>
-      </CardHeader>
+      </Card>
 
       <Card className="shadow-md">
         <CardHeader>
@@ -103,5 +103,3 @@ export default function DashboardHomePage() {
     </div>
   );
 }
-
-    
