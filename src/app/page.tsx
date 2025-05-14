@@ -1,30 +1,26 @@
-
-"use client";
-
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/hooks/useAuth";
-import { Loader2 } from "lucide-react";
+// src/app/page.tsx
 
 export default function HomePage() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!loading) {
-      if (user) {
-        router.replace("/dashboard");
-      } else {
-        router.replace("/landing"); // Redirect to landing page if not authenticated
-      }
-    }
-  }, [user, loading, router]);
-
   return (
-    <div className="flex h-screen w-screen items-center justify-center bg-background">
-      <Loader2 className="h-16 w-16 animate-spin text-primary" />
-      <p className="sr-only">Loading Scholar Summarizer...</p>
+    <div style={{ padding: '20px', fontFamily: 'sans-serif', textAlign: 'center', color: 'hsl(var(--foreground))', backgroundColor: 'hsl(var(--background))', minHeight: '100vh' }}>
+      <h1>Welcome to Scholar Summarizer</h1>
+      <p>This is the root page. It should normally redirect you based on your login status.</p>
+      <p>If you see this, basic routing to the main page is working.</p>
+      <p>
+        You can try navigating to the 
+        <a href="/landing" style={{ color: 'hsl(var(--primary))', textDecoration: 'underline', marginLeft: '5px' }}>
+          Landing Page
+        </a>.
+      </p>
+      <p>
+        Or, if you are logged in, try the 
+        <a href="/dashboard" style={{ color: 'hsl(var(--primary))', textDecoration: 'underline', marginLeft: '5px' }}>
+          Dashboard
+        </a>.
+      </p>
+      <p style={{ marginTop: '20px', fontSize: '0.9em', color: 'hsl(var(--muted-foreground))' }}>
+        (The original redirect logic has been temporarily replaced to diagnose the 404 issue.)
+      </p>
     </div>
   );
 }
-
