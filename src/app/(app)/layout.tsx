@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Card, CardContent } from "@/components/ui/card"; // Added this import
 import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, Settings, LogOut, Star, Gem, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
 import QuotaDisplay from "@/components/dashboard/QuotaDisplay";
@@ -191,5 +192,3 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     </SidebarProvider>
   );
 }
-
-    
