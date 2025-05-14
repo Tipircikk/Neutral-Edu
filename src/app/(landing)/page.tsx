@@ -2,10 +2,10 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
+import Image from "next/image"; // Using next/image for optimized images
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { CheckCircle, UploadCloud, Sparkles, Lightbulb, MessageSquareQuestion, FileUp, BotMessageSquare, BookOpenCheck, ArrowRight } from "lucide-react";
+import { CheckCircle, UploadCloud, Sparkles, Lightbulb, MessageSquareQuestion, FileUp, BotMessageSquare, BookOpenCheck, ArrowRight, Zap, Clock, Users, ThumbsUp, Brain, FileText, BarChart3 } from "lucide-react";
 
 const features = [
   {
@@ -30,6 +30,24 @@ const features = [
   },
 ];
 
+const benefits = [
+ {
+    icon: <Clock className="h-10 w-10 text-primary mb-4" />,
+    title: "Save Time Studying",
+    description: "Cut down on reading hours and focus on what truly matters for your exams and assignments.",
+  },
+  {
+    icon: <Brain className="h-10 w-10 text-primary mb-4" />,
+    title: "Get Only Key Points",
+    description: "Our AI distills complex information into the most crucial takeaways and main ideas.",
+  },
+  {
+    icon: <Zap className="h-10 w-10 text-primary mb-4" />,
+    title: "Powered by Gemini AI",
+    description: "Leverage Google's state-of-the-art AI for accurate and insightful summaries tailored for students.",
+  },
+];
+
 const howItWorksSteps = [
   {
     icon: <FileUp className="h-12 w-12 text-primary mb-4" />,
@@ -48,6 +66,25 @@ const howItWorksSteps = [
   },
 ];
 
+const testimonials = [
+  {
+    quote: "Scholar Summarizer transformed how I study for my finals. I can cover more material in less time!",
+    name: "Jessica L., University Student",
+    avatarFallback: "JL",
+  },
+  {
+    quote: "The AI summaries are incredibly accurate and highlight exactly what I need to focus on. A real game-changer.",
+    name: "Mike P., Grad Student",
+    avatarFallback: "MP",
+  },
+  {
+    quote: "I used to get overwhelmed by long research papers. Now, I get the gist in minutes. Highly recommended!",
+    name: "Sarah K., PhD Candidate",
+    avatarFallback: "SK",
+  },
+];
+
+
 export default function LandingPage() {
   return (
     <>
@@ -55,28 +92,62 @@ export default function LandingPage() {
       <section className="py-20 md:py-32 bg-gradient-to-b from-background to-background/90">
         <div className="container mx-auto px-4 text-center">
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-foreground mb-6">
-            Scholar Summarizer
+            Turn any topic into a student-friendly summary in seconds
           </h1>
           <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto mb-10">
-            Tired of endless reading? Upload your PDFs and let our AI provide clear, concise summaries tailored for students. Focus on understanding, not just reading.
+            Scholar Summarizer uses advanced AI to help you understand complex PDFs faster. Spend less time reading, more time learning.
           </p>
-          <div className="flex justify-center gap-4">
+          <div className="flex justify-center gap-4 flex-wrap">
             <Button size="lg" asChild className="text-lg px-8 py-6 shadow-lg hover:shadow-primary/50 transition-shadow">
-              <Link href="/signup">Get Started for Free</Link>
+              <Link href="/signup">Upload a PDF and get a summary now</Link>
             </Button>
             <Button size="lg" variant="outline" asChild className="text-lg px-8 py-6 shadow-md hover:shadow-accent/50 transition-shadow">
-              <Link href="#pricing">View Pricing</Link>
+              <Link href="/pricing">View Pricing</Link>
             </Button>
+          </div>
+          <div className="mt-16 md:mt-24 max-w-4xl mx-auto">
+            <Image 
+              src="https://placehold.co/1200x600.png" 
+              alt="Scholar Summarizer App Demo" 
+              width={1200} 
+              height={600}
+              className="rounded-xl shadow-2xl border border-border"
+              data-ai-hint="app dashboard screenshot"
+              priority
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Benefits Section */}
+      <section id="benefits" className="py-16 md:py-24 bg-background">
+        <div className="container mx-auto px-4">
+          <h2 className="text-4xl font-bold text-center mb-4 text-foreground">Unlock Your Study Potential</h2>
+          <p className="text-lg text-muted-foreground text-center mb-12 max-w-2xl mx-auto">
+            Scholar Summarizer is designed to give you a clear advantage in your academic journey.
+          </p>
+          <div className="grid md:grid-cols-3 gap-8">
+            {benefits.map((benefit, index) => (
+              <Card key={index} className="bg-card hover:shadow-xl transition-shadow duration-300 ease-in-out transform hover:-translate-y-1">
+                <CardHeader className="items-center text-center">
+                  {benefit.icon}
+                  <CardTitle className="text-2xl text-foreground">{benefit.title}</CardTitle>
+                </CardHeader>
+                <CardContent className="text-center">
+                  <p className="text-muted-foreground">{benefit.description}</p>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section id="features" className="py-16 md:py-24 bg-background">
+      <section id="features" className="py-16 md:py-24 bg-background/90">
         <div className="container mx-auto px-4">
           <h2 className="text-4xl font-bold text-center mb-4 text-foreground">Understand Faster, Study Smarter</h2>
-          <p className="text-lg text-muted-foreground text-center mb-16 max-w-2xl mx-auto">
-            Scholar Summarizer is packed with features designed to accelerate your learning and boost comprehension.
+          <p className="text-lg text-muted-foreground text-center mb-12 max-w-2xl mx-auto">
+            Packed with features to accelerate your learning and boost comprehension.
           </p>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {features.map((feature, index) => (
@@ -95,11 +166,11 @@ export default function LandingPage() {
       </section>
 
       {/* How It Works Section */}
-      <section id="how-it-works" className="py-16 md:py-24 bg-background/90">
+      <section id="how-it-works" className="py-16 md:py-24 bg-background">
         <div className="container mx-auto px-4">
           <h2 className="text-4xl font-bold text-center mb-4 text-foreground">Get Summaries in 3 Simple Steps</h2>
-          <p className="text-lg text-muted-foreground text-center mb-16 max-w-2xl mx-auto">
-            Our process is designed to be quick, easy, and efficient, getting you the information you need without the hassle.
+          <p className="text-lg text-muted-foreground text-center mb-12 max-w-2xl mx-auto">
+            Our process is designed to be quick, easy, and efficient.
           </p>
           <div className="grid md:grid-cols-3 gap-8 items-start relative">
             {howItWorksSteps.map((step, index) => (
@@ -122,79 +193,94 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-      
+
       {/* Dashboard Preview Section */}
-      <section className="py-16 md:py-24 bg-background">
+      <section id="dashboard-preview" className="py-16 md:py-24 bg-background/90">
         <div className="container mx-auto px-4">
           <h2 className="text-4xl font-bold text-center mb-4 text-foreground">See It In Action</h2>
           <p className="text-lg text-muted-foreground text-center mb-12 max-w-2xl mx-auto">
-            A glimpse into your future dashboard – clean, intuitive, and focused on your learning.
+            A glimpse into your personalized dashboard where the magic happens.
           </p>
-          <Card className="overflow-hidden shadow-2xl border-2 border-primary/30">
-            <CardContent className="p-0">
-              <Image
-                src="https://placehold.co/1200x750.png"
-                alt="Dashboard Preview"
-                width={1200}
-                height={750}
-                className="w-full h-auto"
-                data-ai-hint="dashboard student summary dark"
-              />
+          <Card className="max-w-3xl mx-auto bg-card shadow-2xl overflow-hidden">
+            <CardHeader className="bg-muted/30 p-4 border-b border-border">
+              <div className="flex justify-between items-center">
+                <CardTitle className="text-xl text-foreground">My Dashboard</CardTitle>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                  <span>Quota: 1/2</span>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              <Button variant="default" size="lg" className="w-full py-4 text-lg shadow-md">
+                <UploadCloud className="mr-2 h-5 w-5" /> Upload New PDF
+              </Button>
+              <Card className="bg-background/50">
+                <CardHeader>
+                  <CardTitle className="text-lg">Sample Summary: "Introduction to Quantum Physics.pdf"</CardTitle>
+                  <CardDescription>Generated a few seconds ago</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <p className="font-semibold text-foreground">Main Idea:</p>
+                    <p>Quantum physics explores the bizarre world of atoms and subatomic particles, where classical rules don't apply...</p>
+                    <p className="font-semibold text-foreground">Key Points:</p>
+                    <ul className="list-disc list-inside ml-4">
+                      <li>Wave-particle duality</li>
+                      <li>Quantization of energy</li>
+                      <li>Uncertainty Principle</li>
+                    </ul>
+                    <p className="font-semibold text-foreground">Potential Exam Questions:</p>
+                    <ul className="list-disc list-inside ml-4">
+                      <li>Explain Heisenberg's Uncertainty Principle.</li>
+                      <li>What is quantum tunneling?</li>
+                    </ul>
+                  </div>
+                </CardContent>
+                <CardFooter className="flex justify-end gap-2">
+                  <Button variant="outline" size="sm"><FileText className="mr-2 h-4 w-4" /> View Full Summary</Button>
+                </CardFooter>
+              </Card>
             </CardContent>
           </Card>
         </div>
       </section>
-
-      {/* Pricing Section */}
-      <section id="pricing" className="py-16 md:py-24 bg-background/90">
+      
+      {/* Testimonials Section */}
+      <section id="testimonials" className="py-16 md:py-24 bg-background">
         <div className="container mx-auto px-4">
-          <h2 className="text-4xl font-bold text-center mb-4 text-foreground">Simple, Transparent Pricing</h2>
-          <p className="text-lg text-muted-foreground text-center mb-16 max-w-2xl mx-auto">
-            Choose the plan that fits your study needs. Start for free, upgrade anytime.
+          <h2 className="text-4xl font-bold text-center mb-4 text-foreground">Loved by Students Like You</h2>
+          <p className="text-lg text-muted-foreground text-center mb-12 max-w-2xl mx-auto">
+            Hear what others are saying about Scholar Summarizer.
           </p>
-          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            <Card className="border-2 border-primary/70 shadow-xl transform hover:scale-105 transition-transform duration-300 bg-card">
-              <CardHeader className="text-center">
-                <CardTitle className="text-3xl text-primary">Free Plan</CardTitle>
-                <CardDescription className="text-lg text-muted-foreground">Perfect for getting started</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4 text-center">
-                <p className="text-5xl font-bold text-foreground">$0<span className="text-lg text-muted-foreground">/month</span></p>
-                <ul className="space-y-2 text-muted-foreground">
-                  <li className="flex items-center justify-center gap-2"><CheckCircle className="h-5 w-5 text-primary" /> 5 Summaries per Day</li>
-                  <li className="flex items-center justify-center gap-2"><CheckCircle className="h-5 w-5 text-primary" /> Standard AI Model</li>
-                  <li className="flex items-center justify-center gap-2"><CheckCircle className="h-5 w-5 text-primary" /> Key Points & Explanations</li>
-                  <li className="flex items-center justify-center gap-2"><CheckCircle className="h-5 w-5 text-primary" /> Sample Questions</li>
-                </ul>
-              </CardContent>
-              <CardFooter>
-                <Button size="lg" className="w-full text-lg py-6" asChild>
-                  <Link href="/signup">Sign Up for Free</Link>
-                </Button>
-              </CardFooter>
-            </Card>
-            <Card className="bg-card shadow-lg border border-border">
-              <CardHeader className="text-center relative">
-                 <div className="absolute top-2 right-2 bg-accent text-accent-foreground text-xs font-semibold px-3 py-1 rounded-md">Coming Soon</div>
-                <CardTitle className="text-3xl text-foreground">Premium Plan</CardTitle>
-                <CardDescription className="text-lg text-muted-foreground">For the dedicated scholar</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4 text-center">
-                <p className="text-5xl font-bold text-foreground">$10<span className="text-lg text-muted-foreground">/month</span></p>
-                 <ul className="space-y-2 text-muted-foreground">
-                  <li className="flex items-center justify-center gap-2"><CheckCircle className="h-5 w-5 text-primary" /> 50 Summaries per Day</li>
-                  <li className="flex items-center justify-center gap-2"><CheckCircle className="h-5 w-5 text-primary" /> Advanced AI Models</li>
-                  <li className="flex items-center justify-center gap-2"><CheckCircle className="h-5 w-5 text-primary" /> Deeper Analysis Features</li>
-                  <li className="flex items-center justify-center gap-2"><CheckCircle className="h-5 w-5 text-primary" /> Priority Support</li>
-                </ul>
-              </CardContent>
-              <CardFooter>
-                <Button size="lg" variant="outline" className="w-full text-lg py-6" disabled>
-                  Get Notified
-                </Button>
-              </CardFooter>
-            </Card>
+          <div className="grid md:grid-cols-3 gap-8">
+            {testimonials.map((testimonial, index) => (
+              <Card key={index} className="bg-card flex flex-col">
+                <CardContent className="pt-6 flex-grow">
+                  <ThumbsUp className="h-8 w-8 text-primary mb-4" />
+                  <blockquote className="text-muted-foreground italic border-l-4 border-primary pl-4">
+                    "{testimonial.quote}"
+                  </blockquote>
+                </CardContent>
+                <CardFooter className="pt-4 mt-auto">
+                  <p className="text-sm font-semibold text-foreground">{testimonial.name}</p>
+                </CardFooter>
+              </Card>
+            ))}
           </div>
+        </div>
+      </section>
+
+      {/* Pricing Section Link */}
+      <section id="pricing-link" className="py-16 md:py-24 bg-background/90">
+        <div className="container mx-auto px-4 text-center">
+           <h2 className="text-4xl font-bold text-center mb-4 text-foreground">Ready to Get Started?</h2>
+          <p className="text-lg text-muted-foreground text-center mb-12 max-w-2xl mx-auto">
+            Choose a plan that fits your study habits and unlock smarter learning today.
+          </p>
+          <Button size="lg" variant="default" asChild className="text-lg px-8 py-6 shadow-lg hover:shadow-primary/50 transition-shadow">
+            <Link href="/pricing">View Pricing Plans <ArrowRight className="ml-2 h-5 w-5" /></Link>
+          </Button>
         </div>
       </section>
     </>

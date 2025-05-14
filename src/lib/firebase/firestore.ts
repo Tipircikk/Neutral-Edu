@@ -3,7 +3,8 @@ import { doc, setDoc, getDoc, updateDoc, serverTimestamp, Timestamp } from "fire
 import { db } from "./config";
 import type { UserProfile } from "@/types";
 
-const FREE_PLAN_DAILY_QUOTA = 5;
+const FREE_PLAN_DAILY_QUOTA = 2; // Updated from 5
+const PREMIUM_PLAN_DAILY_QUOTA = 10;
 
 export const createUserDocument = async (
   uid: string,
@@ -15,7 +16,7 @@ export const createUserDocument = async (
     uid,
     email,
     displayName: displayName || email?.split('@')[0] || "User",
-    plan: "free",
+    plan: "free", // Default to free plan
     dailyRemainingQuota: FREE_PLAN_DAILY_QUOTA,
     lastSummaryDate: null, // Will be set on first summary or quota check
     isAdmin: false, // Default isAdmin to false
@@ -35,8 +36,6 @@ export const getUserProfile = async (uid:string): Promise<UserProfile | null> =>
     }
     return data;
   }
-  // Optionally create profile if it doesn't exist, though signup should handle this.
-  // For this app, we assume signup creates the profile.
   console.warn(`User profile for ${uid} not found. It should be created on signup.`);
   return null;
 };
@@ -55,11 +54,9 @@ export const getDefaultQuota = (plan: UserProfile["plan"]): number => {
   switch (plan) {
     case "free":
       return FREE_PLAN_DAILY_QUOTA;
-    // Add other plans here if needed
-    // case "premium":
-    //   return PREMIUM_PLAN_DAILY_QUOTA;
+    case "premium":
+      return PREMIUM_PLAN_DAILY_QUOTA;
     default:
-      return FREE_PLAN_DAILY_QUOTA;
+      return FREE_PLAN_DAILY_QUOTA; // Fallback to free quota
   }
 };
-

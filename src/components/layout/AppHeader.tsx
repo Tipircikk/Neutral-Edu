@@ -17,6 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth, signOut } from "@/hooks/useAuth";
 import { useUser } from "@/hooks/useUser";
 import QuotaDisplay from "@/components/dashboard/QuotaDisplay";
+import { getDefaultQuota } from "@/lib/firebase/firestore"; // Import getDefaultQuota
 
 export default function AppHeader() {
   const { user } = useAuth();
@@ -33,6 +34,8 @@ export default function AppHeader() {
     return email.substring(0, 2).toUpperCase();
   };
 
+  const totalQuota = userProfile ? getDefaultQuota(userProfile.plan) : 0;
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">
@@ -46,7 +49,7 @@ export default function AppHeader() {
           ) : userProfile ? (
             <QuotaDisplay 
               remaining={userProfile.dailyRemainingQuota} 
-              total={userProfile.plan === 'free' ? 5 : 50} // Assuming premium gets 50
+              total={totalQuota} 
             />
           ) : null}
           

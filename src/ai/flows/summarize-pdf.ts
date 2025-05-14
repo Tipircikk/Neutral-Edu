@@ -1,8 +1,9 @@
+
 'use server';
 
 /**
  * @fileOverview Summarizes a PDF document for student comprehension, including simplified explanations,
- * key ideas in bullet points, potential exam questions, and relevant examples.
+ * key ideas in bullet points, main idea, potential exam questions, and relevant examples.
  *
  * - summarizePdfForStudent - A function that handles the PDF summarization process.
  * - SummarizePdfForStudentInput - The input type for the summarizePdfForStudent function.
@@ -30,17 +31,9 @@ const prompt = ai.definePrompt({
   name: 'summarizePdfForStudentPrompt',
   input: {schema: SummarizePdfForStudentInputSchema},
   output: {schema: SummarizePdfForStudentOutputSchema},
-  prompt: `You are an AI assistant specialized in summarizing PDF documents for students.
+  prompt: `Simplify and summarize this content for students. Break down the key points into bullet points, write the main idea, highlight potential exam questions, and optionally create example problems if needed.
 
-  Given the text content of a PDF document, your task is to generate a comprehensive summary that aids student comprehension.
-  The summary should include the following elements:
-
-  - Simplified Explanations: Explain complex concepts in a clear and easy-to-understand manner.
-  - Key Ideas in Bullet Points: Present the main ideas and arguments of the document in a concise bullet-point list.
-  - Potential Exam Questions: Include a few potential exam questions related to the content of the document.
-  - Relevant Examples (if needed): Provide relevant examples to illustrate key concepts and ideas, only when necessary. You should decide if examples are needed.
-
-  Text Content: {{{pdfText}}}`,
+Text Content: {{{pdfText}}}`,
 });
 
 const summarizePdfForStudentFlow = ai.defineFlow(
