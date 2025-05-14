@@ -12,33 +12,33 @@ export default function LandingHeader() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-20 items-center justify-between">
-        <Link href="/landing" className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2"> {/* Changed href to / for main landing page */}
           <BookOpenText className="h-8 w-8 text-primary" />
-          <span className="text-2xl font-bold text-foreground">Scholar Summarizer</span>
+          <span className="text-2xl font-bold text-foreground">NeutralEdu AI</span>
         </Link>
         <nav className="flex items-center gap-4">
           <Button variant="ghost" asChild>
-            <Link href="/landing#features">Features</Link>
+            <Link href="/#features">Özellikler</Link>
           </Button>
           <Button variant="ghost" asChild>
-            <Link href="/landing#how-it-works">How It Works</Link>
+            <Link href="/#how-it-works">Nasıl Çalışır?</Link>
           </Button>
           <Button variant="ghost" asChild>
-            <Link href="/landing#pricing">Pricing</Link>
+            <Link href="/pricing">Fiyatlandırma</Link>
           </Button>
           {!loading && !user && (
             <>
               <Button variant="outline" asChild>
-                <Link href="/login">Login</Link>
+                <Link href="/login">Giriş Yap</Link>
               </Button>
               <Button asChild>
-                <Link href="/signup">Sign Up</Link>
+                <Link href="/signup">Kayıt Ol</Link>
               </Button>
             </>
           )}
           {!loading && user && (
              <Button asChild>
-                <Link href="/dashboard">Go to Dashboard</Link>
+                <Link href="/dashboard">Kontrol Paneline Git</Link>
               </Button>
           )}
         </nav>

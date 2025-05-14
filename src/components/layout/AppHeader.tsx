@@ -26,7 +26,7 @@ export default function AppHeader() {
 
   const handleSignOut = async () => {
     await signOut();
-    router.push("/landing"); 
+    router.push("/"); // Redirect to main landing page
   };
 
   const getInitials = (email?: string | null) => {
@@ -41,7 +41,7 @@ export default function AppHeader() {
       <div className="container flex h-16 items-center justify-between">
         <Link href="/dashboard" className="flex items-center gap-2">
           <BookOpenText className="h-7 w-7 text-primary" />
-          <span className="text-xl font-semibold text-foreground">Scholar Summarizer</span>
+          <span className="text-xl font-semibold text-foreground">NeutralEdu AI</span>
         </Link>
         <div className="flex items-center gap-4">
           {userProfileLoading ? (
@@ -57,7 +57,7 @@ export default function AppHeader() {
             <Button variant="ghost" size="sm" asChild>
               <Link href="/admin">
                 <ShieldCheck className="mr-2 h-4 w-4" />
-                Admin Panel
+                Admin Paneli
               </Link>
             </Button>
           )}
@@ -88,11 +88,11 @@ export default function AppHeader() {
                 <DropdownMenuSeparator />
                 {/* <DropdownMenuItem>
                   <Settings className="mr-2 h-4 w-4" />
-                  <span>Settings</span>
+                  <span>Ayarlar</span>
                 </DropdownMenuItem> */}
                 <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer">
                   <LogOut className="mr-2 h-4 w-4" />
-                  <span>Log out</span>
+                  <span>Çıkış Yap</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

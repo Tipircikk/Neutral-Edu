@@ -5,45 +5,47 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle, XCircle, ArrowRight } from "lucide-react";
+import { CheckCircle, XCircle, ArrowRight, Percent } from "lucide-react";
 
 const pricingPlans = [
   {
-    name: "Free",
+    name: "Ücretsiz",
     price: "0₺",
-    frequency: "/month",
-    description: "Perfect for trying out Scholar Summarizer and casual use.",
+    originalPrice: null,
+    frequency: "/ay",
+    description: "NeutralEdu AI'ı denemek ve günlük kullanım için mükemmel.",
     features: [
-      { text: "2 Summaries per Day", included: true },
-      { text: "Downloadable Summaries (TXT)", included: true },
-      { text: "Standard Gemini-powered Summaries", included: true },
-      { text: "Key Points & Explanations", included: true },
-      { text: "Sample Questions", included: true },
-      { text: "Faster Processing", included: false },
-      { text: "Priority Support", included: false },
+      { text: "Günde 2 Özet", included: true },
+      { text: "İndirilebilir Özetler (TXT)", included: true },
+      { text: "Standart Gemini Destekli Özetler", included: true },
+      { text: "Anahtar Noktalar ve Açıklamalar", included: true },
+      { text: "Örnek Sorular", included: true },
+      { text: "Daha Hızlı İşleme", included: false },
+      { text: "Öncelikli Destek", included: false },
     ],
-    cta: "Sign Up for Free",
+    cta: "Ücretsiz Kaydolun",
     ctaLink: "/signup",
     isPrimary: true,
   },
   {
     name: "Premium",
     price: "100₺",
-    frequency: "/month",
-    description: "For dedicated scholars who need more power and features.",
+    originalPrice: "200₺",
+    frequency: "/ay",
+    description: "Daha fazla güç ve özelliğe ihtiyaç duyan özel akademisyenler için.",
     features: [
-      { text: "10 Summaries per Day", included: true },
-      { text: "Downloadable Summaries (TXT/PDF*)", included: true }, // *PDF coming soon
-      { text: "Advanced Gemini-powered Summaries", included: true },
-      { text: "Key Points & Explanations", included: true },
-      { text: "Sample Questions", included: true },
-      { text: "Faster Processing", included: true },
-      { text: "Priority Support", included: true },
+      { text: "Günde 10 Özet", included: true },
+      { text: "İndirilebilir Özetler (TXT/PDF*)", included: true }, // *PDF yakında
+      { text: "Gelişmiş Gemini Destekli Özetler", included: true },
+      { text: "Anahtar Noktalar ve Açıklamalar", included: true },
+      { text: "Örnek Sorular", included: true },
+      { text: "Daha Hızlı İşleme", included: true },
+      { text: "Öncelikli Destek", included: true },
     ],
-    cta: "Upgrade to Premium",
-    ctaLink: "#contact-sales", // Placeholder for manual upgrade
+    cta: "Premium'a Yükseltin",
+    ctaLink: "#contact-sales", // Manuel yükseltme için yer tutucu
     isPrimary: false,
-    badge: "Best Value",
+    badge: "%50 İNDİRİM",
   },
 ];
 
@@ -53,10 +55,10 @@ export default function PricingPage() {
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
           <h1 className="text-5xl md:text-6xl font-bold tracking-tight text-foreground mb-6">
-            Simple, Transparent Pricing
+            Basit, Şeffaf Fiyatlandırma
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Choose the plan that best fits your study needs. No hidden fees, upgrade or downgrade anytime (manual for now).
+            Çalışma ihtiyaçlarınıza en uygun planı seçin. Gizli ücret yok, istediğiniz zaman yükseltin veya düşürün (şimdilik manuel).
           </p>
         </div>
 
@@ -68,8 +70,8 @@ export default function PricingPage() {
             >
               <CardHeader className="text-center relative pb-4">
                 {plan.badge && (
-                  <div className="absolute top-0 right-1/2 translate-x-1/2 -translate-y-1/2 bg-primary text-primary-foreground text-xs font-semibold px-3 py-1 rounded-full shadow-md">
-                    {plan.badge}
+                  <div className="absolute top-0 right-1/2 translate-x-1/2 -translate-y-1/2 bg-destructive text-destructive-foreground text-xs font-semibold px-3 py-1 rounded-full shadow-md flex items-center">
+                    <Percent className="h-3 w-3 mr-1" /> {plan.badge}
                   </div>
                 )}
                 <CardTitle className={`text-3xl mt-4 ${plan.isPrimary ? 'text-primary' : 'text-foreground'}`}>{plan.name}</CardTitle>
@@ -77,6 +79,9 @@ export default function PricingPage() {
               </CardHeader>
               <CardContent className="space-y-6 text-center flex-grow">
                 <div>
+                  {plan.originalPrice && (
+                    <span className="text-2xl line-through text-muted-foreground mr-2">{plan.originalPrice}</span>
+                  )}
                   <span className="text-5xl font-bold text-foreground">{plan.price}</span>
                   <span className="text-lg text-muted-foreground">{plan.frequency}</span>
                 </div>
@@ -99,7 +104,7 @@ export default function PricingPage() {
                   className="w-full text-lg py-6" 
                   variant={plan.isPrimary ? 'default' : 'outline'}
                   asChild={plan.ctaLink.startsWith('/')}
-                  disabled={plan.ctaLink === "#contact-sales"} // Disable for manual upgrade for now
+                  disabled={plan.ctaLink === "#contact-sales"} // Manuel yükseltme için şimdilik devre dışı
                 >
                   {plan.ctaLink.startsWith('/') ? (
                     <Link href={plan.ctaLink}>
@@ -107,7 +112,7 @@ export default function PricingPage() {
                     </Link>
                   ) : (
                     <>
-                     {plan.cta} {plan.ctaLink === "#contact-sales" && <span className="text-xs ml-1">(Contact Us)</span>}
+                     {plan.cta} {plan.ctaLink === "#contact-sales" && <span className="text-xs ml-1">(Bize Ulaşın)</span>}
                     </>
                   )}
                 </Button>
@@ -116,8 +121,8 @@ export default function PricingPage() {
           ))}
         </div>
         <div className="text-center mt-12 text-muted-foreground">
-          <p>Premium plan upgrades are currently handled manually. Please contact us for more information.</p>
-          <p>All prices are in Turkish Lira (₺).</p>
+          <p>Premium plan yükseltmeleri şu anda manuel olarak yapılmaktadır. Daha fazla bilgi için lütfen bizimle iletişime geçin.</p>
+          <p>Tüm fiyatlar Türk Lirası (₺) cinsindendir.</p>
         </div>
       </div>
     </div>

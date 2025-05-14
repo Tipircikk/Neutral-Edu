@@ -5,82 +5,82 @@ import Link from "next/link";
 import Image from "next/image"; 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { UploadCloud, Sparkles, Lightbulb, MessageCircleQuestion, FileUp, BotMessageSquare, BookOpenCheck, ArrowRight, Zap, Clock, Users, ThumbsUp, Brain, FileText, BarChart3 } from "lucide-react";
+import { UploadCloud, Sparkles, Lightbulb, MessageCircleQuestion, FileUp, BotMessageSquare, BookOpenCheck, ArrowRight, Zap, Clock, Brain, FileText, BarChart3, ThumbsUp } from "lucide-react";
 
 const features = [
   {
     icon: <UploadCloud className="h-10 w-10 text-primary mb-4" />,
-    title: "Easy PDF Upload",
-    description: "Simply drag and drop or select your PDF files. We handle the rest, extracting text seamlessly.",
+    title: "Kolay PDF Yükleme",
+    description: "PDF dosyalarınızı sürükleyip bırakın veya seçin. Gerisini biz hallederiz, metni sorunsuz bir şekilde çıkarırız.",
   },
   {
     icon: <Sparkles className="h-10 w-10 text-primary mb-4" />,
-    title: "AI-Powered Summaries",
-    description: "Our advanced AI condenses long documents into concise summaries, highlighting key points and main concepts.",
+    title: "Yapay Zeka Destekli Özetler",
+    description: "Gelişmiş yapay zekamız uzun belgeleri kısa özetlere yoğunlaştırır, anahtar noktaları ve ana kavramları vurgular.",
   },
   {
     icon: <Lightbulb className="h-10 w-10 text-primary mb-4" />,
-    title: "Simplified Explanations",
-    description: "Complex topics are broken down into easy-to-understand language, perfect for student comprehension.",
+    title: "Basitleştirilmiş Açıklamalar",
+    description: "Karmaşık konular, öğrenci anlayışı için mükemmel, anlaşılması kolay bir dile indirgenir.",
   },
   {
     icon: <MessageCircleQuestion className="h-10 w-10 text-primary mb-4" />,
-    title: "Sample Questions",
-    description: "Reinforce learning with AI-generated sample questions based on the summarized content to test understanding.",
+    title: "Örnek Sorular",
+    description: "Anlamayı test etmek için özetlenmiş içeriğe dayalı yapay zeka tarafından oluşturulmuş örnek sorularla öğrenmeyi pekiştirin.",
   },
 ];
 
 const benefits = [
  {
     icon: <Clock className="h-10 w-10 text-primary mb-4" />,
-    title: "Save Time Studying",
-    description: "Cut down on reading hours and focus on what truly matters for your exams and assignments.",
+    title: "Çalışma Süresinden Tasarruf Edin",
+    description: "Okuma saatlerini azaltın ve sınavlarınız ve ödevleriniz için gerçekten önemli olan şeylere odaklanın.",
   },
   {
     icon: <Brain className="h-10 w-10 text-primary mb-4" />,
-    title: "Get Only Key Points",
-    description: "Our AI distills complex information into the most crucial takeaways and main ideas.",
+    title: "Sadece Anahtar Noktaları Alın",
+    description: "Yapay zekamız karmaşık bilgileri en önemli çıkarımlara ve ana fikirlere indirger.",
   },
   {
     icon: <Zap className="h-10 w-10 text-primary mb-4" />,
-    title: "Powered by Gemini AI",
-    description: "Leverage Google's state-of-the-art AI for accurate and insightful summaries tailored for students.",
+    title: "Gemini AI Destekli",
+    description: "Öğrencilere özel doğru ve anlayışlı özetler için Google'ın son teknoloji yapay zekasından yararlanın.",
   },
 ];
 
 const howItWorksSteps = [
   {
     icon: <FileUp className="h-12 w-12 text-primary mb-4" />,
-    title: "1. Upload Your PDF",
-    description: "Select any PDF document you need to understand better. Articles, textbooks, research papers - we take them all.",
+    title: "1. PDF'inizi Yükleyin",
+    description: "Daha iyi anlamanız gereken herhangi bir PDF belgesini seçin. Makaleler, ders kitapları, araştırma makaleleri - hepsini kabul ediyoruz.",
   },
   {
     icon: <BotMessageSquare className="h-12 w-12 text-primary mb-4" />,
-    title: "2. AI Crafts Summary",
-    description: "Our intelligent system processes the document and generates a structured, student-friendly summary in moments.",
+    title: "2. Yapay Zeka Özeti Hazırlar",
+    description: "Akıllı sistemimiz belgeyi işler ve saniyeler içinde yapılandırılmış, öğrenci dostu bir özet oluşturur.",
   },
   {
     icon: <BookOpenCheck className="h-12 w-12 text-primary mb-4" />,
-    title: "3. Review & Learn",
-    description: "Access your summary with key points, simplified explanations, and even potential exam questions. Study smarter!",
+    title: "3. İnceleyin ve Öğrenin",
+    description: "Anahtar noktalar, basitleştirilmiş açıklamalar ve hatta potansiyel sınav soruları içeren özetinize erişin. Daha akıllı çalışın!",
   },
 ];
 
 const testimonials = [
   {
-    quote: "Scholar Summarizer transformed how I study for my finals. I can cover more material in less time!",
-    name: "Jessica L., University Student",
+    quote: "NeutralEdu AI, finallerime çalışma şeklimi değiştirdi. Daha az zamanda daha fazla konuyu kapsayabiliyorum!",
+    name: "Jessica L., Üniversite Öğrencisi",
     avatarFallback: "JL",
   },
   {
-    quote: "The AI summaries are incredibly accurate and highlight exactly what I need to focus on. A real game-changer.",
-    name: "Mike P., Grad Student",
-    avatarFallback: "MP",
+    quote: "Yapay zeka özetleri inanılmaz derecede doğru ve tam olarak odaklanmam gerekenleri vurguluyor. Gerçek bir ezber bozan.",
+    name: "Ahmet Y., Yüksek Lisans Öğrencisi",
+    avatarFallback: "AY",
   },
   {
-    quote: "I used to get overwhelmed by long research papers. Now, I get the gist in minutes. Highly recommended!",
-    name: "Sarah K., PhD Candidate",
-    avatarFallback: "SK",
+    quote: "Uzun araştırma makaleleri eskiden beni bunaltırdı. Şimdi, ana fikri dakikalar içinde alıyorum. Şiddetle tavsiye ederim!",
+    name: "Zeynep K., Doktora Adayı",
+    avatarFallback: "ZK",
   },
 ];
 
@@ -92,23 +92,23 @@ export default function LandingPage() {
       <section className="py-20 md:py-32 bg-gradient-to-b from-background to-background/90">
         <div className="container mx-auto px-4 text-center">
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-foreground mb-6">
-            Turn any topic into a student-friendly summary in seconds
+            Herhangi bir konuyu saniyeler içinde öğrenci dostu bir özete dönüştürün
           </h1>
           <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto mb-10">
-            Scholar Summarizer uses advanced AI to help you understand complex PDFs faster. Spend less time reading, more time learning.
+            NeutralEdu AI, karmaşık PDF'leri daha hızlı anlamanıza yardımcı olmak için gelişmiş yapay zeka kullanır. Daha az okuyun, daha çok öğrenin.
           </p>
           <div className="flex justify-center gap-4 flex-wrap">
             <Button size="lg" asChild className="text-lg px-8 py-6 shadow-lg hover:shadow-primary/50 transition-shadow">
-              <Link href="/signup">Upload a PDF and get a summary now</Link>
+              <Link href="/signup">PDF Yükle ve Özet Al</Link>
             </Button>
             <Button size="lg" variant="outline" asChild className="text-lg px-8 py-6 shadow-md hover:shadow-accent/50 transition-shadow">
-              <Link href="/pricing">View Pricing</Link>
+              <Link href="/pricing">Fiyatları Gör</Link>
             </Button>
           </div>
           <div className="mt-16 md:mt-24 max-w-4xl mx-auto">
             <Image 
               src="https://placehold.co/1200x600.png" 
-              alt="Scholar Summarizer App Demo" 
+              alt="NeutralEdu AI Uygulama Demosu" 
               width={1200} 
               height={600}
               className="rounded-xl shadow-2xl border border-border"
@@ -122,9 +122,9 @@ export default function LandingPage() {
       {/* Benefits Section */}
       <section id="benefits" className="py-16 md:py-24 bg-background">
         <div className="container mx-auto px-4">
-          <h2 className="text-4xl font-bold text-center mb-4 text-foreground">Unlock Your Study Potential</h2>
+          <h2 className="text-4xl font-bold text-center mb-4 text-foreground">Çalışma Potansiyelinizin Kilidini Açın</h2>
           <p className="text-lg text-muted-foreground text-center mb-12 max-w-2xl mx-auto">
-            Scholar Summarizer is designed to give you a clear advantage in your academic journey.
+            NeutralEdu AI, akademik yolculuğunuzda size net bir avantaj sağlamak için tasarlanmıştır.
           </p>
           <div className="grid md:grid-cols-3 gap-8">
             {benefits.map((benefit, index) => (
@@ -145,9 +145,9 @@ export default function LandingPage() {
       {/* Features Section */}
       <section id="features" className="py-16 md:py-24 bg-background/90">
         <div className="container mx-auto px-4">
-          <h2 className="text-4xl font-bold text-center mb-4 text-foreground">Understand Faster, Study Smarter</h2>
+          <h2 className="text-4xl font-bold text-center mb-4 text-foreground">Daha Hızlı Anlayın, Daha Akıllı Çalışın</h2>
           <p className="text-lg text-muted-foreground text-center mb-12 max-w-2xl mx-auto">
-            Packed with features to accelerate your learning and boost comprehension.
+            Öğrenmenizi hızlandıracak ve anlamanızı artıracak özelliklerle dolu.
           </p>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {features.map((feature, index) => (
@@ -168,9 +168,9 @@ export default function LandingPage() {
       {/* How It Works Section */}
       <section id="how-it-works" className="py-16 md:py-24 bg-background">
         <div className="container mx-auto px-4">
-          <h2 className="text-4xl font-bold text-center mb-4 text-foreground">Get Summaries in 3 Simple Steps</h2>
+          <h2 className="text-4xl font-bold text-center mb-4 text-foreground">3 Basit Adımda Özet Alın</h2>
           <p className="text-lg text-muted-foreground text-center mb-12 max-w-2xl mx-auto">
-            Our process is designed to be quick, easy, and efficient.
+            Sürecimiz hızlı, kolay ve verimli olacak şekilde tasarlanmıştır.
           </p>
           <div className="grid md:grid-cols-3 gap-8 items-start relative">
             {howItWorksSteps.map((step, index) => (
@@ -188,7 +188,7 @@ export default function LandingPage() {
           </div>
            <div className="text-center mt-12">
             <Button size="lg" asChild className="shadow-lg hover:shadow-primary/50 transition-shadow">
-              <Link href="/signup">Try It Now <ArrowRight className="ml-2 h-5 w-5" /></Link>
+              <Link href="/signup">Şimdi Dene <ArrowRight className="ml-2 h-5 w-5" /></Link>
             </Button>
           </div>
         </div>
@@ -197,48 +197,48 @@ export default function LandingPage() {
       {/* Dashboard Preview Section */}
       <section id="dashboard-preview" className="py-16 md:py-24 bg-background/90">
         <div className="container mx-auto px-4">
-          <h2 className="text-4xl font-bold text-center mb-4 text-foreground">See It In Action</h2>
+          <h2 className="text-4xl font-bold text-center mb-4 text-foreground">Çalışırken Görün</h2>
           <p className="text-lg text-muted-foreground text-center mb-12 max-w-2xl mx-auto">
-            A glimpse into your personalized dashboard where the magic happens.
+            Sihrin gerçekleştiği kişiselleştirilmiş kontrol panelinize bir bakış.
           </p>
           <Card className="max-w-3xl mx-auto bg-card shadow-2xl overflow-hidden">
             <CardHeader className="bg-muted/30 p-4 border-b border-border">
               <div className="flex justify-between items-center">
-                <CardTitle className="text-xl text-foreground">My Dashboard</CardTitle>
+                <CardTitle className="text-xl text-foreground">Kontrol Panelim</CardTitle>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <BarChart3 className="h-5 w-5 text-primary" />
-                  <span>Quota: 1/2</span> {/* Updated to reflect free plan quota */}
+                  <span>Kota: 1/2</span> {/* Updated to reflect free plan quota */}
                 </div>
               </div>
             </CardHeader>
             <CardContent className="p-6 space-y-6">
               <Button variant="default" size="lg" className="w-full py-4 text-lg shadow-md">
-                <UploadCloud className="mr-2 h-5 w-5" /> Upload New PDF
+                <UploadCloud className="mr-2 h-5 w-5" /> Yeni PDF Yükle
               </Button>
               <Card className="bg-background/50">
                 <CardHeader>
-                  <CardTitle className="text-lg">Sample Summary: "Introduction to Quantum Physics.pdf"</CardTitle>
-                  <CardDescription>Generated a few seconds ago</CardDescription>
+                  <CardTitle className="text-lg">Örnek Özet: "Kuantum Fiziğine Giriş.pdf"</CardTitle>
+                  <CardDescription>Birkaç saniye önce oluşturuldu</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2 text-sm text-muted-foreground">
-                    <p className="font-semibold text-foreground">Main Idea:</p>
-                    <p>Quantum physics explores the bizarre world of atoms and subatomic particles, where classical rules don't apply...</p>
-                    <p className="font-semibold text-foreground">Key Points:</p>
+                    <p className="font-semibold text-foreground">Ana Fikir:</p>
+                    <p>Kuantum fiziği, klasik kuralların geçerli olmadığı atomların ve atom altı parçacıkların tuhaf dünyasını keşfeder...</p>
+                    <p className="font-semibold text-foreground">Anahtar Noktalar:</p>
                     <ul className="list-disc list-inside ml-4">
-                      <li>Wave-particle duality</li>
-                      <li>Quantization of energy</li>
-                      <li>Uncertainty Principle</li>
+                      <li>Dalga-parçacık ikiliği</li>
+                      <li>Enerjinin kuantizasyonu</li>
+                      <li>Belirsizlik İlkesi</li>
                     </ul>
-                    <p className="font-semibold text-foreground">Potential Exam Questions:</p>
+                    <p className="font-semibold text-foreground">Potansiyel Sınav Soruları:</p>
                     <ul className="list-disc list-inside ml-4">
-                      <li>Explain Heisenberg's Uncertainty Principle.</li>
-                      <li>What is quantum tunneling?</li>
+                      <li>Heisenberg'in Belirsizlik İlkesi'ni açıklayınız.</li>
+                      <li>Kuantum tünelleme nedir?</li>
                     </ul>
                   </div>
                 </CardContent>
                 <CardFooter className="flex justify-end gap-2">
-                  <Button variant="outline" size="sm"><FileText className="mr-2 h-4 w-4" /> View Full Summary</Button>
+                  <Button variant="outline" size="sm"><FileText className="mr-2 h-4 w-4" /> Tam Özeti Görüntüle</Button>
                 </CardFooter>
               </Card>
             </CardContent>
@@ -249,9 +249,9 @@ export default function LandingPage() {
       {/* Testimonials Section */}
       <section id="testimonials" className="py-16 md:py-24 bg-background">
         <div className="container mx-auto px-4">
-          <h2 className="text-4xl font-bold text-center mb-4 text-foreground">Loved by Students Like You</h2>
+          <h2 className="text-4xl font-bold text-center mb-4 text-foreground">Sizin Gibi Öğrenciler Tarafından Seviliyor</h2>
           <p className="text-lg text-muted-foreground text-center mb-12 max-w-2xl mx-auto">
-            Hear what others are saying about Scholar Summarizer.
+            Başkalarının NeutralEdu AI hakkında ne söylediğini duyun.
           </p>
           <div className="grid md:grid-cols-3 gap-8">
             {testimonials.map((testimonial, index) => (
@@ -274,17 +274,15 @@ export default function LandingPage() {
       {/* Pricing Section Link */}
       <section id="pricing-link" className="py-16 md:py-24 bg-background/90">
         <div className="container mx-auto px-4 text-center">
-           <h2 className="text-4xl font-bold text-center mb-4 text-foreground">Ready to Get Started?</h2>
+           <h2 className="text-4xl font-bold text-center mb-4 text-foreground">Başlamaya Hazır mısınız?</h2>
           <p className="text-lg text-muted-foreground text-center mb-12 max-w-2xl mx-auto">
-            Choose a plan that fits your study habits and unlock smarter learning today.
+            Çalışma alışkanlıklarınıza uygun bir plan seçin ve bugün daha akıllı öğrenmenin kilidini açın.
           </p>
           <Button size="lg" variant="default" asChild className="text-lg px-8 py-6 shadow-lg hover:shadow-primary/50 transition-shadow">
-            <Link href="/pricing">View Pricing Plans <ArrowRight className="ml-2 h-5 w-5" /></Link>
+            <Link href="/pricing">Fiyat Planlarını Görüntüle <ArrowRight className="ml-2 h-5 w-5" /></Link>
           </Button>
         </div>
       </section>
     </>
   );
 }
-
-    

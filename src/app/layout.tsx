@@ -11,8 +11,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Scholar Summarizer',
-  description: 'AI-powered PDF summarization for students.',
+  title: 'NeutralEdu AI',
+  description: 'Öğrenciler için yapay zeka destekli PDF özetleme.',
 };
 
 export default function RootLayout({
@@ -21,7 +21,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="tr" className="dark"> {/* Changed lang to tr */}
       <body className={cn("min-h-screen bg-background font-sans antialiased", inter.variable)}>
         <AppProviders>
           {children}

@@ -33,7 +33,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <main className="flex-grow container mx-auto px-4 py-8">
         {children}
       </main>
-      <Footer appName="Scholar Summarizer" />
+      <Footer appName="NeutralEdu AI" />
     </div>
   );
 }
