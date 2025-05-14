@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, Send, MessageSquareQuestion, CheckCircle } from "lucide-react";
+import { Loader2, Send, LifeBuoy, CheckCircle } from "lucide-react"; // Changed MessageSquareQuestion to LifeBuoy
 import { useUser } from "@/hooks/useUser";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase/config";
@@ -84,7 +84,7 @@ export default function SupportPage() {
       <Card className="shadow-lg">
         <CardHeader>
           <div className="flex items-center gap-3">
-            <MessageSquareQuestion className="h-8 w-8 text-primary" />
+            <LifeBuoy className="h-8 w-8 text-primary" /> {/* Changed MessageSquareQuestion to LifeBuoy */}
             <CardTitle className="text-3xl">Destek Talebi Oluştur</CardTitle>
           </div>
           <CardDescription>
@@ -107,7 +107,7 @@ export default function SupportPage() {
                 <Label htmlFor="subject" className="mb-1 block">Konu</Label>
                  <Select
                     onValueChange={(value) => control._fields.subject!.onChange(value)}
-                    defaultValue={control._defaultValues.subject} // For controlled component
+                    // defaultValue={control._defaultValues.subject} // Removed to let placeholder work consistently
                     disabled={isSubmitting}
                   >
                   <SelectTrigger id="subject" className="w-full">
