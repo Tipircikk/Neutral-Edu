@@ -3,28 +3,32 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Users Collection
     match /users/{userId} {
-      allow read: if true; // Allow all users to read profile for now, can be restricted
-      allow write: if request.auth.uid == userId || 
-                       (request.auth.uid != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
-      // Users can update their own profile. Admins can update any profile.
-      // Ensure users cannot make themselves admin or change critical fields unless an admin does it.
-      // Example: allow update: if request.auth.uid == userId && !(request.resource.data.isAdmin == true && resource.data.isAdmin == false);
-      // This rule needs careful crafting based on what fields users can self-edit vs admin-only fields.
+      // Authenticated users can read and update their own profile.
+      // They can also create their profile during signup.
+      // Admins can also read any user profile (covered by the broader admin rule below).
+      allow read, update, create: if request.auth.uid == userId;
+
+      // Admins can perform any action on any user document (get, list, create, update, delete).
+      // The 'read' permission here covers 'get' and 'list'.
+      // The 'write' permission covers 'create', 'update', 'delete'.
+      allow read, write: if get(/databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
+    // SupportTickets Collection
     match /supportTickets/{ticketId} {
-      allow read: if request.auth.uid == resource.data.userId || 
-                      (request.auth.uid != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
-      allow create: if request.auth.uid == request.resource.data.userId
-                    && request.resource.data.status == "open"
-                    && request.resource.data.createdAt == request.time
-                    && request.resource.data.userId == request.auth.uid; // Ensure user is creating their own ticket
-      allow update: if (request.auth.uid != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true) ||
-                       (request.auth.uid == resource.data.userId && request.resource.data.status == "closed_by_user"); // User can close their own ticket
-      allow delete: if request.auth.uid != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      // Authenticated users can create tickets, ensuring they are the owner.
+      allow create: if request.auth.uid != null && request.resource.data.userId == request.auth.uid;
+      
+      // Users can read and update their own tickets (e.g., to check status or add comments if allowed).
+      // Admins can also read/update any ticket (covered by the broader admin rule below).
+      allow read, update: if request.auth.uid == resource.data.userId;
+      
+      // Admins can perform any action on any support ticket.
+      // 'read' includes 'get' and 'list'.
+      // 'write' includes 'create', 'update', 'delete'.
+      allow read, write: if get(/databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
-
-    // Add other collection rules here if needed
   }
 }
