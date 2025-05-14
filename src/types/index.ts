@@ -24,7 +24,7 @@ export type SupportTicketStatus = "open" | "answered" | "closed_by_user" | "clos
 export type SupportTicketSubject = "premium" | "ai_tools" | "account" | "bug_report" | "other";
 
 export interface SupportTicket {
-  id?: string; // Firestore document ID
+  id: string; // Firestore document ID
   userId: string;
   userEmail: string | null;
   userName?: string | null;
@@ -37,3 +37,4 @@ export interface SupportTicket {
   repliedBy?: string; // Admin UID
   lastReplyAt?: Timestamp;
 }
+

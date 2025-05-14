@@ -5,7 +5,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/hooks/useUser";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ShieldAlert, Users, BarChart3, Settings, MessageSquareWarning, Edit3 } from "lucide-react";
+import { Loader2, ShieldAlert, Users, BarChart3, Settings, MessageSquareWarning, Edit3, Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -16,17 +16,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import type { UserProfile } from "@/types"; // Assuming UserProfile is defined in types
+import type { UserProfile, SupportTicket } from "@/types";
 import { db } from "@/lib/firebase/config";
-import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, Timestamp as FirestoreTimestamp } from "firebase/firestore";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
-import { Timestamp } from "firebase/firestore";
+import { format } from 'date-fns';
+import { tr } from 'date-fns/locale';
+
 
 export default function AdminPage() {
   const { userProfile: adminUserProfile, loading: adminLoading } = useUser();
   const router = useRouter();
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [usersLoading, setUsersLoading] = useState(true);
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
+  const [ticketsLoading, setTicketsLoading] = useState(true);
 
   useEffect(() => {
     if (!adminLoading && !adminUserProfile?.isAdmin) {
@@ -40,31 +44,46 @@ export default function AdminPage() {
         setUsersLoading(true);
         try {
           const usersCollection = collection(db, "users");
-          const usersQuery = query(usersCollection, orderBy("isAdmin", "desc"), orderBy("plan", "desc"), orderBy("email")); // Premium and admins first
+          const usersQuery = query(usersCollection, orderBy("isAdmin", "desc"), orderBy("plan", "desc"), orderBy("email"));
           const querySnapshot = await getDocs(usersQuery);
           const usersList = querySnapshot.docs.map(doc => {
             const data = doc.data();
-             // Ensure lastSummaryDate is handled correctly (it might be string or Timestamp)
             let lastSummaryDate = data.lastSummaryDate;
             if (lastSummaryDate && typeof lastSummaryDate === 'object' && 'seconds' in lastSummaryDate && 'nanoseconds' in lastSummaryDate) {
-                lastSummaryDate = new Timestamp(lastSummaryDate.seconds, lastSummaryDate.nanoseconds);
+                lastSummaryDate = new FirestoreTimestamp(lastSummaryDate.seconds, lastSummaryDate.nanoseconds);
             }
-
             return {
                 uid: doc.id,
                 ...data,
-                lastSummaryDate: lastSummaryDate, // Store as is, or convert to Date if preferred for display
+                lastSummaryDate: lastSummaryDate,
             } as UserProfile;
           });
           setAllUsers(usersList);
         } catch (error) {
           console.error("Error fetching users:", error);
-          // Add toast notification for error
         } finally {
           setUsersLoading(false);
         }
       };
+
+      const fetchSupportTickets = async () => {
+        setTicketsLoading(true);
+        try {
+          const ticketsCollection = collection(db, "supportTickets");
+          // Order by status (open first), then by creation date (newest first)
+          const ticketsQuery = query(ticketsCollection, orderBy("status", "asc"), orderBy("createdAt", "desc"));
+          const querySnapshot = await getDocs(ticketsQuery);
+          const ticketsList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SupportTicket));
+          setSupportTickets(ticketsList);
+        } catch (error) {
+          console.error("Error fetching support tickets:", error);
+        } finally {
+          setTicketsLoading(false);
+        }
+      };
+
       fetchUsers();
+      fetchSupportTickets();
     }
   }, [adminUserProfile]);
 
@@ -80,20 +99,17 @@ export default function AdminPage() {
 
   const getUsageToday = (user: UserProfile): number => {
     if (!user.lastSummaryDate) return 0;
-
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
     let lastDate: Date;
-    if (user.lastSummaryDate instanceof Timestamp) {
+    if (user.lastSummaryDate instanceof FirestoreTimestamp) {
         lastDate = user.lastSummaryDate.toDate();
     } else if (typeof user.lastSummaryDate === 'string') {
         lastDate = new Date(user.lastSummaryDate);
     } else {
-        return 0; // Should not happen if data is clean
+        return 0;
     }
     lastDate.setHours(0,0,0,0);
-
     if (lastDate.getTime() === today.getTime()) {
       const totalQuota = getDefaultQuota(user.plan);
       return totalQuota - user.dailyRemainingQuota;
@@ -101,8 +117,29 @@ export default function AdminPage() {
     return 0;
   };
 
+  const formatTicketSubject = (subject: SupportTicket['subject']): string => {
+    switch (subject) {
+      case "premium": return "Premium Üyelik";
+      case "ai_tools": return "Yapay Zeka Araçları";
+      case "account": return "Hesap Sorunları";
+      case "bug_report": return "Hata Bildirimi";
+      case "other": return "Diğer";
+      default: return subject;
+    }
+  };
 
-  if (adminLoading || (adminUserProfile?.isAdmin && usersLoading)) {
+  const formatTicketStatus = (status: SupportTicket['status']): string => {
+    switch (status) {
+      case "open": return "Açık";
+      case "answered": return "Yanıtlandı";
+      case "closed_by_user": return "Kullanıcı Kapattı";
+      case "closed_by_admin": return "Admin Kapattı";
+      default: return status;
+    }
+  };
+
+
+  if (adminLoading || (adminUserProfile?.isAdmin && (usersLoading || ticketsLoading))) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -134,7 +171,7 @@ export default function AdminPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Users className="h-6 w-6" /> Kullanıcı Yönetimi</CardTitle>
-          <CardDescription>Kullanıcıların planlarını ve rollerini görüntüleyin ve düzenleyin.</CardDescription>
+          <CardDescription>Kullanıcıların planlarını ve rollerini görüntüleyin.</CardDescription>
         </CardHeader>
         <CardContent>
           {usersLoading ? (
@@ -150,7 +187,7 @@ export default function AdminPage() {
                   <TableHead>Plan</TableHead>
                   <TableHead>Kalan Kota</TableHead>
                   <TableHead>Bugünkü Kullanım</TableHead>
-                  <TableHead>Admin?</TableHead>
+                  <TableHead>Rolü</TableHead>
                   <TableHead className="text-right">Eylemler</TableHead>
                 </TableRow>
               </TableHeader>
@@ -160,14 +197,14 @@ export default function AdminPage() {
                     <TableCell className="font-medium">{user.email}</TableCell>
                     <TableCell>
                       <Badge variant={user.plan === 'premium' ? 'default' : 'secondary'}>
-                        {user.plan}
+                        {user.plan === 'premium' ? 'Premium' : 'Ücretsiz'}
                       </Badge>
                     </TableCell>
                     <TableCell>{user.dailyRemainingQuota}</TableCell>
                     <TableCell>{getUsageToday(user)}</TableCell>
                     <TableCell>
                       <Badge variant={user.isAdmin ? 'destructive' : 'outline'}>
-                        {user.isAdmin ? "Evet" : "Hayır"}
+                        {user.isAdmin ? "Admin" : "Kullanıcı"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
@@ -185,14 +222,55 @@ export default function AdminPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><MessageSquareWarning className="h-6 w-6" /> Destek Talepleri</CardTitle>
-          <CardDescription>Kullanıcı destek taleplerini görüntüleyin ve yanıtlayın.</CardDescription>
+          <CardTitle className="flex items-center gap-2"><Inbox className="h-6 w-6" /> Destek Talepleri</CardTitle>
+          <CardDescription>Kullanıcı destek taleplerini görüntüleyin.</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Bu bölüm yakında kullanıcı destek taleplerini listeleyecek ve yanıtlamanıza olanak tanıyacaktır. Yanıtlanmamış talepler burada öncelikli olarak görünecektir.
-          </p>
-          {/* Placeholder for support tickets list - to be implemented */}
+          {ticketsLoading ? (
+            <div className="flex items-center justify-center p-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="ml-2 text-muted-foreground">Destek talepleri yükleniyor...</p>
+            </div>
+          ) : supportTickets.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Görüntülenecek destek talebi bulunmamaktadır.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Kullanıcı</TableHead>
+                  <TableHead>Konu</TableHead>
+                  <TableHead>Durum</TableHead>
+                  <TableHead>Mesaj (Önizleme)</TableHead>
+                  <TableHead>Tarih</TableHead>
+                  <TableHead className="text-right">Eylemler</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {supportTickets.map((ticket) => (
+                  <TableRow key={ticket.id}>
+                    <TableCell className="font-medium">{ticket.userEmail || ticket.userId}</TableCell>
+                    <TableCell>{formatTicketSubject(ticket.subject)}</TableCell>
+                    <TableCell>
+                      <Badge variant={ticket.status === 'open' ? 'destructive' : 'secondary'}>
+                        {formatTicketStatus(ticket.status)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="max-w-xs truncate">{ticket.message}</TableCell>
+                    <TableCell>
+                      {ticket.createdAt instanceof FirestoreTimestamp 
+                        ? format(ticket.createdAt.toDate(), 'PPpp', { locale: tr })
+                        : 'N/A'}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="outline" size="sm" disabled> {/* Placeholder */}
+                        <MessageSquareWarning className="mr-2 h-3 w-3"/> Yanıtla
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
       

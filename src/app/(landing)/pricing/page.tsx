@@ -5,7 +5,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle, XCircle, ArrowRight, Percent } from "lucide-react";
+import { CheckCircle, XCircle, ArrowRight } from "lucide-react"; // Removed Percent
 
 const pricingPlans = [
   {
@@ -71,7 +71,7 @@ export default function PricingPage() {
               <CardHeader className="text-center relative pb-4">
                 {plan.badge && (
                   <div className="absolute top-0 right-1/2 translate-x-1/2 -translate-y-1/2 bg-destructive text-destructive-foreground text-xs font-semibold px-3 py-1 rounded-full shadow-md flex items-center">
-                    <Percent className="h-3 w-3 mr-1" /> {plan.badge}
+                    {plan.badge}
                   </div>
                 )}
                 <CardTitle className={`text-3xl mt-4 ${plan.isPrimary ? 'text-primary' : 'text-foreground'}`}>{plan.name}</CardTitle>
