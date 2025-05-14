@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal, Loader2, AlertTriangle, FileScan } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"; // Added CardHeader, CardTitle, CardDescription
 
 export default function PdfSummarizerPage() {
   const [summaryOutput, setSummaryOutput] = useState<SummarizePdfForStudentOutput | null>(null);
@@ -162,5 +162,3 @@ export default function PdfSummarizerPage() {
     </div>
   );
 }
-
-    
