@@ -21,7 +21,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="tr" className="dark"> {/* Changed lang to tr */}
+    <html lang="tr" className="dark">
       <body className={cn("min-h-screen bg-background font-sans antialiased", inter.variable)}>
         <AppProviders>
           {children}
