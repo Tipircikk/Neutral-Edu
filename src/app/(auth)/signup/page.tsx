@@ -14,12 +14,12 @@ export default function SignupPage() {
   const handleSignup = async (values: any) => {
     try {
       await signUpWithEmail(values);
-      toast({ title: "Signup Successful", description: "Welcome to NeutralEdu AI!" });
-      router.push("/dashboard"); // Redirect handled by AuthLayout too
+      toast({ title: "Kayıt Başarılı", description: "NeutralEdu AI'a hoş geldiniz!" });
+      router.push("/dashboard"); 
     } catch (error: any) {
-      // Error toast is handled by AuthForm
-      console.error("Signup failed:", error.message);
-      throw error; // Re-throw to be caught by AuthForm
+      // Hata mesajı AuthForm tarafından yönetilir
+      console.error("Kayıt başarısız:", error.message);
+      throw error; // AuthForm'un yakalaması için hatayı tekrar fırlat
     }
   };
 
@@ -27,9 +27,9 @@ export default function SignupPage() {
     <div className="w-full max-w-md">
       <AuthForm mode="signup" onSubmit={handleSignup} />
       <p className="mt-6 text-center text-sm text-muted-foreground">
-        Already have an account?{" "}
+        Zaten bir hesabınız var mı?{" "}
         <Link href="/login" className="font-medium text-primary hover:underline">
-          Log in
+          Giriş Yapın
         </Link>
       </p>
     </div>

@@ -10,19 +10,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 
 const LoginSchema = z.object({
-  email: z.string().email({ message: "Invalid email address." }),
-  password: z.string().min(6, { message: "Password must be at least 6 characters." }),
+  email: z.string().email({ message: "Geçersiz e-posta adresi." }),
+  password: z.string().min(6, { message: "Şifre en az 6 karakter olmalıdır." }),
 });
 
 const SignupSchema = z.object({
-  email: z.string().email({ message: "Invalid email address." }),
-  password: z.string().min(6, { message: "Password must be at least 6 characters." }),
-  confirmPassword: z.string().min(6, { message: "Password must be at least 6 characters." }),
+  email: z.string().email({ message: "Geçersiz e-posta adresi." }),
+  password: z.string().min(6, { message: "Şifre en az 6 karakter olmalıdır." }),
+  confirmPassword: z.string().min(6, { message: "Şifre en az 6 karakter olmalıdır." }),
 }).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match.",
+  message: "Şifreler eşleşmiyor.",
   path: ["confirmPassword"],
 });
 
@@ -34,6 +34,8 @@ type AuthFormProps = {
 
 export function AuthForm({ mode, onSubmit }: AuthFormProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { toast } = useToast();
   const currentSchema = mode === "login" ? LoginSchema : SignupSchema;
   type FormValues = z.infer<typeof currentSchema>;
@@ -42,6 +44,9 @@ export function AuthForm({ mode, onSubmit }: AuthFormProps) {
     resolver: zodResolver(currentSchema),
   });
 
+  const togglePasswordVisibility = () => setShowPassword(!showPassword);
+  const toggleConfirmPasswordVisibility = () => setShowConfirmPassword(!showConfirmPassword);
+
   const handleFormSubmit: SubmitHandler<FormValues> = async (data) => {
     setIsLoading(true);
     try {
@@ -49,8 +54,8 @@ export function AuthForm({ mode, onSubmit }: AuthFormProps) {
       // Success toast/redirect handled by page using the form
     } catch (error: any) {
       toast({
-        title: "Authentication Error",
-        description: error.message || (mode === "login" ? "Failed to login." : "Failed to sign up."),
+        title: "Kimlik Doğrulama Hatası",
+        description: error.message || (mode === "login" ? "Giriş yapılamadı." : "Kayıt olunamadı."),
         variant: "destructive",
       });
     } finally {
@@ -61,34 +66,66 @@ export function AuthForm({ mode, onSubmit }: AuthFormProps) {
   return (
     <Card className="w-full max-w-md shadow-2xl">
       <CardHeader>
-        <CardTitle className="text-3xl">{mode === "login" ? "Welcome Back" : "Create Account"}</CardTitle>
+        <CardTitle className="text-3xl">{mode === "login" ? "Tekrar Hoş Geldiniz" : "Hesap Oluştur"}</CardTitle>
         <CardDescription>
-          {mode === "login" ? "Login to access your dashboard." : "Sign up to start summarizing."}
+          {mode === "login" ? "Kontrol panelinize erişmek için giriş yapın." : "Özetlemeye başlamak için kaydolun."}
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit(handleFormSubmit)}>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" placeholder="you@example.com" {...register("email")} />
+            <Label htmlFor="email">E-posta</Label>
+            <Input id="email" type="email" placeholder="ornek@eposta.com" {...register("email")} />
             {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input id="password" type="password" placeholder="••••••••" {...register("password")} />
+          <div className="space-y-2 relative">
+            <Label htmlFor="password">Şifre</Label>
+            <Input 
+              id="password" 
+              type={showPassword ? "text" : "password"} 
+              placeholder="••••••••" 
+              {...register("password")} 
+              className="pr-10"
+            />
+            <Button 
+              type="button" 
+              variant="ghost" 
+              size="sm" 
+              className="absolute right-1 top-7 h-7 w-7 px-0" 
+              onClick={togglePasswordVisibility}
+              aria-label={showPassword ? "Şifreyi gizle" : "Şifreyi göster"}
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </Button>
             {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
           </div>
           {mode === "signup" && (
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input id="confirmPassword" type="password" placeholder="••••••••" {...register("confirmPassword" as any)} /> {/* Type cast for confirmPassword */}
+            <div className="space-y-2 relative">
+              <Label htmlFor="confirmPassword">Şifreyi Onayla</Label>
+              <Input 
+                id="confirmPassword" 
+                type={showConfirmPassword ? "text" : "password"} 
+                placeholder="••••••••" 
+                {...register("confirmPassword" as any)} 
+                className="pr-10"
+              />
+              <Button 
+                type="button" 
+                variant="ghost" 
+                size="sm" 
+                className="absolute right-1 top-7 h-7 w-7 px-0" 
+                onClick={toggleConfirmPasswordVisibility}
+                aria-label={showConfirmPassword ? "Şifreyi gizle" : "Şifreyi göster"}
+              >
+                {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
               {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>}
             </div>
           )}
         </CardContent>
         <CardFooter className="flex flex-col">
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (mode === "login" ? "Login" : "Sign Up")}
+            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (mode === "login" ? "Giriş Yap" : "Kayıt Ol")}
           </Button>
         </CardFooter>
       </form>

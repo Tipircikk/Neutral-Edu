@@ -179,8 +179,10 @@ export default function LandingPage() {
                 <h3 className="text-2xl font-semibold mb-2 text-foreground">{step.title}</h3>
                 <p className="text-muted-foreground">{step.description}</p>
                 {index < howItWorksSteps.length - 1 && (
-                  <ArrowRight className="h-8 w-8 text-primary mt-8 hidden md:block absolute left-1/2 top-1/2 -translate-y-1/2 transform translate-x-[calc(50%_+_2rem)] xl:translate-x-[calc(50%_+_4rem)]" 
-                  style={{ right: 'auto', marginLeft: 'auto', marginRight: 'auto' }}
+                  <ArrowRight 
+                    className="h-8 w-8 text-primary mt-8 hidden md:block absolute top-1/2 -translate-y-1/2 transform 
+                               md:left-[calc(100%_-_1rem)] lg:left-[calc(100%_-_0.5rem)] xl:left-[calc(100%_-_0rem)] 
+                               peer-data-[side=left]:rotate-180"
                   />
                 )}
               </div>
@@ -286,3 +288,4 @@ export default function LandingPage() {
     </>
   );
 }
+

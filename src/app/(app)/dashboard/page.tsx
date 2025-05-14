@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from "react";
 import PdfUploadForm from "@/components/dashboard/PdfUploadForm";
 import SummaryDisplay from "@/components/dashboard/SummaryDisplay";
 import { extractTextFromPdf } from "@/lib/pdfUtils";
-import { summarizePdfForStudent } from "@/ai/flows/summarize-pdf";
+import { summarizePdfForStudent, type SummarizePdfForStudentOutput } from "@/ai/flows/summarize-pdf"; // Import type
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -13,7 +13,7 @@ import { Terminal, Loader2, AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default function DashboardPage() {
-  const [summary, setSummary] = useState<string | null>(null);
+  const [summaryOutput, setSummaryOutput] = useState<SummarizePdfForStudentOutput | null>(null); // Changed state name and type
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [pdfTextContent, setPdfTextContent] = useState<string | null>(null);
   const [currentFileName, setCurrentFileName] = useState<string | undefined>(undefined);
@@ -39,16 +39,15 @@ export default function DashboardPage() {
 
   const handlePdfSubmit = async (file: File) => {
     setIsSummarizing(true);
-    setSummary(null);
+    setSummaryOutput(null); // Clear previous summary output
     setPdfTextContent(null);
     setCurrentFileName(file.name);
 
-    // Check quota again right before processing
     const currentProfile = await memoizedCheckAndResetQuota();
     if (!currentProfile || currentProfile.dailyRemainingQuota <= 0) {
       toast({
-        title: "Quota Exceeded",
-        description: "You have used all your summaries for today. Please try again tomorrow.",
+        title: "Kota Aşıldı",
+        description: "Bugünkü özet hakkınızı doldurdunuz. Lütfen yarın tekrar deneyin.",
         variant: "destructive",
       });
       setIsSummarizing(false);
@@ -59,34 +58,33 @@ export default function DashboardPage() {
 
 
     try {
-      toast({ title: "Processing PDF...", description: "Extracting text content from your PDF." });
+      toast({ title: "PDF İşleniyor...", description: "PDF'inizden metin içeriği çıkarılıyor." });
       const text = await extractTextFromPdf(file);
       setPdfTextContent(text);
-      toast({ title: "Text Extracted", description: "Now generating your summary..." });
+      toast({ title: "Metin Çıkarıldı", description: "Şimdi özetiniz oluşturuluyor..." });
 
       const result = await summarizePdfForStudent({ pdfText: text });
       
-      if (result.summary) {
-        setSummary(result.summary);
-        toast({ title: "Summary Generated!", description: "Your PDF summary is ready." });
-        await decrementQuota(); // Decrement quota after successful summarization
-        // Refresh quota display (useUser hook should update userProfile, triggering re-render)
-        const updatedProfileAgain = await memoizedCheckAndResetQuota(); // re-fetch to ensure UI consistency
+      if (result && result.formattedStudyOutput) { // Check for formattedStudyOutput
+        setSummaryOutput(result); // Set the full output object
+        toast({ title: "Özet Oluşturuldu!", description: "PDF özetiniz hazır." });
+        await decrementQuota(); 
+        const updatedProfileAgain = await memoizedCheckAndResetQuota(); 
          if (updatedProfileAgain) {
           setCanSummarize(updatedProfileAgain.dailyRemainingQuota > 0);
         }
 
       } else {
-        throw new Error("The AI failed to generate a summary.");
+        throw new Error("Yapay zeka bir özet oluşturamadı veya format hatalı.");
       }
     } catch (error: any) {
-      console.error("Summarization error:", error);
+      console.error("Özetleme hatası:", error);
       toast({
-        title: "Summarization Error",
-        description: error.message || "An unexpected error occurred while generating the summary.",
+        title: "Özetleme Hatası",
+        description: error.message || "Özet oluşturulurken beklenmedik bir hata oluştu.",
         variant: "destructive",
       });
-      setSummary(null); // Clear any partial summary
+      setSummaryOutput(null); 
     } finally {
       setIsSummarizing(false);
     }
@@ -96,7 +94,7 @@ export default function DashboardPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground">Loading your dashboard...</p>
+        <p className="mt-4 text-muted-foreground">Kontrol paneliniz yükleniyor...</p>
       </div>
     );
   }
@@ -104,47 +102,47 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Kontrol Paneli</h1>
         <p className="text-muted-foreground">
-          Upload your PDF and let our AI provide a student-friendly summary.
+          PDF'inizi yükleyin ve yapay zekamızın öğrenci dostu bir özet sunmasına izin verin.
         </p>
       </div>
 
       {!canSummarize && !isSummarizing && userProfile && userProfile.dailyRemainingQuota <=0 && (
          <Alert variant="destructive" className="shadow-md">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Daily Quota Reached</AlertTitle>
+          <AlertTitle>Günlük Kota Doldu</AlertTitle>
           <AlertDescription>
-            You&apos;ve used all your free summaries for today. Please check back tomorrow for more!
+            Bugünlük ücretsiz özet hakkınızı kullandınız. Daha fazlası için lütfen yarın tekrar kontrol edin!
           </AlertDescription>
         </Alert>
       )}
 
       <PdfUploadForm onSubmit={handlePdfSubmit} isSummarizing={isSummarizing} isDisabled={!canSummarize && !isSummarizing} />
 
-      {isSummarizing && !summary && (
+      {isSummarizing && !summaryOutput && (
         <Card className="mt-8 shadow-lg">
           <CardContent className="p-6">
             <div className="flex flex-col items-center justify-center text-center">
               <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
-              <p className="text-lg font-medium text-foreground">Generating Summary...</p>
+              <p className="text-lg font-medium text-foreground">Özet Oluşturuluyor...</p>
               <p className="text-sm text-muted-foreground">
-                {pdfTextContent ? "AI is working its magic..." : "Processing PDF..."}
+                {pdfTextContent ? "Yapay zeka sihrini yapıyor..." : "PDF işleniyor..."}
               </p>
-              <p className="text-xs text-muted-foreground mt-2">This may take a few moments.</p>
+              <p className="text-xs text-muted-foreground mt-2">Bu işlem birkaç dakika sürebilir.</p>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {summary && <SummaryDisplay summary={summary} originalFileName={currentFileName} />}
+      {summaryOutput && <SummaryDisplay summaryOutput={summaryOutput} originalFileName={currentFileName} />}
 
-      {!isSummarizing && !summary && (
+      {!isSummarizing && !summaryOutput && (
          <Alert className="mt-8 shadow-md">
           <Terminal className="h-4 w-4" />
-          <AlertTitle>Ready to Summarize!</AlertTitle>
+          <AlertTitle>Özetlemeye Hazır!</AlertTitle>
           <AlertDescription>
-            Upload a PDF document using the form above to get started. Your AI-generated summary will appear here.
+            Başlamak için yukarıdaki formu kullanarak bir PDF belgesi yükleyin. Yapay zeka tarafından oluşturulan özetiniz burada görünecektir.
           </AlertDescription>
         </Alert>
       )}

@@ -36,3 +36,4 @@ export default function Footer({ appName }: FooterProps) {
     </footer>
   );
 }
+

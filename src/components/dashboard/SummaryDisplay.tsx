@@ -3,68 +3,69 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Copy, Download, Save } from "lucide-react";
+import { Copy, Download, Save, Loader2 } from "lucide-react"; // Added Loader2
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import type { SummarizePdfForStudentOutput } from "@/ai/flows/summarize-pdf"; // Import the type
 
 type SummaryDisplayProps = {
-  summary: string | null;
+  summaryOutput: SummarizePdfForStudentOutput | null; // Changed prop name and type
   originalFileName?: string;
-  onSave?: () => Promise<void>; // Placeholder for save functionality
+  onSave?: () => Promise<void>; 
   isSaving?: boolean;
 };
 
-// Helper to format summary - basic newlines to paragraphs
-// A more sophisticated markdown parser could be used if AI output is markdown
-const formatSummary = (text: string): JSX.Element[] => {
-  return text.split('\n').map((paragraph, index) => {
-    if (paragraph.trim().startsWith('* ') || paragraph.trim().startsWith('- ')) {
-      // Basic list item handling
-      return <li key={index} className="ml-4 list-disc">{paragraph.substring(paragraph.indexOf(' ') + 1)}</li>;
-    }
-    if (paragraph.trim().match(/^(#+)\s/)) { // Basic heading H1-H6
-        const match = paragraph.trim().match(/^(#+)\s/);
-        const level = match ? match[1].length : 0;
-        const content = paragraph.substring(paragraph.indexOf(' ') + 1);
-        if (level === 1) return <h2 key={index} className="text-xl font-semibold mt-4 mb-2">{content}</h2>;
-        if (level === 2) return <h3 key={index} className="text-lg font-semibold mt-3 mb-1">{content}</h3>;
-        if (level === 3) return <h4 key={index} className="text-md font-semibold mt-2 mb-1">{content}</h4>;
-    }
-    return <p key={index} className="mb-2 last:mb-0">{paragraph}</p>;
-  });
-};
-
-
-export default function SummaryDisplay({ summary, originalFileName, onSave, isSaving }: SummaryDisplayProps) {
+export default function SummaryDisplay({ summaryOutput, originalFileName, onSave, isSaving }: SummaryDisplayProps) {
   const { toast } = useToast();
 
-  if (!summary) {
+  if (!summaryOutput || !summaryOutput.formattedStudyOutput) { // Check for formattedStudyOutput
     return null;
   }
 
+  const { formattedStudyOutput } = summaryOutput; // Destructure formattedStudyOutput
+
   const handleCopyToClipboard = () => {
-    navigator.clipboard.writeText(summary)
+    navigator.clipboard.writeText(formattedStudyOutput)
       .then(() => {
-        toast({ title: "Copied!", description: "Summary copied to clipboard." });
+        toast({ title: "Kopyalandı!", description: "Özet panoya kopyalandı." });
       })
       .catch(err => {
-        console.error("Failed to copy text: ", err);
-        toast({ title: "Error", description: "Failed to copy summary.", variant: "destructive" });
+        console.error("Metin kopyalanamadı: ", err);
+        toast({ title: "Hata", description: "Özet kopyalanamadı.", variant: "destructive" });
       });
   };
 
   const handleDownloadText = () => {
-    const blob = new Blob([summary], { type: "text/plain;charset=utf-8" });
+    const blob = new Blob([formattedStudyOutput], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    const safeFileName = originalFileName?.replace(/\.pdf$/i, '_summary.txt').replace(/[^a-z0-9_.-]/gi, '_') || "summary.txt";
+    const safeFileName = originalFileName?.replace(/\.pdf$/i, '_özet.txt').replace(/[^a-z0-9_.-]/gi, '_') || "özet.txt";
     link.download = safeFileName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    toast({ title: "Downloaded", description: "Summary downloaded as a text file." });
+    toast({ title: "İndirildi", description: "Özet metin dosyası olarak indirildi." });
+  };
+
+  // Basic markdown-like formatting. More robust parsing might be needed for complex markdown.
+  const formatOutputForDisplay = (text: string): JSX.Element[] => {
+    return text.split('\n').map((line, index) => {
+      if (line.trim().startsWith('## ')) {
+        return <h2 key={index} className="text-xl font-semibold mt-4 mb-2 text-foreground">{line.substring(3)}</h2>;
+      }
+      if (line.trim().startsWith('### ')) {
+        return <h3 key={index} className="text-lg font-semibold mt-3 mb-1 text-foreground">{line.substring(4)}</h3>;
+      }
+      if (line.trim().startsWith('* ') || line.trim().startsWith('- ')) {
+        return <li key={index} className="ml-4 list-disc text-muted-foreground">{line.substring(line.indexOf(' ') + 1)}</li>;
+      }
+      if (line.trim() === "") {
+        return <div key={index} className="h-2"></div>; // Empty line for spacing
+      }
+      return <p key={index} className="mb-2 last:mb-0 text-muted-foreground">{line}</p>;
+    });
   };
 
 
@@ -73,18 +74,18 @@ export default function SummaryDisplay({ summary, originalFileName, onSave, isSa
       <CardHeader>
         <div className="flex justify-between items-start">
             <div>
-                <CardTitle className="text-2xl">Generated Summary</CardTitle>
-                {originalFileName && <CardDescription>For: {originalFileName}</CardDescription>}
+                <CardTitle className="text-2xl">Oluşturulan Özet</CardTitle>
+                {originalFileName && <CardDescription>Dosya: {originalFileName}</CardDescription>}
             </div>
             <div className="flex gap-2">
-                <Button variant="outline" size="icon" onClick={handleCopyToClipboard} title="Copy to Clipboard">
+                <Button variant="outline" size="icon" onClick={handleCopyToClipboard} title="Panoya Kopyala">
                     <Copy className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="icon" onClick={handleDownloadText} title="Download as Text">
+                <Button variant="outline" size="icon" onClick={handleDownloadText} title="Metin Olarak İndir">
                     <Download className="h-4 w-4" />
                 </Button>
-                {/* {onSave && (
-                    <Button variant="outline" size="icon" onClick={onSave} disabled={isSaving} title="Save to Cloud">
+                {/* {onSave && ( // Save functionality can be re-enabled when implemented
+                    <Button variant="outline" size="icon" onClick={onSave} disabled={isSaving} title="Buluta Kaydet">
                         {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                     </Button>
                 )} */}
@@ -93,8 +94,8 @@ export default function SummaryDisplay({ summary, originalFileName, onSave, isSa
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[400px] w-full rounded-md border p-4 bg-muted/30">
-          <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap leading-relaxed">
-            {formatSummary(summary)}
+          <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-line leading-relaxed">
+            {formatOutputForDisplay(formattedStudyOutput)}
           </div>
         </ScrollArea>
       </CardContent>

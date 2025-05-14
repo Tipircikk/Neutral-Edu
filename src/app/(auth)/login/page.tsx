@@ -14,12 +14,12 @@ export default function LoginPage() {
   const handleLogin = async (values: any) => {
     try {
       await signInWithEmail(values);
-      toast({ title: "Login Successful", description: "Welcome back!" });
-      router.push("/dashboard"); // Redirect handled by AuthLayout too, but good for immediate feedback
+      toast({ title: "Giriş Başarılı", description: "Tekrar hoş geldiniz!" });
+      router.push("/dashboard"); 
     } catch (error: any) {
-      // Error toast is handled by AuthForm
-      console.error("Login failed:", error.message);
-      throw error; // Re-throw to be caught by AuthForm
+      // Hata mesajı AuthForm tarafından yönetilir
+      console.error("Giriş başarısız:", error.message);
+      throw error; // AuthForm'un yakalaması için hatayı tekrar fırlat
     }
   };
 
@@ -27,9 +27,9 @@ export default function LoginPage() {
     <div className="w-full max-w-md">
       <AuthForm mode="login" onSubmit={handleLogin} />
       <p className="mt-6 text-center text-sm text-muted-foreground">
-        Don&apos;t have an account?{" "}
+        Hesabınız yok mu?{" "}
         <Link href="/signup" className="font-medium text-primary hover:underline">
-          Sign up
+          Kayıt Olun
         </Link>
       </p>
     </div>
