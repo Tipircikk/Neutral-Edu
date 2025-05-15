@@ -59,7 +59,7 @@ const allAiTools = [
     description: "Hedeflerinize ve konularınıza özel kişiselleştirilmiş YKS çalışma planı taslakları alın.",
     icon: <CalendarDays className="h-10 w-10 text-primary mb-4" />,
     link: "/dashboard/ai-tools/study-plan-generator",
-    status: "soon",
+    status: "active", // Changed from "soon"
     category: "analiz",
   },
   {

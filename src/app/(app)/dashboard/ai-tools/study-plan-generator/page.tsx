@@ -9,17 +9,18 @@ import { CalendarDays, Wand2, Loader2, AlertTriangle } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
-// import { generateStudyPlan, type GenerateStudyPlanOutput, type GenerateStudyPlanInput } from "@/ai/flows/study-plan-generator-flow";
+import { generateStudyPlan, type GenerateStudyPlanOutput, type GenerateStudyPlanInput } from "@/ai/flows/study-plan-generator-flow";
 
 export default function StudyPlanGeneratorPage() {
   const [targetExam, setTargetExam] = useState("YKS");
   const [subjects, setSubjects] = useState("");
-  const [studyDuration, setStudyDuration] = useState("4_hafta"); // e.g., "4_hafta", "3_ay"
+  const [studyDuration, setStudyDuration] = useState("4_hafta");
   const [hoursPerDay, setHoursPerDay] = useState(4);
-  const [planOutput, setPlanOutput] = useState<any | null>(null); // Replace 'any' with GenerateStudyPlanOutput
+  const [planOutput, setPlanOutput] = useState<GenerateStudyPlanOutput | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
   const { toast } = useToast();
@@ -45,6 +46,15 @@ export default function StudyPlanGeneratorPage() {
       toast({ title: "Konular Gerekli", description: "Lütfen çalışma planı oluşturmak için konuları girin.", variant: "destructive" });
       return;
     }
+    if (subjects.trim().length < 5) {
+      toast({ title: "Konular Yetersiz", description: "Lütfen en az 5 karakterden oluşan konular girin.", variant: "destructive" });
+      return;
+    }
+    if (hoursPerDay < 1 || hoursPerDay > 12) {
+        toast({ title: "Geçersiz Saat", description: "Günlük çalışma saati 1 ile 12 arasında olmalıdır.", variant: "destructive" });
+        return;
+    }
+
 
     setIsGenerating(true);
     setPlanOutput(null);
@@ -62,7 +72,6 @@ export default function StudyPlanGeneratorPage() {
       if (!currentProfile?.plan) {
         throw new Error("Kullanıcı planı bulunamadı.");
       }
-      /*
       const input: GenerateStudyPlanInput = {
         targetExam,
         subjects,
@@ -72,7 +81,7 @@ export default function StudyPlanGeneratorPage() {
       };
       const result = await generateStudyPlan(input);
 
-      if (result) { // Adjust condition based on actual output structure
+      if (result && result.planTitle && result.weeklyPlans) {
         setPlanOutput(result);
         toast({ title: "Çalışma Planı Hazır!", description: "Kişiselleştirilmiş çalışma planınız oluşturuldu." });
         if (decrementQuota) {
@@ -83,14 +92,8 @@ export default function StudyPlanGeneratorPage() {
           setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
         }
       } else {
-        throw new Error("Yapay zeka bir çalışma planı üretemedi.");
+        throw new Error("Yapay zeka bir çalışma planı üretemedi veya format hatalı.");
       }
-      */
-      // Placeholder for now
-      toast({ title: "Çalışma Planı Oluşturucu (Yakında)", description: "Bu özellik şu anda geliştirme aşamasındadır.", variant: "default" });
-      setPlanOutput({ placeholder: "Yapay zeka tarafından oluşturulan çalışma planı burada görünecek." });
-
-
     } catch (error: any) {
       console.error("Çalışma planı oluşturma hatası:", error);
       toast({
@@ -103,7 +106,7 @@ export default function StudyPlanGeneratorPage() {
     }
   };
   
-  const isSubmitDisabled = true; // isGenerating || !subjects.trim() || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
+  const isSubmitDisabled = isGenerating || !subjects.trim() || subjects.trim().length < 5 || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
 
   if (userProfileLoading) {
     return (
@@ -123,7 +126,7 @@ export default function StudyPlanGeneratorPage() {
             <CardTitle className="text-2xl">AI Çalışma Planı Oluşturucu</CardTitle>
           </div>
           <CardDescription>
-            Hedef sınavınızı, çalışmak istediğiniz konuları, süreyi ve günlük çalışma saatinizi girin. Yapay zeka sizin için kişiselleştirilmiş bir YKS çalışma planı taslağı oluştursun. (Bu özellik yakında aktif olacaktır)
+            Hedef sınavınızı, çalışmak istediğiniz konuları, süreyi ve günlük çalışma saatinizi girin. Yapay zeka sizin için kişiselleştirilmiş bir YKS çalışma planı taslağı oluştursun.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -138,14 +141,6 @@ export default function StudyPlanGeneratorPage() {
         </Alert>
       )}
 
-       <Alert variant="default" className="shadow-md">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Yakında Sizlerle!</AlertTitle>
-          <AlertDescription>
-            AI Çalışma Planı Oluşturucu özelliği şu anda geliştirme aşamasındadır. Anlayışınız için teşekkür ederiz!
-          </AlertDescription>
-        </Alert>
-
       <form onSubmit={handleSubmit}>
         <Card>
           <CardHeader>
@@ -155,11 +150,11 @@ export default function StudyPlanGeneratorPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <Label htmlFor="targetExam">Hedef Sınav</Label>
-                    <Input id="targetExam" value={targetExam} onChange={(e) => setTargetExam(e.target.value)} placeholder="örn: YKS, TYT, AYT" disabled={isSubmitDisabled} />
+                    <Input id="targetExam" value={targetExam} onChange={(e) => setTargetExam(e.target.value)} placeholder="örn: YKS, TYT, AYT" disabled={isGenerating || !canProcess} />
                 </div>
                 <div>
                     <Label htmlFor="studyDuration">Çalışma Süresi</Label>
-                    <Select value={studyDuration} onValueChange={setStudyDuration} disabled={isSubmitDisabled}>
+                    <Select value={studyDuration} onValueChange={setStudyDuration} disabled={isGenerating || !canProcess}>
                         <SelectTrigger id="studyDuration">
                             <SelectValue placeholder="Süre seçin" />
                         </SelectTrigger>
@@ -176,7 +171,7 @@ export default function StudyPlanGeneratorPage() {
             </div>
              <div>
                 <Label htmlFor="hoursPerDay">Günlük Ortalama Çalışma Saati</Label>
-                <Input type="number" id="hoursPerDay" value={hoursPerDay} onChange={(e) => setHoursPerDay(parseInt(e.target.value))} min="1" max="12" disabled={isSubmitDisabled}/>
+                <Input type="number" id="hoursPerDay" value={hoursPerDay} onChange={(e) => setHoursPerDay(parseInt(e.target.value, 10))} min="1" max="12" disabled={isGenerating || !canProcess}/>
             </div>
             <div>
                 <Label htmlFor="subjects">Çalışılacak Konular (Virgülle ayırın)</Label>
@@ -187,12 +182,12 @@ export default function StudyPlanGeneratorPage() {
                 onChange={(e) => setSubjects(e.target.value)}
                 rows={5}
                 className="text-base"
-                disabled={isSubmitDisabled}
+                disabled={isGenerating || !canProcess}
                 />
             </div>
             <Button type="submit" className="w-full" disabled={isSubmitDisabled}>
               {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-              Çalışma Planı Oluştur (Yakında)
+              Çalışma Planı Oluştur
             </Button>
           </CardContent>
         </Card>
@@ -215,19 +210,64 @@ export default function StudyPlanGeneratorPage() {
       {planOutput && (
         <Card className="mt-6">
           <CardHeader>
-            <CardTitle>Oluşturulan Çalışma Planı Taslağı</CardTitle>
+            <CardTitle>{planOutput.planTitle}</CardTitle>
+            {planOutput.introduction && <CardDescription>{planOutput.introduction}</CardDescription>}
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-line">
-              {/* Render the actual plan output here once the flow is implemented */}
-              <pre>{JSON.stringify(planOutput, null, 2)}</pre>
-            </div>
+          <CardContent className="space-y-6">
+            <ScrollArea className="h-[600px] w-full rounded-md border p-4 bg-muted/30">
+              <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-line leading-relaxed">
+                {planOutput.weeklyPlans.map((weekPlan, weekIndex) => (
+                  <div key={weekIndex} className="mb-6 p-4 border rounded-md bg-card">
+                    <h3 className="text-lg font-semibold mt-3 mb-2 text-primary">
+                      {weekPlan.week}. Hafta
+                      {weekPlan.weeklyGoal && `: ${weekPlan.weeklyGoal}`}
+                    </h3>
+                    {weekPlan.dailyTasks.map((dayTask, dayIndex) => (
+                      <div key={dayIndex} className="mb-3 p-3 border-t border-dashed">
+                        <h4 className="font-semibold text-foreground">{dayTask.day}</h4>
+                        <p className="text-muted-foreground">
+                          <span className="font-medium">Odak Konular:</span> {dayTask.focusTopics.join(", ")}
+                        </p>
+                        {dayTask.estimatedTime && <p className="text-xs text-muted-foreground">Tahmini Süre: {dayTask.estimatedTime}</p>}
+                        {dayTask.activities && dayTask.activities.length > 0 && (
+                          <div>
+                            <p className="text-xs text-muted-foreground mt-1">Aktiviteler:</p>
+                            <ul className="list-disc list-inside pl-2 text-xs text-muted-foreground">
+                              {dayTask.activities.map((activity, actIndex) => <li key={actIndex}>{activity}</li>)}
+                            </ul>
+                          </div>
+                        )}
+                        {dayTask.notes && <p className="text-xs italic text-accent-foreground/80 mt-1">Not: {dayTask.notes}</p>}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+                {planOutput.generalTips && planOutput.generalTips.length > 0 && (
+                  <div className="mt-4 p-3 border rounded-md bg-card">
+                    <h3 className="text-lg font-semibold mt-3 mb-2 text-primary">Genel İpuçları</h3>
+                    <ul className="list-disc list-inside pl-2 text-muted-foreground">
+                      {planOutput.generalTips.map((tip, tipIndex) => <li key={tipIndex}>{tip}</li>)}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+             <p className="text-sm text-muted-foreground mt-2">{planOutput.disclaimer}</p>
             <div className="mt-4 p-3 text-xs text-destructive-foreground bg-destructive/80 rounded-md flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
               <span>NeutralEdu AI bir yapay zekadır bu nedenle hata yapabilir, bu yüzden verdiği bilgileri doğrulayınız ve bu planı bir başlangıç noktası olarak kullanınız.</span>
             </div>
           </CardContent>
         </Card>
+      )}
+       {!isGenerating && !planOutput && !userProfileLoading && (
+         <Alert className="mt-6">
+          <CalendarDays className="h-4 w-4" />
+          <AlertTitle>Plana Hazır!</AlertTitle>
+          <AlertDescription>
+            Yukarıdaki formu doldurarak kişiselleştirilmiş YKS çalışma planınızı oluşturun.
+          </AlertDescription>
+        </Alert>
       )}
     </div>
   );
