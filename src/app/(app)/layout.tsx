@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { ReactNode } from "react";
@@ -46,7 +47,18 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   }, [user, authLoading, router]);
 
   useEffect(() => {
-    if (pathname.startsWith('/dashboard/ai-tools')) {
+    // Automatically open AI tools submenu if the current path is one of the AI tools
+    const aiToolPaths = [
+      "/dashboard/ai-tools/pdf-summarizer",
+      "/dashboard/ai-tools/topic-summarizer",
+      "/dashboard/ai-tools/topic-explainer",
+      "/dashboard/ai-tools/flashcard-generator",
+      "/dashboard/ai-tools/question-solver",
+      "/dashboard/ai-tools/test-generator",
+      "/dashboard/ai-tools/exam-report-analyzer",
+      "/dashboard/ai-tools/study-plan-generator",
+    ];
+    if (aiToolPaths.some(path => pathname.startsWith(path))) {
       setIsAiToolsSubmenuOpen(true);
     }
   }, [pathname]);
@@ -130,11 +142,29 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                   </SidebarMenuButton>
                   {isAiToolsSubmenuOpen && (
                     <SidebarMenuSub>
+                      {/* Özetleme ve Anlama Araçları */}
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/pdf-summarizer"}>
                           <Link href="/dashboard/ai-tools/pdf-summarizer"><FileScan /><span>AI PDF Özetleyici</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/topic-summarizer"}>
+                          <Link href="/dashboard/ai-tools/topic-summarizer"><Lightbulb /><span>AI Konu Özetleyici</span></Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                       <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/topic-explainer"}>
+                          <Link href="/dashboard/ai-tools/topic-explainer"><Presentation /><span>AI Konu Anlatımı</span></Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/flashcard-generator"}>
+                          <Link href="/dashboard/ai-tools/flashcard-generator"><LayoutGrid /><span>AI Bilgi Kartları</span></Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      
+                      {/* Soru ve Test Araçları */}
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/question-solver"}>
                           <Link href="/dashboard/ai-tools/question-solver"><HelpCircle /><span>AI Soru Çözücü</span></Link>
@@ -145,16 +175,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                           <Link href="/dashboard/ai-tools/test-generator"><FileTextIcon /><span>AI Test Oluşturucu</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/topic-summarizer"}>
-                          <Link href="/dashboard/ai-tools/topic-summarizer"><Lightbulb /><span>AI Konu Özetleyici</span></Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                       <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/flashcard-generator"}>
-                          <Link href="/dashboard/ai-tools/flashcard-generator"><LayoutGrid /><span>AI Bilgi Kartları</span></Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
+
+                      {/* Analiz ve Planlama Araçları */}
                        <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/exam-report-analyzer"}>
                           <Link href="/dashboard/ai-tools/exam-report-analyzer"><ClipboardCheck /><span>AI Sınav Analizcisi</span></Link>
@@ -163,11 +185,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/study-plan-generator"}>
                           <Link href="/dashboard/ai-tools/study-plan-generator"><CalendarDays /><span>AI Çalışma Planı</span></Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/topic-explainer"}>
-                          <Link href="/dashboard/ai-tools/topic-explainer"><Presentation /><span>AI Konu Anlatımı</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                     </SidebarMenuSub>
@@ -196,7 +213,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               </SidebarMenu>
             </SidebarContent>
             <SidebarFooter className="p-2 mt-auto">
-               {userProfile?.plan !== 'premium' && userProfile?.plan !== 'pro' && (
+               {(userProfile?.plan !== 'premium' && userProfile?.plan !== 'pro') && (
                 <Card className="bg-gradient-to-br from-primary/20 to-accent/20 border-primary/50 my-2 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:border-none">
                   <CardContent className="p-4 group-data-[collapsible=icon]:p-0">
                     <div className="flex flex-col items-center text-center group-data-[collapsible=icon]:hidden">
@@ -238,3 +255,4 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     </SidebarProvider>
   );
 }
+
