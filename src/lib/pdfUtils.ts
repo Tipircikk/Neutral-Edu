@@ -6,7 +6,10 @@ import * as pdfjsLib from 'pdfjs-dist';
 // Set workerSrc to point to a CDN-hosted version of pdf.worker.min.js.
 if (typeof window !== 'undefined') {
   // Using a CDN-hosted version to avoid issues with local file serving.
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+  // The version of pdfjs-dist in package.json is 4.4.168.
+  // We hardcode this version to ensure the correct worker is fetched.
+  const PDFJS_VERSION = "4.4.168";
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.worker.min.js`;
 }
 
 
