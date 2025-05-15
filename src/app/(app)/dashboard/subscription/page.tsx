@@ -4,10 +4,13 @@
 import { useUser } from "@/hooks/useUser";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Gem, CheckCircle, ExternalLink, AlertTriangle } from "lucide-react";
+import { Loader2, Gem, CheckCircle, ExternalLink, AlertTriangle, CalendarClock } from "lucide-react";
 import Link from "next/link";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
 import { Badge } from "@/components/ui/badge";
+import { Timestamp } from "firebase/firestore";
+import { format, differenceInDays, isToday, isPast, formatDistanceToNowStrict } from 'date-fns';
+import { tr } from 'date-fns/locale';
 
 export default function SubscriptionPage() {
   const { userProfile, loading: userLoading } = useUser();
@@ -55,6 +58,28 @@ export default function SubscriptionPage() {
     ],
   };
 
+  let expiryDateDisplay: string | null = null;
+  let remainingTimeDisplay: string | null = null;
+
+  if (userProfile.planExpiryDate && userProfile.planExpiryDate instanceof Timestamp) {
+    const expiryDate = userProfile.planExpiryDate.toDate();
+    expiryDateDisplay = format(expiryDate, 'PP', { locale: tr }); // örn: 25 Ara 2024
+
+    const now = new Date();
+    if (isPast(expiryDate) && !isToday(expiryDate)) {
+      remainingTimeDisplay = "Süresi Doldu";
+    } else if (isToday(expiryDate)) {
+      remainingTimeDisplay = "Bugün Sona Eriyor";
+    } else {
+      const daysRemaining = differenceInDays(expiryDate, now);
+      if (daysRemaining >= 0) {
+        remainingTimeDisplay = formatDistanceToNowStrict(expiryDate, { locale: tr, addSuffix: true, unit: 'day' }).replace("içinde", "kaldı");
+      } else {
+         remainingTimeDisplay = "Süresi Doldu"; // Fallback for any edge cases
+      }
+    }
+  }
+
   return (
     <div className="space-y-8 max-w-2xl mx-auto">
       <Card className="shadow-lg">
@@ -72,7 +97,7 @@ export default function SubscriptionPage() {
             <CardHeader>
               <CardTitle className="text-xl">Mevcut Planınız</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Plan Adı:</span>
                 <Badge 
@@ -89,6 +114,33 @@ export default function SubscriptionPage() {
                 <span className="text-muted-foreground">Günlük Kalan Kullanım Hakkı:</span>
                 <span className="font-semibold text-primary">{userProfile.dailyRemainingQuota} / {totalQuota}</span>
               </div>
+              {(userProfile.plan === 'premium' || userProfile.plan === 'pro') && (
+                <>
+                  {expiryDateDisplay && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Plan Bitiş Tarihi:</span>
+                      <span className="font-semibold">{expiryDateDisplay}</span>
+                    </div>
+                  )}
+                  {remainingTimeDisplay && (
+                    <div className="flex items-center justify-between pt-1 border-t border-dashed">
+                      <span className="text-muted-foreground flex items-center"><CalendarClock size={16} className="mr-2"/>Kalan Süre:</span>
+                      <Badge 
+                        variant={remainingTimeDisplay === "Süresi Doldu" || remainingTimeDisplay === "Bugün Sona Eriyor" ? "destructive" : "outline"} 
+                        className="font-semibold"
+                      >
+                        {remainingTimeDisplay}
+                      </Badge>
+                    </div>
+                  )}
+                   {!expiryDateDisplay && userProfile.plan !== 'free' && (
+                     <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Plan Bitiş Tarihi:</span>
+                        <span className="font-semibold">Süresiz</span>
+                    </div>
+                   )}
+                </>
+              )}
             </CardContent>
           </Card>
 
