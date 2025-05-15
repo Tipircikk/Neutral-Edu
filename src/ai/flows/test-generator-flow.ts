@@ -91,10 +91,8 @@ const testGeneratorFlow = ai.defineFlow(
       input.questionTypes = ["multiple_choice"];
     }
 
-    let modelToUse = 'googleai/gemini-2.0-flash'; // Default for free/premium
-    if (input.userPlan === 'pro') {
-      modelToUse = 'googleai/gemini-1.5-flash-latest'; // Was gemini-1.5-pro-latest, changed due to rate limits
-    }
+    // Tüm kullanıcılar için standart model kullanılacak.
+    const modelToUse = 'googleai/gemini-2.0-flash'; 
     
     const {output} = await prompt(input, { model: modelToUse });
     if (!output || !output.questions || output.questions.length === 0) {
