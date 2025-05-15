@@ -18,21 +18,21 @@ interface PlanFeature {
 
 interface PricingPlan {
   name: string;
-  price: string;
-  originalPrice: string | null;
+  price: string; // Firestore'dan string olarak gelecek (örn: "100")
+  originalPrice: string | null; // Firestore'dan string olarak gelebilir (örn: "200")
   frequency: string;
   description: string;
   features: PlanFeature[];
   cta: string;
   ctaLink: string;
   isPrimary: boolean;
-  badge?: string;
+  badge?: string; // Bu, "YENİ" gibi ek etiketler için kullanılabilir. İndirim metni dinamik olacak.
 }
 
 const initialPricingPlans: PricingPlan[] = [
   {
     name: "Ücretsiz",
-    price: "0₺",
+    price: "0",
     originalPrice: null,
     frequency: "/ay",
     description: "NeutralEdu AI'ı denemek ve günlük temel kullanım için mükemmel.",
@@ -53,8 +53,8 @@ const initialPricingPlans: PricingPlan[] = [
   },
   {
     name: "Premium",
-    price: "100₺", 
-    originalPrice: "200₺",
+    price: "100", 
+    originalPrice: "200",
     frequency: "/ay",
     description: "Daha fazla güç ve özelliğe ihtiyaç duyan özel akademisyenler için.",
     features: [
@@ -71,12 +71,12 @@ const initialPricingPlans: PricingPlan[] = [
     cta: "Premium'a Yükseltin",
     ctaLink: "#contact-sales", 
     isPrimary: false,
-    badge: "%50 İNDİRİM",
+    badge: "YENİ &", // Bu, indirim oranı metninden önce görünecek.
   },
   {
     name: "Pro",
-    price: "300₺", 
-    originalPrice: "600₺",
+    price: "250",  // Örnek görseldeki gibi
+    originalPrice: "600", // Örnek görseldeki gibi
     frequency: "/ay",
     description: "Maksimum potansiyelini açığa çıkarmak isteyen en talepkar kullanıcılar için.",
     features: [
@@ -93,7 +93,7 @@ const initialPricingPlans: PricingPlan[] = [
     cta: "Pro'ya Geçin",
     ctaLink: "#contact-sales", 
     isPrimary: true,
-    badge: "YENİ & %50 İNDİRİM",
+    badge: "YENİ &",
   },
 ];
 
@@ -113,15 +113,15 @@ export default function PricingPage() {
             if (plan.name === "Premium" && fetchedData.premium?.price) {
               return { 
                 ...plan, 
-                price: fetchedData.premium.price + "₺",
-                originalPrice: fetchedData.premium.originalPrice ? fetchedData.premium.originalPrice + "₺" : null
+                price: fetchedData.premium.price,
+                originalPrice: fetchedData.premium.originalPrice || null
               };
             }
             if (plan.name === "Pro" && fetchedData.pro?.price) {
               return { 
                 ...plan, 
-                price: fetchedData.pro.price + "₺",
-                originalPrice: fetchedData.pro.originalPrice ? fetchedData.pro.originalPrice + "₺" : null
+                price: fetchedData.pro.price,
+                originalPrice: fetchedData.pro.originalPrice || null
               };
             }
             return plan;
@@ -140,6 +140,26 @@ export default function PricingPage() {
     };
     fetchPrices();
   }, []);
+
+  const calculateDiscountBadge = (priceStr: string, originalPriceStr: string | null, staticBadgeText?: string): string | null => {
+    if (!originalPriceStr) return staticBadgeText || null;
+
+    const priceNum = parseFloat(priceStr);
+    const originalPriceNum = parseFloat(originalPriceStr);
+
+    if (isNaN(priceNum) || isNaN(originalPriceNum) || originalPriceNum <= priceNum) {
+      return staticBadgeText || null;
+    }
+
+    const discountPercentage = Math.round(((originalPriceNum - priceNum) / originalPriceNum) * 100);
+    let badgeText = "";
+    if (staticBadgeText) {
+      badgeText += staticBadgeText + " ";
+    }
+    badgeText += `%${discountPercentage} İNDİRİM`;
+    return badgeText;
+  };
+
 
   return (
     <div className="py-16 md:py-24 bg-background">
@@ -160,62 +180,65 @@ export default function PricingPage() {
           </div>
         ) : (
           <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto items-stretch">
-            {pricingPlans.map((plan) => (
-              <Card
-                key={plan.name}
-                className={`flex flex-col ${plan.isPrimary ? 'border-2 border-primary shadow-2xl scale-105' : 'shadow-lg'} bg-card transform hover:-translate-y-2 transition-transform duration-300`}
-              >
-                <CardHeader className="text-center relative pb-4">
-                  {plan.badge && (
-                    <div className="absolute top-0 right-1/2 translate-x-1/2 -translate-y-1/2 bg-destructive text-destructive-foreground text-xs font-semibold px-3 py-1 rounded-full shadow-md flex items-center">
-                      <Sparkles className="h-3 w-3 mr-1" /> {plan.badge}
+            {pricingPlans.map((plan) => {
+              const dynamicBadge = calculateDiscountBadge(plan.price, plan.originalPrice, plan.badge);
+              return (
+                <Card
+                  key={plan.name}
+                  className={`flex flex-col ${plan.isPrimary ? 'border-2 border-primary shadow-2xl scale-105' : 'shadow-lg'} bg-card transform hover:-translate-y-2 transition-transform duration-300`}
+                >
+                  <CardHeader className="text-center relative pb-4">
+                    {dynamicBadge && (
+                      <div className="absolute top-0 right-1/2 translate-x-1/2 -translate-y-1/2 bg-destructive text-destructive-foreground text-xs font-semibold px-3 py-1 rounded-full shadow-md flex items-center">
+                        <Sparkles className="h-3 w-3 mr-1" /> {dynamicBadge}
+                      </div>
+                    )}
+                    <CardTitle className={`text-3xl mt-4 ${plan.isPrimary ? 'text-primary' : 'text-foreground'}`}>{plan.name}</CardTitle>
+                    <CardDescription className="text-lg text-muted-foreground min-h-[3em]">{plan.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6 text-center flex-grow">
+                    <div>
+                      {plan.originalPrice && parseFloat(plan.originalPrice) > parseFloat(plan.price) && (
+                        <span className="text-2xl line-through text-muted-foreground mr-2">{plan.originalPrice}₺</span>
+                      )}
+                      <span className="text-5xl font-bold text-foreground">{plan.price}₺</span>
+                      <span className="text-lg text-muted-foreground">{plan.frequency}</span>
                     </div>
-                  )}
-                  <CardTitle className={`text-3xl mt-4 ${plan.isPrimary ? 'text-primary' : 'text-foreground'}`}>{plan.name}</CardTitle>
-                  <CardDescription className="text-lg text-muted-foreground min-h-[3em]">{plan.description}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6 text-center flex-grow">
-                  <div>
-                    {plan.originalPrice && plan.originalPrice !== plan.price && (
-                      <span className="text-2xl line-through text-muted-foreground mr-2">{plan.originalPrice}</span>
-                    )}
-                    <span className="text-5xl font-bold text-foreground">{plan.price}</span>
-                    <span className="text-lg text-muted-foreground">{plan.frequency}</span>
-                  </div>
-                  <ul className="space-y-3 text-muted-foreground text-left">
-                    {plan.features.map((feature, idx) => (
-                      <li key={idx} className="flex items-start gap-3">
-                        {feature.included ? (
-                          <CheckCircle className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                        ) : (
-                          <XCircle className="h-5 w-5 text-muted-foreground/50 flex-shrink-0 mt-0.5" />
-                        )}
-                        <span>{feature.text}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-                <CardFooter className="mt-auto">
-                  <Button
-                    size="lg"
-                    className="w-full text-lg py-6"
-                    variant={plan.isPrimary ? 'default' : 'outline'}
-                    asChild={plan.ctaLink.startsWith('/')}
-                    disabled={plan.ctaLink === "#contact-sales"}
-                  >
-                    {plan.ctaLink.startsWith('/') ? (
-                      <Link href={plan.ctaLink}>
-                        {plan.cta} <ArrowRight className="ml-2 h-5 w-5" />
-                      </Link>
-                    ) : (
-                      <>
-                       {plan.cta} {plan.ctaLink === "#contact-sales" && <span className="text-xs ml-1">(Bize Ulaşın)</span>}
-                      </>
-                    )}
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
+                    <ul className="space-y-3 text-muted-foreground text-left">
+                      {plan.features.map((feature, idx) => (
+                        <li key={idx} className="flex items-start gap-3">
+                          {feature.included ? (
+                            <CheckCircle className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                          ) : (
+                            <XCircle className="h-5 w-5 text-muted-foreground/50 flex-shrink-0 mt-0.5" />
+                          )}
+                          <span>{feature.text}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                  <CardFooter className="mt-auto">
+                    <Button
+                      size="lg"
+                      className="w-full text-lg py-6"
+                      variant={plan.isPrimary ? 'default' : 'outline'}
+                      asChild={plan.ctaLink.startsWith('/')}
+                      disabled={plan.ctaLink === "#contact-sales"}
+                    >
+                      {plan.ctaLink.startsWith('/') ? (
+                        <Link href={plan.ctaLink}>
+                          {plan.cta} <ArrowRight className="ml-2 h-5 w-5" />
+                        </Link>
+                      ) : (
+                        <>
+                         {plan.cta} {plan.ctaLink === "#contact-sales" && <span className="text-xs ml-1">(Bize Ulaşın)</span>}
+                        </>
+                      )}
+                    </Button>
+                  </CardFooter>
+                </Card>
+              );
+            })}
           </div>
         )}
         <div className="text-center mt-12 text-muted-foreground">
