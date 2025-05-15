@@ -81,7 +81,7 @@ export default function SubscriptionPage() {
   }
 
   return (
-    <div className="space-y-8 max-w-2xl mx-auto">
+    <div className="space-y-8 max-w-4xl mx-auto"> {/* Changed max-w-2xl to max-w-4xl */}
       <Card className="shadow-lg">
         <CardHeader>
           <div className="flex items-center gap-3">
