@@ -1,4 +1,6 @@
 
+"use client";
+
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -59,7 +61,7 @@ const allAiTools = [
     description: "Hedeflerinize ve konularınıza özel kişiselleştirilmiş YKS çalışma planı taslakları alın.",
     icon: <CalendarDays className="h-10 w-10 text-primary mb-4" />,
     link: "/dashboard/ai-tools/study-plan-generator",
-    status: "active", // Changed from "soon"
+    status: "active",
     category: "analiz",
   },
   {
