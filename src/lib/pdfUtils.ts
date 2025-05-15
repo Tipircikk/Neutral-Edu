@@ -9,7 +9,7 @@ if (typeof window !== 'undefined') {
   // The version of pdfjs-dist in package.json is 4.4.168.
   // We hardcode this version to ensure the correct worker is fetched.
   const PDFJS_VERSION = "4.4.168";
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.worker.min.js`;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.worker.min.mjs`;
 }
 
 
