@@ -5,8 +5,10 @@ import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/hooks/useUser";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ShieldAlert, Users, BarChart3, Settings, MessageSquareWarning, Edit3, Inbox } from "lucide-react";
+import { Loader2, ShieldAlert, Users, BarChart3, Settings, MessageSquareWarning, Edit3, Inbox, DollarSign } from "lucide-react"; // Added DollarSign
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input"; // Added Input
+import { Label } from "@/components/ui/label"; // Added Label
 import {
   Table,
   TableBody,
@@ -35,6 +37,11 @@ export default function AdminPage() {
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [isEditUserDialogOpen, setIsEditUserDialogOpen] = useState(false);
 
+  // States for future pricing management
+  const [premiumPrice, setPremiumPrice] = useState("");
+  const [proPrice, setProPrice] = useState("");
+  const [isSavingPrices, setIsSavingPrices] = useState(false);
+
   useEffect(() => {
     if (!adminLoading && !adminUserProfile?.isAdmin) {
       router.replace("/dashboard");
@@ -45,8 +52,7 @@ export default function AdminPage() {
     setUsersLoading(true);
     try {
       const usersCollection = collection(db, "users");
-      // Sort by isAdmin, then by plan (pro > premium > free), then by email
-      const usersQuery = query(usersCollection); // Simpler query, sorting done client-side for plan
+      const usersQuery = query(usersCollection); 
       const querySnapshot = await getDocs(usersQuery);
       const usersList = querySnapshot.docs.map(doc => {
         const data = doc.data();
@@ -68,24 +74,42 @@ export default function AdminPage() {
     }
   };
 
+  const fetchSupportTickets = async () => {
+    setTicketsLoading(true);
+    try {
+      const ticketsCollection = collection(db, "supportTickets");
+      const ticketsQuery = query(ticketsCollection, orderBy("status", "asc"), orderBy("createdAt", "desc"));
+      const querySnapshot = await getDocs(ticketsQuery);
+      const ticketsList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SupportTicket));
+      setSupportTickets(ticketsList);
+    } catch (error) {
+      console.error("Error fetching support tickets:", error);
+    } finally {
+      setTicketsLoading(false);
+    }
+  };
+
+  // Future: useEffect to fetch current prices from Firestore for pricing management
+  // useEffect(() => {
+  //   if (adminUserProfile?.isAdmin) {
+  //     const fetchCurrentPrices = async () => {
+  //       // try {
+  //       //   const priceConfigDoc = await getDoc(doc(db, "pricingConfig", "currentPrices"));
+  //       //   if (priceConfigDoc.exists()) {
+  //       //     const prices = priceConfigDoc.data();
+  //       //     setPremiumPrice(prices.premium?.price || "");
+  //       //     setProPrice(prices.pro?.price || "");
+  //       //   }
+  //       // } catch (err) { console.error("Error fetching prices:", err); }
+  //     };
+  //     // fetchCurrentPrices();
+  //   }
+  // }, [adminUserProfile]);
+
+
   useEffect(() => {
     if (adminUserProfile?.isAdmin) {
       fetchAllUsers();
-
-      const fetchSupportTickets = async () => {
-        setTicketsLoading(true);
-        try {
-          const ticketsCollection = collection(db, "supportTickets");
-          const ticketsQuery = query(ticketsCollection, orderBy("status", "asc"), orderBy("createdAt", "desc"));
-          const querySnapshot = await getDocs(ticketsQuery);
-          const ticketsList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SupportTicket));
-          setSupportTickets(ticketsList);
-        } catch (error) {
-          console.error("Error fetching support tickets:", error);
-        } finally {
-          setTicketsLoading(false);
-        }
-      };
       fetchSupportTickets();
     }
   }, [adminUserProfile]);
@@ -122,7 +146,7 @@ export default function AdminPage() {
 
     if (lastDate.getTime() === today.getTime()) {
       const totalQuota = getDefaultQuota(user.plan);
-      const remainingQuota = typeof user.dailyRemainingQuota === 'number' ? user.dailyRemainingQuota : 0;
+      const remainingQuota = typeof user.dailyRemainingQuota === 'number' ? user.dailyRemainingQuota : totalQuota;
       return totalQuota - remainingQuota;
     }
     return 0;
@@ -156,6 +180,18 @@ export default function AdminPage() {
 
   const handleUserUpdate = (updatedUser: UserProfile) => {
     setAllUsers(prevUsers => prevUsers.map(u => u.uid === updatedUser.uid ? updatedUser : u));
+  };
+
+  const handleSavePrices = async () => {
+    // setIsSavingPrices(true);
+    // // Future: Logic to save premiumPrice and proPrice to Firestore
+    // // e.g., await updateDoc(doc(db, "pricingConfig", "currentPrices"), {
+    // //   premium: { price: premiumPrice, ...otherPremiumFields },
+    // //   pro: { price: proPrice, ...otherProFields }
+    // // });
+    // console.log("Fiyatlar kaydedilecek:", { premiumPrice, proPrice });
+    // // toast({ title: "Fiyatlar Güncellendi" });
+    // setIsSavingPrices(false);
   };
 
 
@@ -223,7 +259,7 @@ export default function AdminPage() {
                         {user.plan === 'pro' ? 'Pro' : user.plan === 'premium' ? 'Premium' : 'Ücretsiz'}
                       </Badge>
                     </TableCell>
-                    <TableCell>{user.dailyRemainingQuota}</TableCell>
+                    <TableCell>{typeof user.dailyRemainingQuota === 'number' ? user.dailyRemainingQuota : getDefaultQuota(user.plan)}</TableCell>
                     <TableCell>{getUsageToday(user)}</TableCell>
                     <TableCell>
                       <Badge variant={user.isAdmin ? 'destructive' : 'outline'}>
@@ -297,6 +333,43 @@ export default function AdminPage() {
         </CardContent>
       </Card>
       
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><DollarSign className="h-6 w-6" /> Fiyatlandırma Yönetimi</CardTitle>
+          <CardDescription>Premium ve Pro planlarının fiyatlarını güncelleyin. (Bu bölüm henüz işlevsel değildir)</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <Label htmlFor="premiumPrice">Premium Fiyatı (₺)</Label>
+              <Input 
+                id="premiumPrice" 
+                type="number" 
+                placeholder="örn: 100" 
+                value={premiumPrice} 
+                onChange={(e) => setPremiumPrice(e.target.value)}
+                disabled // İşlevsel olana kadar devre dışı
+              />
+            </div>
+            <div>
+              <Label htmlFor="proPrice">Pro Fiyatı (₺)</Label>
+              <Input 
+                id="proPrice" 
+                type="number" 
+                placeholder="örn: 300" 
+                value={proPrice} 
+                onChange={(e) => setProPrice(e.target.value)}
+                disabled // İşlevsel olana kadar devre dışı
+              />
+            </div>
+          </div>
+          <Button onClick={handleSavePrices} disabled={true || isSavingPrices}>
+            {isSavingPrices ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Fiyatları Kaydet (Yakında)"}
+          </Button>
+           <p className="text-xs text-muted-foreground">Not: Bu bölümdeki değişiklikler şu anda canlı fiyatlandırma sayfasını etkilemeyecektir. Fiyatlar şu anda `src/app/(landing)/pricing/page.tsx` dosyasında sabit olarak tanımlanmıştır.</p>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><BarChart3 className="h-6 w-6" /> Kullanım İstatistikleri</CardTitle>

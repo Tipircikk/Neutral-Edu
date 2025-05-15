@@ -3,32 +3,42 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
     // Users Collection
     match /users/{userId} {
-      // Authenticated users can read and update their own profile.
-      // They can also create their profile during signup.
-      // Admins can also read any user profile (covered by the broader admin rule below).
-      allow read, update, create: if request.auth.uid == userId;
-
-      // Admins can perform any action on any user document (get, list, create, update, delete).
-      // The 'read' permission here covers 'get' and 'list'.
-      // The 'write' permission covers 'create', 'update', 'delete'.
-      allow read, write: if get(/databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      // Allow users to read and write their own profile
+      // Allow admins to read and write any user's profile
+      allow read, update, delete: if request.auth.uid == userId || get(/databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      // Allow users to create their own profile (on signup)
+      allow create: if request.auth.uid == userId;
+      // Allow admins to list users (needed for admin panel)
+      allow list: if get(/databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
-    // SupportTickets Collection
+    // Support Tickets Collection
     match /supportTickets/{ticketId} {
-      // Authenticated users can create tickets, ensuring they are the owner.
-      allow create: if request.auth.uid != null && request.resource.data.userId == request.auth.uid;
-      
-      // Users can read and update their own tickets (e.g., to check status or add comments if allowed).
-      // Admins can also read/update any ticket (covered by the broader admin rule below).
-      allow read, update: if request.auth.uid == resource.data.userId;
-      
-      // Admins can perform any action on any support ticket.
-      // 'read' includes 'get' and 'list'.
-      // 'write' includes 'create', 'update', 'delete'.
-      allow read, write: if get(/databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      // Allow users to create their own support tickets
+      allow create: if request.auth.uid == request.resource.data.userId;
+      // Allow users to read their own tickets
+      // Allow admins to read any ticket
+      allow read: if request.auth.uid == resource.data.userId || get(/databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      // Allow admins to update/delete tickets (e.g., change status, reply)
+      allow update, delete: if get(/databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      // Allow admins to list tickets
+      allow list: if get(/databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Pricing Configuration Collection
+    match /pricingConfig/{configId} {
+      // Allow anyone to read pricing information (for the public pricing page)
+      allow read: if true;
+      // Allow admins to write/update pricing information
+      allow write: if get(/databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Default deny all other access
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
