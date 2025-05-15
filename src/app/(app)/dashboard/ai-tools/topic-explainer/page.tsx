@@ -4,7 +4,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Presentation, Wand2, Loader2, AlertTriangle } from "lucide-react";
+import { Presentation, Wand2, Loader2, AlertTriangle, Download } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,12 +13,15 @@ import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { explainTopic, type ExplainTopicOutput, type ExplainTopicInput } from "@/ai/flows/topic-explainer-flow";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import jsPDF from 'jspdf';
 
 export default function TopicExplainerPage() {
   const [topicName, setTopicName] = useState("");
   const [explanationLevel, setExplanationLevel] = useState<ExplainTopicInput["explanationLevel"]>("orta");
   const [explanationOutput, setExplanationOutput] = useState<ExplainTopicOutput | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
   const [canProcess, setCanProcess] = useState(false);
@@ -90,6 +93,96 @@ export default function TopicExplainerPage() {
       setIsGenerating(false);
     }
   };
+
+  const handleExportToPdf = () => {
+    if (!explanationOutput) return;
+    setIsExportingPdf(true);
+    toast({ title: "PDF Oluşturuluyor...", description: "Lütfen bekleyin."});
+
+    try {
+      const doc = new jsPDF();
+      const pageHeight = doc.internal.pageSize.height;
+      const pageWidth = doc.internal.pageSize.width;
+      const margin = 15;
+      const contentWidth = pageWidth - 2 * margin;
+      let currentY = margin + 5; // Add initial top margin for the title
+
+      const addWrappedText = (text: string, options: { x?: number, y?: number, fontSize?: number, fontStyle?: string, maxWidth?: number, isTitle?: boolean, isListItem?: boolean }) => {
+        const { x = margin, fontSize = 10, fontStyle = 'normal', maxWidth = contentWidth, isTitle = false, isListItem = false } = options;
+        let { y = currentY } = options;
+
+        doc.setFontSize(fontSize);
+        doc.setFont('helvetica', fontStyle); // Using a standard font
+
+        const lines = doc.splitTextToSize(text, maxWidth);
+        
+        lines.forEach((line: string, index: number) => {
+          if (y + (fontSize / 2.5) > pageHeight - margin) { // Check if new line fits
+            doc.addPage();
+            y = margin; // Reset Y to top margin on new page
+          }
+          if (isListItem && index === 0) {
+            doc.text(`• ${line}`, x + (isTitle ? 0 : 2), y, { align: 'left' });
+          } else {
+            doc.text(line, x + (isTitle ? 0 : (isListItem ? 2 : 0)), y, { align: 'left' });
+          }
+          y += (fontSize / 2.5); // Approximate line height
+        });
+        currentY = y;
+        if (!isListItem) currentY += 4; // Add a bit more space after non-list items
+      };
+      
+      // Title
+      if (explanationOutput.explanationTitle) {
+        addWrappedText(explanationOutput.explanationTitle, { fontSize: 18, fontStyle: 'bold', isTitle: true, y: currentY });
+        currentY += 6; // Space after title
+      }
+
+      // Main Explanation
+      if (explanationOutput.explanation) {
+        addWrappedText("Detaylı Konu Anlatımı:", { fontSize: 14, fontStyle: 'bold', isTitle: true });
+        addWrappedText(explanationOutput.explanation, { fontSize: 10 });
+      }
+
+      // Key Concepts
+      if (explanationOutput.keyConcepts && explanationOutput.keyConcepts.length > 0) {
+        currentY += 5;
+        addWrappedText("Anahtar Kavramlar:", { fontSize: 14, fontStyle: 'bold', isTitle: true });
+        explanationOutput.keyConcepts.forEach(concept => addWrappedText(concept, { fontSize: 10, isListItem: true }));
+      }
+
+      // Common Mistakes
+      if (explanationOutput.commonMistakes && explanationOutput.commonMistakes.length > 0) {
+        currentY += 5;
+        addWrappedText("Sık Yapılan Hatalar:", { fontSize: 14, fontStyle: 'bold', isTitle: true });
+        explanationOutput.commonMistakes.forEach(mistake => addWrappedText(mistake, { fontSize: 10, isListItem: true }));
+      }
+      
+      // YKS Tips
+      if (explanationOutput.yksTips && explanationOutput.yksTips.length > 0) {
+        currentY += 5;
+        addWrappedText("YKS İpuçları:", { fontSize: 14, fontStyle: 'bold', isTitle: true });
+        explanationOutput.yksTips.forEach(tip => addWrappedText(tip, { fontSize: 10, isListItem: true }));
+      }
+
+      // Active Recall Questions
+      if (explanationOutput.activeRecallQuestions && explanationOutput.activeRecallQuestions.length > 0) {
+        currentY += 5;
+        addWrappedText("Aktif Hatırlama Soruları:", { fontSize: 14, fontStyle: 'bold', isTitle: true });
+        explanationOutput.activeRecallQuestions.forEach(question => addWrappedText(question, { fontSize: 10, isListItem: true }));
+      }
+      
+      const safeFileName = (explanationOutput.explanationTitle || "konu_anlatimi").replace(/[^a-z0-9_]/gi, '_').toLowerCase();
+      doc.save(`${safeFileName}.pdf`);
+      toast({ title: "PDF Oluşturuldu!", description: "Konu anlatımı başarıyla PDF olarak indirildi." });
+    } catch (error) {
+      console.error("PDF oluşturma hatası:", error);
+      toast({ title: "PDF Oluşturma Hatası", description: "PDF oluşturulurken bir sorun oluştu.", variant: "destructive" });
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
 
   const isSubmitDisabled = isGenerating || !topicName.trim() || topicName.trim().length < 3 || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <= 0);
 
@@ -188,8 +281,12 @@ export default function TopicExplainerPage() {
 
       {explanationOutput && (
         <Card className="mt-6">
-          <CardHeader>
+          <CardHeader className="flex flex-row justify-between items-center">
             <CardTitle>{explanationOutput.explanationTitle}</CardTitle>
+            <Button onClick={handleExportToPdf} variant="outline" size="sm" disabled={isExportingPdf}>
+              {isExportingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+              PDF Olarak İndir
+            </Button>
           </CardHeader>
           <CardContent className="space-y-6">
             <ScrollArea className="h-[600px] w-full rounded-md border p-4 bg-muted/30">
@@ -263,3 +360,5 @@ export default function TopicExplainerPage() {
   );
 }
 
+
+    
