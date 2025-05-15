@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { UploadCloud, Sparkles, Lightbulb, MessageCircleQuestion, FileUp, BotMessageSquare, BookOpenCheck, ArrowRight, Zap, Clock, Brain, FileText, BarChart3, ThumbsUp } from "lucide-react";
+import { UploadCloud, Sparkles, Lightbulb, MessageCircleQuestion, FileUp, BotMessageSquare, BookOpenCheck, ArrowRight, Zap, Clock, Users, ThumbsUp, Brain, FileText, BarChart3 } from "lucide-react";
 import LandingHeader from "@/components/layout/LandingHeader";
 import Footer from "@/components/layout/Footer";
 
@@ -45,8 +45,8 @@ const benefits = [
   },
   {
     icon: <Zap className="h-10 w-10 text-primary mb-4" />,
-    title: "Gemini AI Destekli",
-    description: "Öğrencilere özel doğru ve anlayışlı özetler için Google'ın son teknoloji yapay zekasından yararlanın.",
+    title: "Akıllı AI Destekli",
+    description: "Öğrencilere özel doğru ve anlayışlı özetler için son teknoloji yapay zekadan yararlanın.",
   },
 ];
 
@@ -196,58 +196,6 @@ export default function LandingPage() {
                 <Link href="/signup">Şimdi Dene <ArrowRight className="ml-2 h-5 w-5" /></Link>
               </Button>
             </div>
-          </div>
-        </section>
-
-        {/* Dashboard Preview Section */}
-        <section id="dashboard-preview" className="py-16 md:py-24 bg-background/90">
-          <div className="container mx-auto px-4">
-            <h2 className="text-4xl font-bold text-center mb-4 text-foreground">Çalışırken Görün</h2>
-            <p className="text-lg text-muted-foreground text-center mb-12 max-w-2xl mx-auto">
-              Sihrin gerçekleştiği kişiselleştirilmiş kontrol panelinize bir bakış.
-            </p>
-            <Card className="max-w-3xl mx-auto bg-card shadow-2xl overflow-hidden">
-              <CardHeader className="bg-muted/30 p-4 border-b border-border">
-                <div className="flex justify-between items-center">
-                  <CardTitle className="text-xl text-foreground">Kontrol Panelim</CardTitle>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <BarChart3 className="h-5 w-5 text-primary" />
-                    <span>Kota: 2/2</span>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="p-6 space-y-6">
-                <Button variant="default" size="lg" className="w-full py-4 text-lg shadow-md">
-                  <UploadCloud className="mr-2 h-5 w-5" /> Yeni PDF Yükle
-                </Button>
-                <Card className="bg-background/50">
-                  <CardHeader>
-                    <CardTitle className="text-lg">Örnek Özet: "Kuantum Fiziğine Giriş.pdf"</CardTitle>
-                    <CardDescription>Birkaç saniye önce oluşturuldu</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2 text-sm text-muted-foreground">
-                      <p className="font-semibold text-foreground">Ana Fikir:</p>
-                      <p>Kuantum fiziği, klasik kuralların geçerli olmadığı atomların ve atom altı parçacıkların tuhaf dünyasını keşfeder...</p>
-                      <p className="font-semibold text-foreground">Anahtar Noktalar:</p>
-                      <ul className="list-disc list-inside ml-4">
-                        <li>Dalga-parçacık ikiliği</li>
-                        <li>Enerjinin kuantizasyonu</li>
-                        <li>Belirsizlik İlkesi</li>
-                      </ul>
-                      <p className="font-semibold text-foreground">Potansiyel Sınav Soruları:</p>
-                      <ul className="list-disc list-inside ml-4">
-                        <li>Heisenberg'in Belirsizlik İlkesi'ni açıklayınız.</li>
-                        <li>Kuantum tünelleme nedir?</li>
-                      </ul>
-                    </div>
-                  </CardContent>
-                  <CardFooter className="flex justify-end gap-2">
-                    <Button variant="outline" size="sm"><FileText className="mr-2 h-4 w-4" /> Tam Özeti Görüntüle</Button>
-                  </CardFooter>
-                </Card>
-              </CardContent>
-            </Card>
           </div>
         </section>
 
