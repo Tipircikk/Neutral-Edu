@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet" // Added SheetHeader, SheetTitle
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Tooltip,
@@ -199,7 +199,7 @@ const Sidebar = React.forwardRef<
           <SheetContent
             data-sidebar="sidebar"
             data-mobile="true"
-            className="w-[--sidebar-width] bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+            className="w-[--sidebar-width] bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden flex flex-col" // Added flex flex-col
             style={
               {
                 "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
@@ -207,7 +207,12 @@ const Sidebar = React.forwardRef<
             }
             side={side}
           >
-            <div className="flex h-full w-full flex-col">{children}</div>
+            <SheetHeader className="p-4 border-b border-sidebar-border">
+              <SheetTitle>Menu</SheetTitle>
+            </SheetHeader>
+            <div className="flex-1 overflow-y-auto"> {/* Wrapper for original children to make them scrollable */}
+              {children}
+            </div>
           </SheetContent>
         </Sheet>
       )
@@ -539,7 +544,6 @@ const SidebarMenuButton = React.forwardRef<
   React.ComponentProps<"button"> & {
     asChild?: boolean
     isActive?: boolean
-    isSubmenu?: boolean // Added isSubmenu to prop types
     tooltip?: string | React.ComponentProps<typeof TooltipContent>
   } & VariantProps<typeof sidebarMenuButtonVariants>
 >(
@@ -547,12 +551,11 @@ const SidebarMenuButton = React.forwardRef<
     {
       asChild = false,
       isActive = false,
-      isSubmenu, // Destructured isSubmenu
       variant = "default",
       size = "default",
       tooltip,
       className,
-      ...rest // Changed from props to rest to avoid passing isSubmenu
+      ...rest
     },
     ref
   ) => {
@@ -566,7 +569,7 @@ const SidebarMenuButton = React.forwardRef<
         data-size={size}
         data-active={isActive}
         className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
-        {...rest} // Spreading rest here
+        {...rest} 
       />
     )
 
@@ -764,3 +767,4 @@ export {
   SidebarTrigger,
   useSidebar,
 }
+
