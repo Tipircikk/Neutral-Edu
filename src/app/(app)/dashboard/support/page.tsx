@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useForm, type SubmitHandler } from "react-hook-form";
+import { useForm, type SubmitHandler, Controller } from "react-hook-form"; // Added Controller
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, Send, LifeBuoy, CheckCircle } from "lucide-react"; // Changed MessageSquareQuestion to LifeBuoy
+import { Loader2, Send, LifeBuoy, CheckCircle } from "lucide-react";
 import { useUser } from "@/hooks/useUser";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase/config";
@@ -36,7 +36,7 @@ export default function SupportPage() {
   const { register, handleSubmit, control, formState: { errors }, reset } = useForm<SupportTicketFormValues>({
     resolver: zodResolver(supportTicketSchema),
     defaultValues: {
-      subject: undefined, // Ensures placeholder is shown
+      subject: undefined,
       message: "",
     },
   });
@@ -61,7 +61,7 @@ export default function SupportPage() {
       });
       toast({ title: "Talep Gönderildi", description: "Destek talebiniz başarıyla alındı. En kısa sürede size dönüş yapacağız." });
       setSubmissionSuccess(true);
-      reset(); // Reset form after successful submission
+      reset(); 
     } catch (error) {
       console.error("Error submitting support ticket:", error);
       toast({ title: "Gönderim Hatası", description: "Destek talebiniz gönderilirken bir hata oluştu. Lütfen tekrar deneyin.", variant: "destructive" });
@@ -84,7 +84,7 @@ export default function SupportPage() {
       <Card className="shadow-lg">
         <CardHeader>
           <div className="flex items-center gap-3">
-            <LifeBuoy className="h-8 w-8 text-primary" /> {/* Changed MessageSquareQuestion to LifeBuoy */}
+            <LifeBuoy className="h-8 w-8 text-primary" />
             <CardTitle className="text-3xl">Destek Talebi Oluştur</CardTitle>
           </div>
           <CardDescription>
@@ -105,22 +105,28 @@ export default function SupportPage() {
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               <div>
                 <Label htmlFor="subject" className="mb-1 block">Konu</Label>
-                 <Select
-                    onValueChange={(value) => control._fields.subject!.onChange(value)}
-                    // defaultValue={control._defaultValues.subject} // Removed to let placeholder work consistently
-                    disabled={isSubmitting}
-                  >
-                  <SelectTrigger id="subject" className="w-full">
-                    <SelectValue placeholder="Bir konu seçin..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="premium">Premium Üyelik Hakkında</SelectItem>
-                    <SelectItem value="ai_tools">Yapay Zeka Araçları Hakkında</SelectItem>
-                    <SelectItem value="account">Hesap Sorunları</SelectItem>
-                    <SelectItem value="bug_report">Hata Bildirimi</SelectItem>
-                    <SelectItem value="other">Diğer</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Controller
+                  name="subject"
+                  control={control}
+                  render={({ field }) => (
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      disabled={isSubmitting}
+                    >
+                      <SelectTrigger id="subject" className="w-full">
+                        <SelectValue placeholder="Bir konu seçin..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="premium">Premium Üyelik Hakkında</SelectItem>
+                        <SelectItem value="ai_tools">Yapay Zeka Araçları Hakkında</SelectItem>
+                        <SelectItem value="account">Hesap Sorunları</SelectItem>
+                        <SelectItem value="bug_report">Hata Bildirimi</SelectItem>
+                        <SelectItem value="other">Diğer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
                 {errors.subject && <p className="text-sm text-destructive mt-1">{errors.subject.message}</p>}
               </div>
 
