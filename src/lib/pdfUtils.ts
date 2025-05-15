@@ -1,18 +1,12 @@
 
 "use client"; // This utility will be used client-side
 
-// IMPORTANT: Manually copy `node_modules/pdfjs-dist/build/pdf.worker.min.mjs` 
-// to your `public` folder and rename it to `pdf.worker.min.js` or ensure it's accessible via `/pdf.worker.min.js`.
-// Alternatively, you can configure your build process to do this.
-
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Set workerSrc to point to where pdf.worker.min.js is served from.
-// Assuming it's in the public folder.
+// Set workerSrc to point to a CDN-hosted version of pdf.worker.min.js.
 if (typeof window !== 'undefined') {
-  // pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-  // Using a local copy is preferred for stability and offline capability if needed.
-  pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+  // Using a CDN-hosted version to avoid issues with local file serving.
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 }
 
 
