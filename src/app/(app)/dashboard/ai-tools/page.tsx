@@ -1,8 +1,7 @@
-
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { FileScan, HelpCircle, FileTextIcon, Lightbulb, ArrowRight, LayoutGrid, ClipboardCheck, CalendarDays } from "lucide-react"; 
+import { FileScan, HelpCircle, FileTextIcon, Lightbulb, ArrowRight, LayoutGrid, ClipboardCheck, CalendarDays, Presentation } from "lucide-react"; 
 
 const aiTools = [
   {
@@ -53,6 +52,13 @@ const aiTools = [
     icon: <CalendarDays className="h-10 w-10 text-primary mb-4" />,
     link: "/dashboard/ai-tools/study-plan-generator",
     status: "soon", // Mark as "soon" for now
+  },
+  {
+    name: "AI Konu Anlatımı Oluşturucu",
+    description: "Belirttiğiniz YKS konusunu yapay zekanın detaylı ve anlaşılır bir şekilde anlatmasını sağlayın.",
+    icon: <Presentation className="h-10 w-10 text-primary mb-4" />,
+    link: "/dashboard/ai-tools/topic-explainer",
+    status: "active", 
   },
 ];
 

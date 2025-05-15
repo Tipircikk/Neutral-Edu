@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { ReactNode } from "react";
@@ -24,14 +23,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
-import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays } from "lucide-react"; 
+import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation } from "lucide-react"; 
 import Link from "next/link";
 import QuotaDisplay from "@/components/dashboard/QuotaDisplay";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
 import { signOut as firebaseSignOut } from "@/hooks/useAuth";
 import Footer from "@/components/layout/Footer";
 import { SidebarInset } from "@/components/ui/sidebar";
-import { ThemeToggleSidebar } from "@/components/layout/ThemeToggle"; // Import ThemeToggle
+import { ThemeToggleSidebar } from "@/components/layout/ThemeToggle"; 
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
@@ -47,14 +46,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   }, [user, authLoading, router]);
 
   useEffect(() => {
-    // Keep AI tools submenu open if current path is within AI tools
     if (pathname.startsWith('/dashboard/ai-tools')) {
       setIsAiToolsSubmenuOpen(true);
     }
-    // Optional: close it if navigating away from AI tools, unless another logic keeps it open
-    // else {
-    //   setIsAiToolsSubmenuOpen(false);
-    // }
   }, [pathname]);
 
   const handleSignOut = async () => {
@@ -96,11 +90,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 total={totalQuota}
               />
             )}
-            {/* Placeholder for Notifications Bell */}
             <Button variant="ghost" size="icon" className="relative" title="Bildirimler (Yakında)">
                 <Bell className="h-5 w-5" />
-                {/* Optional: Add a badge for unread notifications */}
-                {/* <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">3</span> */}
             </Button>
             <Avatar className="h-9 w-9">
               <AvatarFallback className="bg-primary text-primary-foreground">
@@ -174,13 +165,18 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                           <Link href="/dashboard/ai-tools/study-plan-generator"><CalendarDays /><span>AI Çalışma Planı</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/topic-explainer"}>
+                          <Link href="/dashboard/ai-tools/topic-explainer"><Presentation /><span>AI Konu Anlatımı</span></Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
                     </SidebarMenuSub>
                   )}
                 </SidebarMenuItem>
 
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isSubscriptionPath} tooltip="Aboneliğim">
-                    <Link href="/dashboard/subscription"><Gem /><span>Aboneliğim</span></Link>
+                    <Link href="/dashboard/subscription"><CreditCard /><span>Aboneliğim</span></Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
