@@ -1,12 +1,13 @@
+
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Presentation, Wand2, Loader2, AlertTriangle } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
@@ -15,6 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function TopicExplainerPage() {
   const [topicName, setTopicName] = useState("");
+  const [explanationLevel, setExplanationLevel] = useState<ExplainTopicInput["explanationLevel"]>("orta");
   const [explanationOutput, setExplanationOutput] = useState<ExplainTopicOutput | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
@@ -59,6 +61,7 @@ export default function TopicExplainerPage() {
       }
       const input: ExplainTopicInput = {
         topicName,
+        explanationLevel,
         userPlan: currentProfile.plan
       };
       const result = await explainTopic(input);
@@ -105,10 +108,10 @@ export default function TopicExplainerPage() {
         <CardHeader>
           <div className="flex items-center gap-3">
             <Presentation className="h-7 w-7 text-primary" />
-            <CardTitle className="text-2xl">AI Konu Anlatımı Oluşturucu</CardTitle>
+            <CardTitle className="text-2xl">AI YKS Konu Anlatımı Oluşturucu</CardTitle>
           </div>
           <CardDescription>
-            Öğrenmek istediğiniz YKS konusunu girin, yapay zeka sizin için konuyu detaylıca anlatsın, anahtar kavramları ve YKS ipuçlarını versin.
+            Öğrenmek istediğiniz YKS konusunu ve anlatım detay seviyesini girin, yapay zeka sizin için konuyu detaylıca anlatsın, anahtar kavramları, YKS ipuçlarını ve aktif hatırlama sorularını versin.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -126,20 +129,40 @@ export default function TopicExplainerPage() {
       <form onSubmit={handleSubmit}>
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Anlatılacak Konu</CardTitle>
+            <CardTitle className="text-lg">Anlatılacak Konu ve Seviye</CardTitle>
           </CardHeader>
           <CardContent className="pt-6 space-y-4">
-            <div>
-              <Label htmlFor="topicName">YKS Konu Başlığı</Label>
-              <Input
-                id="topicName"
-                placeholder="örn: Matematik - Limit ve Süreklilik, Edebiyat - Tanzimat Dönemi..."
-                value={topicName}
-                onChange={(e) => setTopicName(e.target.value)}
-                className="text-base mt-1"
-                disabled={isGenerating || !canProcess}
-              />
-               <p className="text-xs text-muted-foreground mt-1">Lütfen açıklanmasını istediğiniz konuyu girin (en az 3 karakter).</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="topicName">YKS Konu Başlığı</Label>
+                <Input
+                  id="topicName"
+                  placeholder="örn: Matematik - Limit ve Süreklilik"
+                  value={topicName}
+                  onChange={(e) => setTopicName(e.target.value)}
+                  className="text-base mt-1"
+                  disabled={isGenerating || !canProcess}
+                />
+                <p className="text-xs text-muted-foreground mt-1">Lütfen açıklanmasını istediğiniz konuyu girin (en az 3 karakter).</p>
+              </div>
+              <div>
+                <Label htmlFor="explanationLevel">Anlatım Seviyesi</Label>
+                <Select
+                  value={explanationLevel}
+                  onValueChange={(value: ExplainTopicInput["explanationLevel"]) => setExplanationLevel(value)}
+                  disabled={isGenerating || !canProcess}
+                >
+                  <SelectTrigger id="explanationLevel" className="mt-1">
+                    <SelectValue placeholder="Seviye seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="temel">Temel Seviye</SelectItem>
+                    <SelectItem value="orta">Orta Seviye</SelectItem>
+                    <SelectItem value="detayli">Detaylı Seviye</SelectItem>
+                  </SelectContent>
+                </Select>
+                 <p className="text-xs text-muted-foreground mt-1">Konunun ne kadar detaylı anlatılacağını seçin.</p>
+              </div>
             </div>
             <Button type="submit" className="w-full" disabled={isSubmitDisabled}>
               {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
@@ -156,7 +179,7 @@ export default function TopicExplainerPage() {
               <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
               <p className="text-lg font-medium text-foreground">Konu Anlatımı Oluşturuluyor...</p>
               <p className="text-sm text-muted-foreground">
-                Yapay zeka sihrini yapıyor... Bu işlem biraz zaman alabilir.
+                AI YKS Süper Öğretmeniniz konuyu hazırlıyor... Bu işlem biraz zaman alabilir.
               </p>
             </div>
           </CardContent>
@@ -206,6 +229,18 @@ export default function TopicExplainerPage() {
                     </ul>
                   </>
                 )}
+
+                {explanationOutput.activeRecallQuestions && explanationOutput.activeRecallQuestions.length > 0 && (
+                  <>
+                    <h3 className="text-lg font-semibold mt-4 mb-1 text-foreground">Hadi Pekiştirelim! (Aktif Hatırlama Soruları):</h3>
+                    <ul className="list-decimal pl-5 text-muted-foreground space-y-1">
+                      {explanationOutput.activeRecallQuestions.map((question, index) => (
+                        <li key={index}>{question}</li>
+                      ))}
+                    </ul>
+                     <p className="text-xs italic text-muted-foreground mt-2">(Bu soruların cevaplarını anlatımda bulabilirsin.)</p>
+                  </>
+                )}
               </div>
             </ScrollArea>
             <div className="mt-4 p-3 text-xs text-destructive-foreground bg-destructive/80 rounded-md flex items-center gap-2">
@@ -220,10 +255,11 @@ export default function TopicExplainerPage() {
           <Presentation className="h-4 w-4" />
           <AlertTitle>Anlatıma Hazır!</AlertTitle>
           <AlertDescription>
-            Yukarıya bir YKS konu başlığı girerek yapay zekanın sizin için detaylı bir konu anlatımı oluşturmasını sağlayın.
+            Yukarıya bir YKS konu başlığı ve anlatım seviyesi girerek yapay zekanın sizin için detaylı bir konu anlatımı oluşturmasını sağlayın.
           </AlertDescription>
         </Alert>
       )}
     </div>
   );
 }
+
