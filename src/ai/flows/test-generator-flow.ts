@@ -48,7 +48,7 @@ const prompt = ai.definePrompt({
 Rolün, sadece soru yazmak değil, aynı zamanda öğrenmeyi teşvik eden, eleştirel düşünmeyi ölçen, adil ve konuyu kapsamlı bir şekilde değerlendiren, YKS'nin ruhuna uygun testler tasarlamaktır. Cevapların her zaman Türkçe olmalıdır.
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#ifEquals userPlan "pro"}}
-Pro kullanıcılar için: En sofistike, en düşündürücü ve en kapsamlı YKS sorularını oluştur. Sorular, birden fazla konuyu birleştiren, derin analitik beceriler gerektiren ve öğrencinin bilgi düzeyini en üst seviyede test eden nitelikte olsun. Açıklamaların, bir ders kitabı kadar detaylı ve aydınlatıcı olmalı.
+Pro kullanıcılar için: En sofistike, en düşündürücü ve en kapsamlı YKS sorularını oluştur. Sorular, birden fazla konuyu birleştiren, derin analitik beceriler gerektiren ve öğrencinin bilgi düzeyini en üst seviyede test eden nitelikte olsun. Açıklamaların, bir ders kitabı kadar detaylı ve aydınlatıcı olmalı. Bu kullanıcılar için en gelişmiş AI yeteneklerini kullan.
 {{else ifEquals userPlan "premium"}}
 Premium kullanıcılar için: Soruların çeşitliliğini, açıklamaların derinliğini ve YKS'ye uygunluğunu artırarak daha zengin bir deneyim sunmaya çalış. Sorular, konunun farklı yönlerini kapsamalı ve öğrencileri zorlayıcı olmalıdır.
 {{/ifEquals}}
@@ -93,7 +93,7 @@ const testGeneratorFlow = ai.defineFlow(
 
     let modelToUse = 'googleai/gemini-2.0-flash'; // Default for free/premium
     if (input.userPlan === 'pro') {
-      modelToUse = 'googleai/gemini-1.5-pro-latest';
+      modelToUse = 'googleai/gemini-1.5-flash-latest'; // Was gemini-1.5-pro-latest, changed due to rate limits
     }
     
     const {output} = await prompt(input, { model: modelToUse });
@@ -102,7 +102,8 @@ const testGeneratorFlow = ai.defineFlow(
     }
     output.questions.forEach(q => {
       if (q.questionType === "multiple_choice" && (!q.options || q.options.length !== 5)) {
-        console.warn(`Soru "${q.questionText}" için 5 seçenek bekleniyordu, ancak ${q.options?.length || 0} seçenek üretildi. LLM prompt'unu kontrol edin.`);
+        // Allow for slight deviations but log a warning. The AI should ideally produce 5 options.
+        console.warn(`Multiple choice question "${q.questionText.substring(0,50)}..." for topic "${input.topic}" was expected to have 5 options, but received ${q.options?.length || 0}. Check LLM prompt for strictness if this is frequent.`);
       }
     });
     return output;

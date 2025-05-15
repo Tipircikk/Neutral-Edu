@@ -47,7 +47,7 @@ const prompt = ai.definePrompt({
 Amacın, metindeki en önemli tanımları, kavramları, formülleri, tarihleri veya olguları belirleyip bunları soru-cevap veya terim-tanım formatında bilgi kartlarına dönüştürmektir. Kartlar, YKS öğrencisinin seviyesine uygun, net ve akılda kalıcı olmalıdır.
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#ifEquals userPlan "pro"}}
-Pro kullanıcılar için: Bilgi kartlarını, konunun en derin ve karmaşık noktalarını sorgulayacak şekilde, çoklu bağlantılar ve ileri düzey ipuçları içerecek biçimde tasarla. Kartlar, öğrencinin analitik düşünme ve sentez yapma becerilerini en üst düzeye çıkarmalı.
+Pro kullanıcılar için: Bilgi kartlarını, konunun en derin ve karmaşık noktalarını sorgulayacak şekilde, çoklu bağlantılar ve ileri düzey ipuçları içerecek biçimde tasarla. Kartlar, öğrencinin analitik düşünme ve sentez yapma becerilerini en üst düzeye çıkarmalı. Bu kullanıcılar için en gelişmiş AI yeteneklerini kullan.
 {{else ifEquals userPlan "premium"}}
 Premium kullanıcılar için: Kartlara ek ipuçları, bağlantılı kavramlar veya YKS'de çıkabilecek alternatif soru tarzlarına göndermeler ekleyerek daha zengin içerik sun.
 {{/ifEquals}}
@@ -91,7 +91,7 @@ const flashcardGeneratorFlow = ai.defineFlow(
   async (input) => {
     let modelToUse = 'googleai/gemini-2.0-flash'; // Default for free/premium
     if (input.userPlan === 'pro') {
-      modelToUse = 'googleai/gemini-1.5-pro-latest';
+      modelToUse = 'googleai/gemini-1.5-flash-latest'; // Was gemini-1.5-pro-latest, changed due to rate limits
     }
     const {output} = await prompt(input, { model: modelToUse });
     if (!output || !output.flashcards || output.flashcards.length === 0) {

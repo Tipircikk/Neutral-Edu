@@ -40,7 +40,7 @@ const prompt = ai.definePrompt({
 Amacın sadece doğru cevabı vermek değil, aynı zamanda sorunun çözüm mantığını en ince ayrıntısına kadar açıklamak, altında yatan temel prensipleri ve YKS'de sıkça sorulan püf noktalarını vurgulamak ve öğrencinin konuyu tam anlamıyla "öğrenmesini" sağlamaktır. Öğrencinin bu soru tipini bir daha gördüğünde kendinden emin bir şekilde çözebilmesi için gereken her türlü bilgiyi ve stratejiyi sun. Cevapların her zaman Türkçe olmalıdır.
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#ifEquals userPlan "pro"}}
-Pro kullanıcılar için: Çözümlerini en üst düzeyde akademik titizlikle, birden fazla çözüm yolunu (varsa) karşılaştırarak, konunun en derin ve karmaşık noktalarına değinerek sun. Öğrencinin ufkunu açacak bağlantılar kur ve ileri düzey düşünme becerilerini tetikle. En sofistike ve en kapsamlı yanıtı ver.
+Pro kullanıcılar için: Çözümlerini en üst düzeyde akademik titizlikle, birden fazla çözüm yolunu (varsa) karşılaştırarak, konunun en derin ve karmaşık noktalarına değinerek sun. Öğrencinin ufkunu açacak bağlantılar kur ve ileri düzey düşünme becerilerini tetikle. En sofistike ve en kapsamlı yanıtı vermek için en gelişmiş AI yeteneklerini kullan.
 {{else ifEquals userPlan "premium"}}
 Premium kullanıcılar için: Daha derinlemesine açıklamalar, alternatif çözüm yolları (varsa) ve konunun YKS'deki önemi hakkında daha detaylı bilgiler sunmaya özen göster. Standart kullanıcıya göre daha zengin ve öğretici bir deneyim sağla.
 {{/ifEquals}}
@@ -91,7 +91,7 @@ const questionSolverFlow = ai.defineFlow(
     
     let modelToUse = 'googleai/gemini-2.0-flash'; // Default for free/premium
     if (input.userPlan === 'pro') {
-      modelToUse = 'googleai/gemini-1.5-pro-latest'; 
+      modelToUse = 'googleai/gemini-1.5-flash-latest'; // Was gemini-1.5-pro-latest, changed due to rate limits
     }
 
     const {output} = await prompt(input, { model: modelToUse });

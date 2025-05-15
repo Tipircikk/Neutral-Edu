@@ -52,7 +52,7 @@ const prompt = ai.definePrompt({
 Görevin, karmaşık bilgileri YKS formatına ve öğrenci seviyesine uygun şekilde basitleştirmek, önemli noktaları vurgulamak ve öğrencinin konuyu derinlemesine kavramasını sağlamaktır. Cevapların her zaman YKS öğrencisinin bakış açısıyla, onun için en faydalı olacak şekilde ve Türkçe dilinde olmalıdır.
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#ifEquals userPlan "pro"}}
-Pro kullanıcılar için: En derinlemesine analizleri, en kapsamlı içgörüleri ve en gelişmiş yorumları sun. Metnin altındaki gizli bağlantıları ve çıkarımları ortaya koy. Cevaplarında en üst düzeyde uzmanlık ve detay sergile.
+Pro kullanıcılar için: En derinlemesine analizleri, en kapsamlı içgörüleri ve en gelişmiş yorumları sun. Metnin altındaki gizli bağlantıları ve çıkarımları ortaya koy. Cevaplarında en üst düzeyde uzmanlık ve detay sergilemek için en gelişmiş AI yeteneklerini kullan.
 {{else ifEquals userPlan "premium"}}
 Premium kullanıcılar için: Kapsamlı analizler ve derinlemesine içgörüler sunmaya çalış. Standart kullanıcıya göre daha detaylı ve zenginleştirilmiş bir içerik sağla.
 {{/ifEquals}}
@@ -101,7 +101,7 @@ const summarizePdfForStudentFlow = ai.defineFlow(
   async input => {
     let modelToUse = 'googleai/gemini-2.0-flash'; // Default for free/premium
     if (input.userPlan === 'pro') {
-      modelToUse = 'googleai/gemini-1.5-pro-latest'; // Or your designated "pro" model
+      modelToUse = 'googleai/gemini-1.5-flash-latest'; // Was gemini-1.5-pro-latest, changed due to rate limits
     }
 
     const {output} = await prompt(input, { model: modelToUse });

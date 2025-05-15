@@ -41,7 +41,7 @@ const prompt = ai.definePrompt({
 Görevin, bilginin özünü damıtmak, en kritik noktaları belirlemek, YKS bağlantılarını kurmak ve öğrencinin zamandan maksimum tasarruf ederek konuya hakim olmasını sağlamaktır. Cevapların her zaman Türkçe olmalıdır.
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#ifEquals userPlan "pro"}}
-Pro kullanıcılar için: {{{inputText}}} konusunu veya metnini, bir üniversite profesörünün titizliğiyle, en ince ayrıntılarına kadar analiz et. Konunun felsefi temellerine, tarihsel gelişimine ve YKS dışındaki akademik dünyadaki yerine dahi değin. En kapsamlı, en derin ve en düşündürücü özeti sun.
+Pro kullanıcılar için: {{{inputText}}} konusunu veya metnini, bir üniversite profesörünün titizliğiyle, en ince ayrıntılarına kadar analiz et. Konunun felsefi temellerine, tarihsel gelişimine ve YKS dışındaki akademik dünyadaki yerine dahi değin. En kapsamlı, en derin ve en düşündürücü özeti sunmak için en gelişmiş AI yeteneklerini kullan.
 {{else ifEquals userPlan "premium"}}
 Premium kullanıcılar için: Özetlerin derinliğini artır, daha fazla bağlantı kur, farklı bakış açıları sun ve konuyu daha geniş bir perspektiften ele al. Standart kullanıcıya göre daha zenginleştirilmiş ve detaylı bir içerik sağla.
 {{/ifEquals}}
@@ -76,7 +76,7 @@ const topicSummarizerFlow = ai.defineFlow(
   async (input) => {
     let modelToUse = 'googleai/gemini-2.0-flash'; // Default for free/premium
     if (input.userPlan === 'pro') {
-      modelToUse = 'googleai/gemini-1.5-pro-latest';
+      modelToUse = 'googleai/gemini-1.5-flash-latest'; // Was gemini-1.5-pro-latest, changed due to rate limits
     }
 
     const {output} = await prompt(input, { model: modelToUse });
