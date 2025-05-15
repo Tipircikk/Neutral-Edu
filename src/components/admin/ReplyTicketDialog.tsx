@@ -10,7 +10,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogClose,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,15 +42,23 @@ export default function ReplyTicketDialog({ ticket, isOpen, onOpenChange, onTick
 
   const fetchMessages = async (ticketId: string) => {
     setIsLoadingMessages(true);
+    setMessages([]); // Clear previous messages
     try {
-      const messagesCollection = collection(db, "supportTickets", ticketId, "messages");
-      const q = query(messagesCollection, orderBy("timestamp", "asc"));
+      const messagesCollectionRef = collection(db, "supportTickets", ticketId, "messages");
+      const q = query(messagesCollectionRef, orderBy("timestamp", "asc"));
       const querySnapshot = await getDocs(q);
-      const fetchedMessages = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SupportMessage));
+      const fetchedMessages = querySnapshot.docs.map(docSnapshot => {
+        const data = docSnapshot.data();
+        return {
+          id: docSnapshot.id,
+          ...data,
+          timestamp: data.timestamp instanceof Timestamp ? data.timestamp : Timestamp.now(), // Ensure it's a Timestamp
+        } as SupportMessage;
+      });
       setMessages(fetchedMessages);
     } catch (error) {
       console.error("Error fetching messages for admin:", error);
-      toast({ title: "Mesajlar Yüklenemedi", variant: "destructive" });
+      toast({ title: "Mesajlar Yüklenemedi", description: "Mesajlar çekilirken bir hata oluştu.", variant: "destructive" });
     } finally {
       setIsLoadingMessages(false);
     }
@@ -60,11 +67,14 @@ export default function ReplyTicketDialog({ ticket, isOpen, onOpenChange, onTick
   useEffect(() => {
     if (isOpen && ticket) {
       fetchMessages(ticket.id);
-      setReplyText(""); // Clear reply text each time dialog opens
+      // Pre-fill replyText if there was a previous adminReply (this field is now part of the messages subcollection)
+      // For now, we'll clear it. A more advanced implementation could find the last admin message.
+      setReplyText("");
     } else if (!isOpen) {
       setMessages([]); // Clear messages when dialog closes
+      setReplyText("");
     }
-  }, [isOpen, ticket, toast]);
+  }, [isOpen, ticket]);
 
 
   const handleReply = async () => {
@@ -72,14 +82,14 @@ export default function ReplyTicketDialog({ ticket, isOpen, onOpenChange, onTick
       toast({ title: "Yanıt Metni Gerekli", description: "Lütfen bir yanıt yazın.", variant: "destructive" });
       return;
     }
-    if (!adminProfile || !adminProfile.isAdmin) { // Ensure admin is an admin
+    if (!adminProfile || !adminProfile.isAdmin) {
       toast({ title: "Yetki Hatası", description: "Yanıt göndermek için admin yetkiniz olmalı.", variant: "destructive" });
       return;
     }
 
     setIsReplying(true);
     try {
-      const now = serverTimestamp() as Timestamp;
+      const nowServerTimestamp = serverTimestamp() as Timestamp;
       const ticketRef = doc(db, "supportTickets", ticket.id);
       const messagesCollectionRef = collection(db, "supportTickets", ticket.id, "messages");
 
@@ -87,26 +97,48 @@ export default function ReplyTicketDialog({ ticket, isOpen, onOpenChange, onTick
       await addDoc(messagesCollectionRef, {
         senderId: adminProfile.uid,
         senderType: "admin",
-        senderName: "Destek Ekibi", // Or adminProfile.displayName if preferred
+        senderName: "Destek Ekibi",
         text: replyText.trim(),
-        timestamp: now,
+        timestamp: nowServerTimestamp,
       });
       
       // Update parent ticket document
       const updatedTicketData: Partial<SupportTicket> = {
         status: "answered",
-        updatedAt: now,
-        lastMessageSnippet: replyText.trim().substring(0, 50) + (replyText.trim().length > 50 ? "..." : ""),
-        lastMessageAt: now,
+        updatedAt: nowServerTimestamp,
+        lastMessageSnippet: replyText.trim().substring(0, 70) + (replyText.trim().length > 70 ? "..." : ""),
+        lastMessageAt: nowServerTimestamp,
         lastRepliedByAdmin: true,
       };
       await updateDoc(ticketRef, updatedTicketData);
 
+      const fullUpdatedTicket: SupportTicket = {
+        ...ticket,
+        status: "answered",
+        updatedAt: Timestamp.now(), // Use client-side for immediate UI update
+        lastMessageSnippet: updatedTicketData.lastMessageSnippet,
+        lastMessageAt: Timestamp.now(), // Use client-side for immediate UI update
+        lastRepliedByAdmin: true,
+        id: ticket.id
+      };
+
+      onTicketReplySuccess(fullUpdatedTicket);
       toast({ title: "Yanıt Gönderildi", description: "Destek talebi başarıyla yanıtlandı." });
-      onTicketReplySuccess({ ...ticket, ...updatedTicketData, id: ticket.id });
-      fetchMessages(ticket.id); // Refresh messages in the dialog
-      setReplyText(""); // Clear the textarea
-      // onOpenChange(false); // Keep dialog open to see the new message, or close based on preference
+      
+      // Optimistically add new message to local state
+      setMessages(prevMessages => [
+        ...prevMessages,
+        {
+          id: 'temp-' + Date.now(),
+          senderId: adminProfile.uid,
+          senderType: "admin",
+          senderName: "Destek Ekibi",
+          text: replyText.trim(),
+          timestamp: Timestamp.now(),
+        }
+      ]);
+      setReplyText("");
+      // fetchMessages(ticket.id); // Refresh messages or rely on optimistic update
     } catch (error) {
       console.error("Error replying to ticket:", error);
       toast({ title: "Yanıt Hatası", description: "Talep yanıtlanırken bir hata oluştu.", variant: "destructive" });
@@ -121,9 +153,9 @@ export default function ReplyTicketDialog({ ticket, isOpen, onOpenChange, onTick
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Destek Talebini Yanıtla/Görüntüle</DialogTitle>
+          <DialogTitle>Destek Talebi: {ticket.subject}</DialogTitle>
           <DialogDescription>
-            Talep ID: {ticket.id} | Kullanıcı: {ticket.userEmail || ticket.userId} | Konu: {ticket.subject}
+            Talep ID: {ticket.id} | Kullanıcı: {ticket.userEmail || ticket.userId}
           </DialogDescription>
         </DialogHeader>
         <ScrollArea className="h-[300px] w-full rounded-md border p-4 my-4 bg-muted/30">
@@ -134,11 +166,11 @@ export default function ReplyTicketDialog({ ticket, isOpen, onOpenChange, onTick
           ) : messages.length > 0 ? (
             messages.map(msg => (
               <div key={msg.id} className={`mb-3 p-3 rounded-lg max-w-[80%] ${msg.senderType === 'admin' ? 'bg-primary/10 ml-auto text-right' : 'bg-secondary/50 mr-auto text-left'}`}>
-                <p className="text-xs font-semibold mb-1">
+                <div className="text-xs font-semibold mb-1">
                   {msg.senderName} {msg.senderType === 'admin' && <Badge variant="outline" className="ml-1 text-xs">Destek</Badge>}
-                </p>
+                </div>
                 <p className="text-sm whitespace-pre-line">{msg.text}</p>
-                <p className="text-xs text-muted-foreground mt-1">{format(msg.timestamp.toDate(), 'Pp', {locale: tr})}</p>
+                <p className="text-xs text-muted-foreground mt-1">{format(msg.timestamp.toDate(), 'PPpp', {locale: tr})}</p>
               </div>
             ))
           ) : (
