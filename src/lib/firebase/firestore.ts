@@ -3,8 +3,9 @@ import { doc, setDoc, getDoc, updateDoc, serverTimestamp, Timestamp } from "fire
 import { db } from "./config";
 import type { UserProfile } from "@/types";
 
-const FREE_PLAN_DAILY_QUOTA = 2; // Updated from 5
+const FREE_PLAN_DAILY_QUOTA = 2;
 const PREMIUM_PLAN_DAILY_QUOTA = 10;
+const PRO_PLAN_DAILY_QUOTA = 50; // New Pro Plan Quota
 
 export const createUserDocument = async (
   uid: string,
@@ -34,6 +35,10 @@ export const getUserProfile = async (uid:string): Promise<UserProfile | null> =>
     if (data.lastSummaryDate && !(data.lastSummaryDate instanceof Timestamp) && typeof data.lastSummaryDate === 'object' && 'seconds' in data.lastSummaryDate && 'nanoseconds' in data.lastSummaryDate) {
         data.lastSummaryDate = new Timestamp((data.lastSummaryDate as any).seconds, (data.lastSummaryDate as any).nanoseconds);
     }
+    // Ensure plan defaults to 'free' if not set or invalid, though it should be set on creation
+    if (!['free', 'premium', 'pro'].includes(data.plan)) {
+      data.plan = 'free';
+    }
     return data;
   }
   console.warn(`User profile for ${uid} not found. It should be created on signup.`);
@@ -56,6 +61,8 @@ export const getDefaultQuota = (plan: UserProfile["plan"]): number => {
       return FREE_PLAN_DAILY_QUOTA;
     case "premium":
       return PREMIUM_PLAN_DAILY_QUOTA;
+    case "pro":
+      return PRO_PLAN_DAILY_QUOTA; // Added Pro quota
     default:
       return FREE_PLAN_DAILY_QUOTA; // Fallback to free quota
   }

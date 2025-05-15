@@ -10,12 +10,14 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import type { UserProfile } from '@/types';
 
 // Giriş Şeması: Kullanıcının bilgi kartlarına dönüştürmek istediği metin
 const GenerateFlashcardsInputSchema = z.object({
   textContent: z.string().min(50).describe('Bilgi kartlarına dönüştürülmesi istenen en az 50 karakterlik akademik metin, tanımlar veya anahtar noktalar.'),
   numFlashcards: z.number().min(3).max(15).optional().default(5).describe('Oluşturulması istenen bilgi kartı sayısı (3-15 arası).'),
   difficulty: z.enum(["easy", "medium", "hard"]).optional().default("medium").describe("Bilgi kartlarının YKS'ye göre zorluk seviyesi."),
+  userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı.")
 });
 export type GenerateFlashcardsInput = z.infer<typeof GenerateFlashcardsInputSchema>;
 
@@ -33,21 +35,22 @@ const GenerateFlashcardsOutputSchema = z.object({
 });
 export type GenerateFlashcardsOutput = z.infer<typeof GenerateFlashcardsOutputSchema>;
 
-// Ana fonksiyon (henüz tam olarak implemente edilmedi)
 export async function generateFlashcards(input: GenerateFlashcardsInput): Promise<GenerateFlashcardsOutput> {
-  // Bu fonksiyon, Genkit flow'unu çağıracak.
-  // Şimdilik bir yer tutucu olarak bırakıldı.
-  // throw new Error('Flashcard generator flow is not yet implemented.');
-  return flashcardGeneratorFlow(input); // Yer tutucu flow çağrısı
+  return flashcardGeneratorFlow(input); 
 }
 
-// Genkit Prompt Tanımı
 const prompt = ai.definePrompt({
   name: 'flashcardGeneratorPrompt',
   input: {schema: GenerateFlashcardsInputSchema},
   output: {schema: GenerateFlashcardsOutputSchema},
   prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilerin kritik bilgileri hızlı ve etkili bir şekilde ezberlemelerine ve pekiştirmelerine yardımcı olmak amacıyla, verilen metinlerden YKS odaklı, kaliteli bilgi kartları (flashcards) oluşturan uzman bir AI eğitim materyali geliştiricisisin.
-Amacın, metindeki en önemli tanımları, kavramları, formülleri, tarihleri veya olguları belirleyip bunları soru-cevap veya terim-tanım formatında bilgi kartlarına dönüştürmektir. Kartlar, YKS öğrencisinin seviyesine uygun, net ve akılda kalıcı olmalıdır. Premium plan kullanıcıları için, kartlara ek ipuçları veya bağlantılı kavramlar ekleyerek daha zengin içerik sun.
+Amacın, metindeki en önemli tanımları, kavramları, formülleri, tarihleri veya olguları belirleyip bunları soru-cevap veya terim-tanım formatında bilgi kartlarına dönüştürmektir. Kartlar, YKS öğrencisinin seviyesine uygun, net ve akılda kalıcı olmalıdır.
+Kullanıcının üyelik planı: {{{userPlan}}}.
+{{#ifEquals userPlan "pro"}}
+Pro kullanıcılar için: Bilgi kartlarını, konunun en derin ve karmaşık noktalarını sorgulayacak şekilde, çoklu bağlantılar ve ileri düzey ipuçları içerecek biçimde tasarla. Kartlar, öğrencinin analitik düşünme ve sentez yapma becerilerini en üst düzeye çıkarmalı.
+{{else ifEquals userPlan "premium"}}
+Premium kullanıcılar için: Kartlara ek ipuçları, bağlantılı kavramlar veya YKS'de çıkabilecek alternatif soru tarzlarına göndermeler ekleyerek daha zengin içerik sun.
+{{/ifEquals}}
 
 Kullanıcının Girdileri:
 Metin İçeriği:
@@ -79,7 +82,6 @@ Genel Prensipler:
 `,
 });
 
-// Genkit Flow Tanımı
 const flashcardGeneratorFlow = ai.defineFlow(
   {
     name: 'flashcardGeneratorFlow',
@@ -87,7 +89,11 @@ const flashcardGeneratorFlow = ai.defineFlow(
     outputSchema: GenerateFlashcardsOutputSchema,
   },
   async (input) => {
-    const {output} = await prompt(input);
+    let modelToUse = 'googleai/gemini-2.0-flash'; // Default for free/premium
+    if (input.userPlan === 'pro') {
+      modelToUse = 'googleai/gemini-1.5-pro-latest';
+    }
+    const {output} = await prompt(input, { model: modelToUse });
     if (!output || !output.flashcards || output.flashcards.length === 0) {
       throw new Error("AI YKS Bilgi Kartı Uzmanı, belirtilen metin için bilgi kartı oluşturamadı. Lütfen metni ve ayarları kontrol edin.");
     }

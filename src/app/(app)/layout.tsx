@@ -171,7 +171,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               </SidebarMenu>
             </SidebarContent>
             <SidebarFooter className="p-2 mt-auto">
-               {userProfile?.plan !== 'premium' && (
+               {userProfile?.plan !== 'premium' && userProfile?.plan !== 'pro' && (
                 <Card className="bg-gradient-to-br from-primary/20 to-accent/20 border-primary/50 my-2 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:border-none">
                   <CardContent className="p-4 group-data-[collapsible=icon]:p-0">
                     <div className="flex flex-col items-center text-center group-data-[collapsible=icon]:hidden">

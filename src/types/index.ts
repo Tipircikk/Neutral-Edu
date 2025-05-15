@@ -6,7 +6,7 @@ export interface UserProfile {
   uid: string;
   email: string | null;
   displayName?: string | null;
-  plan: "free" | "premium";
+  plan: "free" | "premium" | "pro"; // Added "pro"
   dailyRemainingQuota: number;
   lastSummaryDate: Timestamp | string | null; 
   isAdmin?: boolean; 

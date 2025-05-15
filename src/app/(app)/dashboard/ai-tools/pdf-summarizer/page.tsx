@@ -32,7 +32,7 @@ export default function PdfSummarizerPage() {
 
   const [canSummarize, setCanSummarize] = useState(false);
 
-  const memoizedCheckAndResetQuota = useCallback(() => {
+  const memoizedCheckAndResetQuota = useCallback(async () => {
     if (checkAndResetQuota) {
       return checkAndResetQuota();
     }
@@ -44,9 +44,9 @@ export default function PdfSummarizerPage() {
     if (userProfile) {
       memoizedCheckAndResetQuota().then(updatedProfile => {
         if (updatedProfile) {
-          setCanSummarize(updatedProfile.dailyRemainingQuota > 0);
+          setCanSummarize((updatedProfile.dailyRemainingQuota ?? 0) > 0);
         } else {
-          setCanSummarize(userProfile.dailyRemainingQuota > 0);
+          setCanSummarize((userProfile.dailyRemainingQuota ?? 0) > 0);
         }
       });
     }
@@ -60,7 +60,7 @@ export default function PdfSummarizerPage() {
     setCurrentFileName(file.name);
 
     const currentProfile = await memoizedCheckAndResetQuota();
-    if (!currentProfile || currentProfile.dailyRemainingQuota <= 0) {
+    if (!currentProfile || (currentProfile.dailyRemainingQuota ?? 0) <= 0) {
       toast({
         title: "Kota Aşıldı",
         description: "Bugünkü özet hakkınızı doldurdunuz. Lütfen yarın tekrar deneyin.",
@@ -79,12 +79,17 @@ export default function PdfSummarizerPage() {
       setPdfTextContent(text);
       toast({ title: "Metin Çıkarıldı", description: "Şimdi özetiniz oluşturuluyor..." });
 
+      if (!currentProfile?.plan) {
+        throw new Error("Kullanıcı planı bulunamadı.");
+      }
+
       const input: SummarizePdfForStudentInput = { 
         pdfText: text, 
         summaryLength,
         keywords: keywords.trim() || undefined,
         pageRange: pageRange.trim() || undefined,
-        outputDetail
+        outputDetail,
+        userPlan: currentProfile.plan 
       };
       const result = await summarizePdfForStudent(input);
       
@@ -94,7 +99,7 @@ export default function PdfSummarizerPage() {
         if (decrementQuota) await decrementQuota(); 
         const updatedProfileAgain = await memoizedCheckAndResetQuota(); 
          if (updatedProfileAgain) {
-          setCanSummarize(updatedProfileAgain.dailyRemainingQuota > 0);
+          setCanSummarize((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
         }
 
       } else {
@@ -113,7 +118,8 @@ export default function PdfSummarizerPage() {
     }
   };
   
-  const isProcessingDisabled = isSummarizing || (!canSummarize && !isSummarizing && userProfile?.dailyRemainingQuota === 0);
+  const isProcessingDisabled = isSummarizing || (!canSummarize && !isSummarizing && (userProfile?.dailyRemainingQuota ?? 0) <=0);
+
 
   if (userProfileLoading) {
     return (
@@ -202,17 +208,17 @@ export default function PdfSummarizerPage() {
         </CardContent>
       </Card>
 
-      {!canSummarize && !isSummarizing && userProfile && userProfile.dailyRemainingQuota <=0 && (
+      {!canSummarize && !isSummarizing && userProfile && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
          <Alert variant="destructive" className="shadow-md">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Günlük Kota Doldu</AlertTitle>
           <AlertDescription>
-            Bugünlük ücretsiz özet hakkınızı kullandınız. Daha fazlası için lütfen yarın tekrar kontrol edin veya Premium'a yükseltin!
+            Bugünlük ücretsiz özet hakkınızı kullandınız. Daha fazlası için lütfen yarın tekrar kontrol edin veya Premium/Pro'ya yükseltin!
           </AlertDescription>
         </Alert>
       )}
 
-      <PdfUploadForm onSubmit={handlePdfSubmit} isSummarizing={isSummarizing} isDisabled={!canSummarize && !isSummarizing && userProfile?.dailyRemainingQuota === 0} />
+      <PdfUploadForm onSubmit={handlePdfSubmit} isSummarizing={isSummarizing} isDisabled={isProcessingDisabled} />
 
       {isSummarizing && !summaryOutput && (
         <Card className="mt-8 shadow-lg">

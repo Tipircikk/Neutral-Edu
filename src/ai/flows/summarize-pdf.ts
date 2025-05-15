@@ -12,13 +12,15 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import type { UserProfile } from '@/types'; // Import UserProfile type
 
 const SummarizePdfForStudentInputSchema = z.object({
   pdfText: z.string().describe('PDF belgesinden çıkarılan metin içeriği.'),
   summaryLength: z.enum(["short", "medium", "detailed"]).optional().default("medium").describe("İstenen özetin uzunluğu: 'short' (çok kısa), 'medium' (dengeli), 'detailed' (kapsamlı)."),
   keywords: z.string().optional().describe("Özetin odaklanması istenen, virgülle ayrılmış anahtar kelimeler."),
   pageRange: z.string().optional().describe("Özetlenecek sayfa aralığı, örn: '5-10'. AI, bu bilginin sağlandığı metin parçasına odaklanacaktır."),
-  outputDetail: z.enum(["full", "key_points_only", "exam_tips_only", "questions_only"]).optional().default("full").describe("İstenen özet çıktısının detayı: 'full' (tüm bölümler), 'key_points_only' (sadece anahtar noktalar), 'exam_tips_only' (sadece sınav ipuçları), 'questions_only' (sadece örnek sorular).")
+  outputDetail: z.enum(["full", "key_points_only", "exam_tips_only", "questions_only"]).optional().default("full").describe("İstenen özet çıktısının detayı: 'full' (tüm bölümler), 'key_points_only' (sadece anahtar noktalar), 'exam_tips_only' (sadece sınav ipuçları), 'questions_only' (sadece örnek sorular)."),
+  userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı.")
 });
 export type SummarizePdfForStudentInput = z.infer<typeof SummarizePdfForStudentInputSchema>;
 
@@ -47,7 +49,13 @@ const prompt = ai.definePrompt({
   input: {schema: SummarizePdfForStudentInputSchema},
   output: {schema: SummarizePdfForStudentOutputSchema},
   prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilere akademik metinleri en etkili şekilde anlamaları ve sınava nokta atışı hazırlanmaları konusunda yardımcı olan, son derece deneyimli ve uzman bir AI YKS koçusun.
-Görevin, karmaşık bilgileri YKS formatına ve öğrenci seviyesine uygun şekilde basitleştirmek, önemli noktaları vurgulamak ve öğrencinin konuyu derinlemesine kavramasını sağlamaktır. Cevapların her zaman YKS öğrencisinin bakış açısıyla, onun için en faydalı olacak şekilde ve Türkçe dilinde olmalıdır. Premium plan kullanıcıları için daha kapsamlı analizler ve derinlemesine içgörüler sunmaya çalış.
+Görevin, karmaşık bilgileri YKS formatına ve öğrenci seviyesine uygun şekilde basitleştirmek, önemli noktaları vurgulamak ve öğrencinin konuyu derinlemesine kavramasını sağlamaktır. Cevapların her zaman YKS öğrencisinin bakış açısıyla, onun için en faydalı olacak şekilde ve Türkçe dilinde olmalıdır.
+Kullanıcının üyelik planı: {{{userPlan}}}.
+{{#ifEquals userPlan "pro"}}
+Pro kullanıcılar için: En derinlemesine analizleri, en kapsamlı içgörüleri ve en gelişmiş yorumları sun. Metnin altındaki gizli bağlantıları ve çıkarımları ortaya koy. Cevaplarında en üst düzeyde uzmanlık ve detay sergile.
+{{else ifEquals userPlan "premium"}}
+Premium kullanıcılar için: Kapsamlı analizler ve derinlemesine içgörüler sunmaya çalış. Standart kullanıcıya göre daha detaylı ve zenginleştirilmiş bir içerik sağla.
+{{/ifEquals}}
 
 Bir PDF'den çıkarılan aşağıdaki metin verildiğinde, {{summaryLength}} uzunluk tercihine, {{outputDetail}} çıktı detayı isteğine ve varsa {{keywords}} anahtar kelimelerine veya {{pageRange}} sayfa aralığı bilgisine göre, öğrenci dostu, motive edici ve YKS'ye odaklı bir tonda aşağıdaki görevleri yerine getir. Çıktını, belirtilen şemaya harfiyen uyacak şekilde yapılandır.
 
@@ -91,7 +99,12 @@ const summarizePdfForStudentFlow = ai.defineFlow(
     outputSchema: SummarizePdfForStudentOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
+    let modelToUse = 'googleai/gemini-2.0-flash'; // Default for free/premium
+    if (input.userPlan === 'pro') {
+      modelToUse = 'googleai/gemini-1.5-pro-latest'; // Or your designated "pro" model
+    }
+
+    const {output} = await prompt(input, { model: modelToUse });
     if (!output) {
       throw new Error("AI, PDF özeti için şemaya uygun bir yanıt üretemedi.");
     }
@@ -108,17 +121,15 @@ const summarizePdfForStudentFlow = ai.defineFlow(
 
     // Clear other fields based on outputDetail, LLM might not always respect this perfectly
     if (input.outputDetail !== 'full' && input.outputDetail !== 'key_points_only') {
-        output.keyPoints = []; // Or set to a message like "Not requested"
+        output.keyPoints = [];
     }
      if (input.outputDetail !== 'full' && input.outputDetail !== 'exam_tips_only') {
-        output.examTips = []; // Or set to a message like "Not requested"
+        output.examTips = []; 
     }
     if (input.outputDetail === 'key_points_only' || input.outputDetail === 'exam_tips_only' || input.outputDetail === 'questions_only') {
-        if(input.outputDetail !== 'full') output.summary = "Sadece istenen bölüm üretildi."; // Or clear it
-        if(input.outputDetail !== 'full') output.mainIdea = "Sadece istenen bölüm üretildi."; // Or clear it
+        if(input.outputDetail !== 'full') output.summary = "Sadece istenen bölüm üretildi."; 
+        if(input.outputDetail !== 'full') output.mainIdea = "Sadece istenen bölüm üretildi."; 
     }
-
-
     return output;
   }
 );

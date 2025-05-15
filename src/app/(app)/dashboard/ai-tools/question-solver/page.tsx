@@ -11,7 +11,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { solveQuestion, type SolveQuestionOutput, type SolveQuestionInput } from "@/ai/flows/question-solver-flow"; 
-import Image from "next/image"; // For image preview
+import NextImage from "next/image"; // Renamed to avoid conflict with Lucide's Image
 
 export default function QuestionSolverPage() {
   const [questionText, setQuestionText] = useState("");
@@ -23,7 +23,7 @@ export default function QuestionSolverPage() {
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
   const [canProcess, setCanProcess] = useState(false);
 
-  const memoizedCheckAndResetQuota = useCallback(() => {
+  const memoizedCheckAndResetQuota = useCallback(async () => {
     if (checkAndResetQuota) return checkAndResetQuota();
     return Promise.resolve(userProfile);
   }, [checkAndResetQuota, userProfile]);
@@ -39,6 +39,11 @@ export default function QuestionSolverPage() {
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        toast({ title: "Dosya Boyutu Büyük", description: "Lütfen 5MB'den küçük bir görsel yükleyin.", variant: "destructive" });
+        event.target.value = ""; // Reset file input
+        return;
+      }
       setImageFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -62,7 +67,7 @@ export default function QuestionSolverPage() {
     setAnswer(null);
 
     const currentProfile = await memoizedCheckAndResetQuota();
-    if (!currentProfile || currentProfile.dailyRemainingQuota <= 0) {
+    if (!currentProfile || (currentProfile.dailyRemainingQuota ?? 0) <= 0) {
       toast({ title: "Kota Aşıldı", description: "Bugünkü hakkınızı doldurdunuz.", variant: "destructive" });
       setIsSolving(false);
       setCanProcess(false);
@@ -71,7 +76,13 @@ export default function QuestionSolverPage() {
     setCanProcess(true);
 
     try {
-      const input: SolveQuestionInput = { questionText };
+      if (!currentProfile?.plan) {
+        throw new Error("Kullanıcı planı bulunamadı.");
+      }
+      const input: SolveQuestionInput = { 
+        questionText: questionText.trim() || undefined, 
+        userPlan: currentProfile.plan 
+      };
       if (imageDataUri) {
         input.imageDataUri = imageDataUri;
       }
@@ -83,7 +94,7 @@ export default function QuestionSolverPage() {
         if (decrementQuota) await decrementQuota();
         const updatedProfileAgain = await memoizedCheckAndResetQuota();
         if (updatedProfileAgain) {
-          setCanProcess(updatedProfileAgain.dailyRemainingQuota > 0);
+          setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
         }
       } else {
         throw new Error("Yapay zeka bir çözüm üretemedi.");
@@ -126,12 +137,12 @@ export default function QuestionSolverPage() {
         </CardHeader>
       </Card>
 
-      {!canProcess && !isSolving && userProfile && userProfile.dailyRemainingQuota <=0 && (
+      {!canProcess && !isSolving && userProfile && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
          <Alert variant="destructive" className="shadow-md">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Günlük Kota Doldu</AlertTitle>
           <AlertDescription>
-            Bugünlük ücretsiz hakkınızı kullandınız. Lütfen yarın tekrar kontrol edin.
+            Bugünlük ücretsiz hakkınızı kullandınız. Lütfen yarın tekrar kontrol edin veya Premium/Pro'ya yükseltin.
           </AlertDescription>
         </Alert>
       )}
@@ -152,7 +163,7 @@ export default function QuestionSolverPage() {
               />
             </div>
             <div className="space-y-2">
-                <label htmlFor="imageUpload" className="block text-sm font-medium text-foreground">Soru Görseli Yükle (isteğe bağlı)</label>
+                <label htmlFor="imageUpload" className="block text-sm font-medium text-foreground">Soru Görseli Yükle (isteğe bağlı, maks 5MB)</label>
                  <Input
                     id="imageUpload"
                     type="file"
@@ -164,7 +175,7 @@ export default function QuestionSolverPage() {
                 {imageDataUri && imageFile && (
                   <div className="mt-2 p-2 border rounded-md bg-muted">
                     <p className="text-sm text-muted-foreground mb-2">Seçilen görsel: {imageFile.name}</p>
-                    <Image src={imageDataUri} alt="Yüklenen soru görseli" width={200} height={200} className="rounded-md object-contain max-h-48" />
+                    <NextImage src={imageDataUri} alt="Yüklenen soru görseli" width={200} height={200} className="rounded-md object-contain max-h-48" />
                   </div>
                 )}
             </div>
@@ -209,7 +220,20 @@ export default function QuestionSolverPage() {
                   </ul>
                 </>
               )}
+               {answer.examStrategyTips && answer.examStrategyTips.length > 0 && (
+                <>
+                  <h3 className="font-semibold text-foreground mt-4">Sınav Stratejisi İpuçları:</h3>
+                  <ul className="list-disc pl-5">
+                    {answer.examStrategyTips.map((tip, index) => (
+                      <li key={index}>{tip}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </div>
+            {answer.confidenceScore !== undefined && (
+                <p className="text-xs text-muted-foreground mt-3 italic">AI Güven Skoru: {Math.round(answer.confidenceScore * 100)}%</p>
+            )}
             <div className="mt-4 p-3 text-xs text-destructive-foreground bg-destructive/80 rounded-md flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
               <span>NeutralEdu AI bir yapay zekadır bu nedenle hata yapabilir, bu yüzden verdiği bilgileri doğrulayınız.</span>

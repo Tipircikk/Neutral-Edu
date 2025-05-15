@@ -17,14 +17,14 @@ import { generateTest, type GenerateTestOutput, type GenerateTestInput } from "@
 export default function TestGeneratorPage() {
   const [topic, setTopic] = useState("");
   const [numQuestions, setNumQuestions] = useState(5);
-  const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">("medium");
+  const [difficulty, setDifficulty] = useState<GenerateTestInput["difficulty"]>("medium");
   const [testOutput, setTestOutput] = useState<GenerateTestOutput | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
   const [canProcess, setCanProcess] = useState(false);
 
-  const memoizedCheckAndResetQuota = useCallback(() => {
+  const memoizedCheckAndResetQuota = useCallback(async () => {
     if (checkAndResetQuota) return checkAndResetQuota();
     return Promise.resolve(userProfile);
   }, [checkAndResetQuota, userProfile]);
@@ -48,7 +48,7 @@ export default function TestGeneratorPage() {
     setTestOutput(null);
 
     const currentProfile = await memoizedCheckAndResetQuota();
-    if (!currentProfile || currentProfile.dailyRemainingQuota <= 0) {
+    if (!currentProfile || (currentProfile.dailyRemainingQuota ?? 0) <= 0) {
       toast({ title: "Kota Aşıldı", description: "Bugünkü hakkınızı doldurdunuz.", variant: "destructive" });
       setIsGenerating(false);
       setCanProcess(false);
@@ -57,7 +57,15 @@ export default function TestGeneratorPage() {
     setCanProcess(true);
 
     try {
-      const input: GenerateTestInput = { topic, numQuestions, difficulty };
+      if (!currentProfile?.plan) {
+        throw new Error("Kullanıcı planı bulunamadı.");
+      }
+      const input: GenerateTestInput = { 
+        topic, 
+        numQuestions, 
+        difficulty, 
+        userPlan: currentProfile.plan 
+      };
       const result = await generateTest(input);
 
       if (result && result.questions && result.questions.length > 0) {
@@ -66,7 +74,7 @@ export default function TestGeneratorPage() {
         if (decrementQuota) await decrementQuota();
         const updatedProfileAgain = await memoizedCheckAndResetQuota();
         if (updatedProfileAgain) {
-          setCanProcess(updatedProfileAgain.dailyRemainingQuota > 0);
+          setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
         }
       } else {
         throw new Error("Yapay zeka bir test üretemedi veya format hatalı.");
@@ -108,12 +116,12 @@ export default function TestGeneratorPage() {
         </CardHeader>
       </Card>
 
-      {!canProcess && !isGenerating && userProfile && userProfile.dailyRemainingQuota <=0 && (
+      {!canProcess && !isGenerating && userProfile && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
          <Alert variant="destructive" className="shadow-md">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Günlük Kota Doldu</AlertTitle>
           <AlertDescription>
-            Bugünlük ücretsiz hakkınızı kullandınız. Lütfen yarın tekrar kontrol edin.
+            Bugünlük ücretsiz hakkınızı kullandınız. Lütfen yarın tekrar kontrol edin veya Premium/Pro'ya yükseltin.
           </AlertDescription>
         </Alert>
       )}
@@ -151,7 +159,7 @@ export default function TestGeneratorPage() {
                     <Label htmlFor="difficulty" className="block text-sm font-medium text-foreground mb-1">Zorluk Seviyesi</Label>
                     <Select
                         value={difficulty}
-                        onValueChange={(value: "easy" | "medium" | "hard") => setDifficulty(value)}
+                        onValueChange={(value: GenerateTestInput["difficulty"]) => setDifficulty(value)}
                         disabled={isGenerating || !canProcess}
                     >
                         <SelectTrigger id="difficulty">
@@ -195,10 +203,10 @@ export default function TestGeneratorPage() {
           <CardContent className="space-y-4">
             {testOutput.questions.map((q, index) => (
               <div key={index} className="p-4 border rounded-md bg-muted/50">
-                <p className="font-semibold text-foreground">Soru {index + 1} ({q.questionType}): {q.questionText}</p>
+                <p className="font-semibold text-foreground">Soru {index + 1} ({q.questionType === "multiple_choice" ? "Çoktan Seçmeli" : q.questionType === "true_false" ? "Doğru/Yanlış" : "Kısa Cevap"}): {q.questionText}</p>
                 {q.options && q.options.length > 0 && (
-                  <ul className="list-disc pl-5 mt-2 text-sm text-muted-foreground">
-                    {q.options.map((opt, i) => <li key={i}>{opt}</li>)}
+                  <ul className="list-none pl-0 mt-2 space-y-1 text-sm text-muted-foreground">
+                    {q.options.map((opt, i) => <li key={i} className="ml-4">{String.fromCharCode(65 + i)}) {opt}</li>)}
                   </ul>
                 )}
                 <p className="mt-2 text-sm"><span className="font-medium text-primary">Doğru Cevap:</span> {q.correctAnswer}</p>

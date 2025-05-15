@@ -17,13 +17,13 @@ export default function TopicSummarizerPage() {
   const [topicOrText, setTopicOrText] = useState("");
   const [summaryOutput, setSummaryOutput] = useState<SummarizeTopicOutput | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
-  const [summaryLength, setSummaryLength] = useState<"short" | "medium" | "detailed">("medium");
-  const [outputFormat, setOutputFormat] = useState<"paragraph" | "bullet_points">("paragraph");
+  const [summaryLength, setSummaryLength] = useState<SummarizeTopicInput["summaryLength"]>("medium");
+  const [outputFormat, setOutputFormat] = useState<SummarizeTopicInput["outputFormat"]>("paragraph");
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
   const [canProcess, setCanProcess] = useState(false);
 
-  const memoizedCheckAndResetQuota = useCallback(() => {
+  const memoizedCheckAndResetQuota = useCallback(async () => {
     if (checkAndResetQuota) return checkAndResetQuota();
     return Promise.resolve(userProfile);
   }, [checkAndResetQuota, userProfile]);
@@ -47,7 +47,7 @@ export default function TopicSummarizerPage() {
     setSummaryOutput(null);
 
     const currentProfile = await memoizedCheckAndResetQuota();
-    if (!currentProfile || currentProfile.dailyRemainingQuota <= 0) {
+    if (!currentProfile || (currentProfile.dailyRemainingQuota ?? 0) <= 0) {
       toast({ title: "Kota Aşıldı", description: "Bugünkü hakkınızı doldurdunuz.", variant: "destructive" });
       setIsSummarizing(false);
       setCanProcess(false);
@@ -56,10 +56,14 @@ export default function TopicSummarizerPage() {
     setCanProcess(true);
 
     try {
+      if (!currentProfile?.plan) {
+        throw new Error("Kullanıcı planı bulunamadı.");
+      }
       const input: SummarizeTopicInput = { 
         inputText: topicOrText, 
         summaryLength, 
-        outputFormat 
+        outputFormat,
+        userPlan: currentProfile.plan 
       };
       const result = await summarizeTopic(input);
 
@@ -69,7 +73,7 @@ export default function TopicSummarizerPage() {
         if (decrementQuota) await decrementQuota();
         const updatedProfileAgain = await memoizedCheckAndResetQuota();
         if (updatedProfileAgain) {
-          setCanProcess(updatedProfileAgain.dailyRemainingQuota > 0);
+          setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
         }
       } else {
         throw new Error("Yapay zeka bir özet üretemedi.");
@@ -115,7 +119,7 @@ export default function TopicSummarizerPage() {
                 <Label htmlFor="summaryLength" className="mb-1 block">Özet Uzunluğu</Label>
                 <Select
                 value={summaryLength}
-                onValueChange={(value: "short" | "medium" | "detailed") => setSummaryLength(value)}
+                onValueChange={(value: SummarizeTopicInput["summaryLength"]) => setSummaryLength(value)}
                 disabled={isSummarizing || !canProcess}
                 >
                 <SelectTrigger id="summaryLength">
@@ -132,7 +136,7 @@ export default function TopicSummarizerPage() {
                 <Label htmlFor="outputFormat" className="mb-1 block">Çıktı Formatı</Label>
                 <Select
                 value={outputFormat}
-                onValueChange={(value: "paragraph" | "bullet_points") => setOutputFormat(value)}
+                onValueChange={(value: SummarizeTopicInput["outputFormat"]) => setOutputFormat(value)}
                 disabled={isSummarizing || !canProcess}
                 >
                 <SelectTrigger id="outputFormat">
@@ -148,12 +152,12 @@ export default function TopicSummarizerPage() {
         </CardContent>
       </Card>
 
-       {!canProcess && !isSummarizing && userProfile && userProfile.dailyRemainingQuota <=0 && (
+       {!canProcess && !isSummarizing && userProfile && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
          <Alert variant="destructive" className="shadow-md">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Günlük Kota Doldu</AlertTitle>
           <AlertDescription>
-            Bugünlük ücretsiz hakkınızı kullandınız. Lütfen yarın tekrar kontrol edin.
+            Bugünlük ücretsiz hakkınızı kullandınız. Lütfen yarın tekrar kontrol edin veya Premium/Pro'ya yükseltin.
           </AlertDescription>
         </Alert>
       )}
@@ -233,5 +237,3 @@ export default function TopicSummarizerPage() {
     </div>
   );
 }
-
-    

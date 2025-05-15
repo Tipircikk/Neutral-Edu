@@ -11,11 +11,12 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-
+import type { UserProfile } from '@/types';
 
 const SolveQuestionInputSchema = z.object({
   questionText: z.string().optional().describe('Öğrencinin çözülmesini istediği, YKS kapsamındaki soru metni.'),
   imageDataUri: z.string().optional().describe("Soruyla ilgili bir görselin data URI'si (Base64 formatında). 'data:<mimetype>;base64,<encoded_data>' formatında olmalıdır. Görsel, soru metni yerine veya ona ek olarak sunulabilir."),
+  userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı.")
 });
 export type SolveQuestionInput = z.infer<typeof SolveQuestionInputSchema>;
 
@@ -36,7 +37,13 @@ const prompt = ai.definePrompt({
   input: {schema: SolveQuestionInputSchema},
   output: {schema: SolveQuestionOutputSchema},
   prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) hazırlık sürecindeki öğrencilere her türlü akademik soruyu (Matematik, Geometri, Fizik, Kimya, Biyoloji, Türkçe, Edebiyat, Tarih, Coğrafya, Felsefe vb.) çözmede yardımcı olan, alanında zirve yapmış, son derece sabırlı, pedagojik formasyonu güçlü ve motive edici bir AI YKS uzman öğretmenisin.
-Amacın sadece doğru cevabı vermek değil, aynı zamanda sorunun çözüm mantığını en ince ayrıntısına kadar açıklamak, altında yatan temel prensipleri ve YKS'de sıkça sorulan püf noktalarını vurgulamak ve öğrencinin konuyu tam anlamıyla "öğrenmesini" sağlamaktır. Öğrencinin bu soru tipini bir daha gördüğünde kendinden emin bir şekilde çözebilmesi için gereken her türlü bilgiyi ve stratejiyi sun. Cevapların her zaman Türkçe olmalıdır. Premium plan kullanıcıları için daha derinlemesine açıklamalar ve alternatif çözüm yolları sunmaya özen göster.
+Amacın sadece doğru cevabı vermek değil, aynı zamanda sorunun çözüm mantığını en ince ayrıntısına kadar açıklamak, altında yatan temel prensipleri ve YKS'de sıkça sorulan püf noktalarını vurgulamak ve öğrencinin konuyu tam anlamıyla "öğrenmesini" sağlamaktır. Öğrencinin bu soru tipini bir daha gördüğünde kendinden emin bir şekilde çözebilmesi için gereken her türlü bilgiyi ve stratejiyi sun. Cevapların her zaman Türkçe olmalıdır.
+Kullanıcının üyelik planı: {{{userPlan}}}.
+{{#ifEquals userPlan "pro"}}
+Pro kullanıcılar için: Çözümlerini en üst düzeyde akademik titizlikle, birden fazla çözüm yolunu (varsa) karşılaştırarak, konunun en derin ve karmaşık noktalarına değinerek sun. Öğrencinin ufkunu açacak bağlantılar kur ve ileri düzey düşünme becerilerini tetikle. En sofistike ve en kapsamlı yanıtı ver.
+{{else ifEquals userPlan "premium"}}
+Premium kullanıcılar için: Daha derinlemesine açıklamalar, alternatif çözüm yolları (varsa) ve konunun YKS'deki önemi hakkında daha detaylı bilgiler sunmaya özen göster. Standart kullanıcıya göre daha zengin ve öğretici bir deneyim sağla.
+{{/ifEquals}}
 
 Kullanıcının girdileri aşağıdadır. Lütfen bu girdilere dayanarak, YKS formatına ve zorluk seviyesine uygun bir çözüm üret:
 
@@ -81,8 +88,13 @@ const questionSolverFlow = ai.defineFlow(
     if (!input.questionText && !input.imageDataUri) {
       throw new Error("YKS sorusu çözmek için lütfen bir metin girin veya bir görsel yükleyin.");
     }
-    // Consider adding a check for image mime type if necessary here.
-    const {output} = await prompt(input);
+    
+    let modelToUse = 'googleai/gemini-2.0-flash'; // Default for free/premium
+    if (input.userPlan === 'pro') {
+      modelToUse = 'googleai/gemini-1.5-pro-latest'; 
+    }
+
+    const {output} = await prompt(input, { model: modelToUse });
     if (!output || !output.solution) {
       throw new Error("AI YKS Uzmanı, bu soru için bir çözüm ve detaylı açıklama üretemedi. Lütfen girdilerinizi kontrol edin veya farklı bir soru deneyin.");
     }

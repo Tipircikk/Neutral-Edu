@@ -22,7 +22,7 @@ import { collection, getDocs, query, orderBy, Timestamp as FirestoreTimestamp } 
 import { getDefaultQuota } from "@/lib/firebase/firestore";
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
-import EditUserDialog from "@/components/admin/EditUserDialog"; // Import the dialog
+import EditUserDialog from "@/components/admin/EditUserDialog"; 
 
 export default function AdminPage() {
   const { userProfile: adminUserProfile, loading: adminLoading } = useUser();
@@ -45,7 +45,8 @@ export default function AdminPage() {
     setUsersLoading(true);
     try {
       const usersCollection = collection(db, "users");
-      const usersQuery = query(usersCollection, orderBy("isAdmin", "desc"), orderBy("plan", "desc"), orderBy("email"));
+      // Sort by isAdmin, then by plan (pro > premium > free), then by email
+      const usersQuery = query(usersCollection); // Simpler query, sorting done client-side for plan
       const querySnapshot = await getDocs(usersQuery);
       const usersList = querySnapshot.docs.map(doc => {
         const data = doc.data();
@@ -54,7 +55,7 @@ export default function AdminPage() {
             lastSummaryDate = new FirestoreTimestamp(lastSummaryDate.seconds, lastSummaryDate.nanoseconds);
         }
         return {
-            uid: doc.id, // Use doc.id as uid
+            uid: doc.id, 
             ...data,
             lastSummaryDate: lastSummaryDate,
         } as UserProfile;
@@ -89,12 +90,18 @@ export default function AdminPage() {
     }
   }, [adminUserProfile]);
 
+  const planOrder: Record<UserProfile['plan'], number> = {
+    pro: 0,
+    premium: 1,
+    free: 2,
+  };
+
   const sortedUsers = useMemo(() => {
     return [...allUsers].sort((a, b) => {
       if (a.isAdmin && !b.isAdmin) return -1;
       if (!a.isAdmin && b.isAdmin) return 1;
-      if (a.plan === 'premium' && b.plan !== 'premium') return -1;
-      if (a.plan !== 'premium' && b.plan === 'premium') return 1;
+      if (planOrder[a.plan] < planOrder[b.plan]) return -1;
+      if (planOrder[a.plan] > planOrder[b.plan]) return 1;
       return (a.email || "").localeCompare(b.email || "");
     });
   }, [allUsers]);
@@ -108,14 +115,13 @@ export default function AdminPage() {
         lastDate = user.lastSummaryDate.toDate();
     } else if (typeof user.lastSummaryDate === 'string') {
         lastDate = new Date(user.lastSummaryDate);
-    } else { // Assuming it's null or some other type not convertible
+    } else { 
         return 0;
     }
     lastDate.setHours(0,0,0,0);
 
     if (lastDate.getTime() === today.getTime()) {
       const totalQuota = getDefaultQuota(user.plan);
-      // Ensure dailyRemainingQuota is a number, default to 0 if not
       const remainingQuota = typeof user.dailyRemainingQuota === 'number' ? user.dailyRemainingQuota : 0;
       return totalQuota - remainingQuota;
     }
@@ -149,7 +155,6 @@ export default function AdminPage() {
   };
 
   const handleUserUpdate = (updatedUser: UserProfile) => {
-    // Refresh the user list or update the specific user in the list
     setAllUsers(prevUsers => prevUsers.map(u => u.uid === updatedUser.uid ? updatedUser : u));
   };
 
@@ -211,8 +216,11 @@ export default function AdminPage() {
                   <TableRow key={user.uid}>
                     <TableCell className="font-medium">{user.email}</TableCell>
                     <TableCell>
-                      <Badge variant={user.plan === 'premium' ? 'default' : 'secondary'}>
-                        {user.plan === 'premium' ? 'Premium' : 'Ücretsiz'}
+                      <Badge 
+                        variant={user.plan === 'pro' ? 'default' : user.plan === 'premium' ? 'secondary' : 'outline'}
+                        className={user.plan === 'pro' ? 'bg-purple-600 hover:bg-purple-700 text-white' : user.plan === 'premium' ? 'bg-blue-500 hover:bg-blue-600 text-white' : ''}
+                      >
+                        {user.plan === 'pro' ? 'Pro' : user.plan === 'premium' ? 'Premium' : 'Ücretsiz'}
                       </Badge>
                     </TableCell>
                     <TableCell>{user.dailyRemainingQuota}</TableCell>
@@ -277,7 +285,7 @@ export default function AdminPage() {
                         : 'N/A'}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="outline" size="sm" disabled> {/* Placeholder */}
+                      <Button variant="outline" size="sm" disabled> 
                         <MessageSquareWarning className="mr-2 h-3 w-3"/> Yanıtla
                       </Button>
                     </TableCell>
@@ -306,8 +314,8 @@ export default function AdminPage() {
               <CardContent><p className="text-3xl font-bold">{allUsers.reduce((sum, user) => sum + getUsageToday(user), 0)}</p></CardContent>
             </Card>
             <Card className="bg-muted/50">
-              <CardHeader><CardTitle className="text-lg">Aktif Premium Üye</CardTitle></CardHeader>
-              <CardContent><p className="text-3xl font-bold">{allUsers.filter(u => u.plan === 'premium').length}</p></CardContent>
+              <CardHeader><CardTitle className="text-lg">Aktif Pro/Premium Üye</CardTitle></CardHeader>
+              <CardContent><p className="text-3xl font-bold">{allUsers.filter(u => u.plan === 'premium' || u.plan === 'pro').length}</p></CardContent>
             </Card>
           </div>
         </CardContent>
@@ -333,5 +341,3 @@ export default function AdminPage() {
     </div>
   );
 }
-
-    

@@ -5,21 +5,26 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LayoutGrid, Wand2, Loader2, AlertTriangle } from "lucide-react"; // Changed icon
+import { LayoutGrid, Wand2, Loader2, AlertTriangle } from "lucide-react"; 
+import { Label } from "@/components/ui/label";
+import { Input as ShadInput } from "@/components/ui/input"; 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
-// import { generateFlashcards, type GenerateFlashcardsOutput, type GenerateFlashcardsInput } from "@/ai/flows/flashcard-generator-flow"; // Placeholder import
+import { generateFlashcards, type GenerateFlashcardsOutput, type GenerateFlashcardsInput } from "@/ai/flows/flashcard-generator-flow"; 
 
 export default function FlashcardGeneratorPage() {
   const [inputText, setInputText] = useState("");
-  // const [flashcardsOutput, setFlashcardsOutput] = useState<GenerateFlashcardsOutput | null>(null); // Placeholder state
+  const [numFlashcards, setNumFlashcards] = useState<GenerateFlashcardsInput["numFlashcards"]>(5);
+  const [difficulty, setDifficulty] = useState<GenerateFlashcardsInput["difficulty"]>("medium");
+  const [flashcardsOutput, setFlashcardsOutput] = useState<GenerateFlashcardsOutput | null>(null); 
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
   const [canProcess, setCanProcess] = useState(false);
 
-  const memoizedCheckAndResetQuota = useCallback(() => {
+  const memoizedCheckAndResetQuota = useCallback(async () => {
     if (checkAndResetQuota) return checkAndResetQuota();
     return Promise.resolve(userProfile);
   }, [checkAndResetQuota, userProfile]);
@@ -38,12 +43,16 @@ export default function FlashcardGeneratorPage() {
       toast({ title: "Metin Gerekli", description: "Lütfen bilgi kartı oluşturmak için bir metin girin.", variant: "destructive" });
       return;
     }
+     if (inputText.trim().length < 50) {
+      toast({ title: "Metin Çok Kısa", description: "Lütfen en az 50 karakterlik bir metin girin.", variant: "destructive" });
+      return;
+    }
 
     setIsGenerating(true);
-    // setFlashcardsOutput(null); // Placeholder
+    setFlashcardsOutput(null);
 
     const currentProfile = await memoizedCheckAndResetQuota();
-    if (!currentProfile || currentProfile.dailyRemainingQuota <= 0) {
+    if (!currentProfile || (currentProfile.dailyRemainingQuota ?? 0) <= 0) {
       toast({ title: "Kota Aşıldı", description: "Bugünkü hakkınızı doldurdunuz.", variant: "destructive" });
       setIsGenerating(false);
       setCanProcess(false);
@@ -52,25 +61,28 @@ export default function FlashcardGeneratorPage() {
     setCanProcess(true);
 
     try {
-      // const input: GenerateFlashcardsInput = { textContent: inputText }; // Placeholder input
-      // const result = await generateFlashcards(input); // Placeholder call
+      if (!currentProfile?.plan) {
+        throw new Error("Kullanıcı planı bulunamadı.");
+      }
+      const input: GenerateFlashcardsInput = { 
+        textContent: inputText,
+        numFlashcards,
+        difficulty,
+        userPlan: currentProfile.plan
+      }; 
+      const result = await generateFlashcards(input); 
 
-      // if (result && result.flashcards && result.flashcards.length > 0) {
-      //   setFlashcardsOutput(result);
-      //   toast({ title: "Bilgi Kartları Hazır!", description: "Metniniz için bilgi kartları oluşturuldu." });
-      //   if (decrementQuota) await decrementQuota();
-      //   const updatedProfileAgain = await memoizedCheckAndResetQuota();
-      //   if (updatedProfileAgain) {
-      //     setCanProcess(updatedProfileAgain.dailyRemainingQuota > 0);
-      //   }
-      // } else {
-      //   throw new Error("Yapay zeka bilgi kartı üretemedi.");
-      // }
-      toast({ title: "Yakında!", description: "Bu özellik şu anda geliştirme aşamasındadır.", variant: "default" });
-      // Simulating a delay for demo
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-
+      if (result && result.flashcards && result.flashcards.length > 0) {
+        setFlashcardsOutput(result);
+        toast({ title: "Bilgi Kartları Hazır!", description: "Metniniz için bilgi kartları oluşturuldu." });
+        if (decrementQuota) await decrementQuota();
+        const updatedProfileAgain = await memoizedCheckAndResetQuota();
+        if (updatedProfileAgain) {
+          setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
+        }
+      } else {
+        throw new Error("Yapay zeka bilgi kartı üretemedi veya format hatalı.");
+      }
     } catch (error: any) {
       console.error("Bilgi kartı oluşturma hatası:", error);
       toast({
@@ -83,7 +95,7 @@ export default function FlashcardGeneratorPage() {
     }
   };
   
-  const isSubmitDisabled = isGenerating || !inputText.trim() || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
+  const isSubmitDisabled = isGenerating || !inputText.trim() || inputText.trim().length < 50 || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
 
   if (userProfileLoading) {
     return (
@@ -103,17 +115,17 @@ export default function FlashcardGeneratorPage() {
             <CardTitle className="text-2xl">AI Bilgi Kartı Oluşturucu</CardTitle>
           </div>
           <CardDescription>
-            Öğrenmek istediğiniz metni girin, yapay zeka sizin için önemli kavramlardan etkileşimli bilgi kartları (flashcards) oluştursun. (Yakında)
+            Öğrenmek istediğiniz metni girin (en az 50 karakter), yapay zeka sizin için önemli kavramlardan etkileşimli bilgi kartları (flashcards) oluştursun.
           </CardDescription>
         </CardHeader>
       </Card>
 
-      {!canProcess && !isGenerating && userProfile && userProfile.dailyRemainingQuota <=0 && (
+      {!canProcess && !isGenerating && userProfile && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
          <Alert variant="destructive" className="shadow-md">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Günlük Kota Doldu</AlertTitle>
           <AlertDescription>
-            Bugünlük ücretsiz hakkınızı kullandınız. Lütfen yarın tekrar kontrol edin.
+            Bugünlük ücretsiz hakkınızı kullandınız. Lütfen yarın tekrar kontrol edin veya Premium/Pro'ya yükseltin.
           </AlertDescription>
         </Alert>
       )}
@@ -122,22 +134,58 @@ export default function FlashcardGeneratorPage() {
         <Card>
           <CardContent className="pt-6 space-y-4">
             <Textarea
-              placeholder="Bilgi kartlarına dönüştürmek istediğiniz metni, tanımları veya anahtar noktaları buraya yapıştırın..."
+              placeholder="Bilgi kartlarına dönüştürmek istediğiniz metni, tanımları veya anahtar noktaları buraya yapıştırın (en az 50 karakter)..."
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               rows={8}
               className="text-base"
               disabled={isGenerating || !canProcess}
             />
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <Label htmlFor="numFlashcards" className="block text-sm font-medium text-foreground mb-1">Bilgi Kartı Sayısı (3-15)</Label>
+                    <ShadInput 
+                        type="number" 
+                        id="numFlashcards"
+                        value={numFlashcards}
+                        onChange={(e) => {
+                            const val = parseInt(e.target.value, 10);
+                            if (val >= 3 && val <= 15) setNumFlashcards(val);
+                            else if (e.target.value === "") setNumFlashcards(3); // Or handle empty string differently
+                        }}
+                        min="3"
+                        max="15"
+                        className="w-full p-2 border rounded-md bg-input border-border"
+                        disabled={isGenerating || !canProcess}
+                    />
+                </div>
+                <div>
+                    <Label htmlFor="difficulty" className="block text-sm font-medium text-foreground mb-1">YKS Zorluk Seviyesi</Label>
+                    <Select
+                        value={difficulty}
+                        onValueChange={(value: GenerateFlashcardsInput["difficulty"]) => setDifficulty(value)}
+                        disabled={isGenerating || !canProcess}
+                    >
+                        <SelectTrigger id="difficulty">
+                            <SelectValue placeholder="Zorluk seçin" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="easy">Kolay</SelectItem>
+                            <SelectItem value="medium">Orta</SelectItem>
+                            <SelectItem value="hard">Zor</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
             <Button type="submit" className="w-full" disabled={isSubmitDisabled}>
               {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-              Bilgi Kartları Oluştur (Yakında)
+              Bilgi Kartları Oluştur
             </Button>
           </CardContent>
         </Card>
       </form>
 
-      {isGenerating /*&& !flashcardsOutput*/ && (
+      {isGenerating && !flashcardsOutput && (
         <Card className="mt-6 shadow-lg">
           <CardContent className="p-6">
             <div className="flex flex-col items-center justify-center text-center">
@@ -151,19 +199,32 @@ export default function FlashcardGeneratorPage() {
         </Card>
       )}
 
-      {/* Placeholder for displaying flashcards - to be implemented
       {flashcardsOutput && flashcardsOutput.flashcards && flashcardsOutput.flashcards.length > 0 && (
         <Card className="mt-6">
           <CardHeader>
-            <CardTitle>Oluşturulan Bilgi Kartları</CardTitle>
+            <CardTitle>{flashcardsOutput.summaryTitle || "Oluşturulan Bilgi Kartları"}</CardTitle>
+            <CardDescription>{flashcardsOutput.flashcards.length} adet bilgi kartı oluşturuldu.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {flashcardsOutput.flashcards.map((card, index) => (
-              <div key={index} className="p-4 border rounded-md bg-muted/50">
-                <p className="font-semibold text-foreground">Ön Yüz: {card.front}</p>
-                <p className="mt-2 text-sm text-muted-foreground">Arka Yüz: {card.back}</p>
-              </div>
+              <Card key={index} className="bg-muted/50">
+                <CardHeader className="p-4">
+                    <CardTitle className="text-base">Ön Yüz</CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 pt-0">
+                    <p className="text-sm text-foreground">{card.front}</p>
+                </CardContent>
+                 <CardHeader className="p-4 border-t">
+                    <CardTitle className="text-base">Arka Yüz</CardTitle>
+                </CardHeader>
+                 <CardContent className="p-4 pt-0">
+                    <p className="text-sm text-muted-foreground">{card.back}</p>
+                     {card.topic && <p className="text-xs mt-2 text-primary">Konu: {card.topic}</p>}
+                </CardContent>
+              </Card>
             ))}
+            </div>
              <div className="mt-4 p-3 text-xs text-destructive-foreground bg-destructive/80 rounded-md flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
               <span>NeutralEdu AI bir yapay zekadır bu nedenle hata yapabilir, bu yüzden verdiği bilgileri doğrulayınız.</span>
@@ -171,14 +232,6 @@ export default function FlashcardGeneratorPage() {
           </CardContent>
         </Card>
       )}
-      */}
-       <Alert variant="default" className="mt-6 shadow-md bg-accent/50 border-primary/30">
-          <AlertTriangle className="h-4 w-4 text-primary" />
-          <AlertTitle className="text-primary">Bu Araç Geliştirme Aşamasında</AlertTitle>
-          <AlertDescription>
-            AI Bilgi Kartı Oluşturucu yakında sizlerle olacak. Gelişmeler için takipte kalın!
-          </AlertDescription>
-        </Alert>
     </div>
   );
 }

@@ -11,12 +11,14 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import type { UserProfile } from '@/types';
 
 const GenerateTestInputSchema = z.object({
   topic: z.string().describe('Testin oluşturulacağı ana YKS konusu, alt başlığı veya ders materyali özeti. (Örn: "Trigonometri - Yarım Açı Formülleri", "Tanzimat Edebiyatı Romanı", "Hücre Organelleri ve Görevleri")'),
   numQuestions: z.number().min(3).max(20).default(5).describe('Testte olması istenen soru sayısı (YKS\'deki gibi genellikle çoktan seçmeli).'),
   questionTypes: z.array(z.enum(["multiple_choice", "true_false", "short_answer"])).optional().default(["multiple_choice"]).describe("İstenen soru tipleri. YKS formatı için 'multiple_choice' ağırlıklı olmalıdır."),
   difficulty: z.enum(["easy", "medium", "hard"]).optional().default("medium").describe("Testin YKS'ye göre zorluk seviyesi: 'easy' (temel bilgi ve hatırlama), 'medium' (anlama, yorumlama, uygulama), 'hard' (analiz, sentez, ileri düzey problem çözme)."),
+  userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı.")
 });
 export type GenerateTestInput = z.infer<typeof GenerateTestInputSchema>;
 
@@ -43,7 +45,13 @@ const prompt = ai.definePrompt({
   input: {schema: GenerateTestInputSchema},
   output: {schema: GenerateTestOutputSchema},
   prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilerin bilgilerini pekiştirmeleri, eksiklerini görmeleri ve sınav pratiği yapmaları amacıyla çeşitli akademik konularda nokta atışı, YKS standartlarında ve zorluk seviyesi ayarlanmış deneme testleri hazırlayan, son derece deneyimli ve pedagojik derinliğe sahip bir AI YKS eğitim materyali uzmanısın.
-Rolün, sadece soru yazmak değil, aynı zamanda öğrenmeyi teşvik eden, eleştirel düşünmeyi ölçen, adil ve konuyu kapsamlı bir şekilde değerlendiren, YKS'nin ruhuna uygun testler tasarlamaktır. Cevapların her zaman Türkçe olmalıdır. Premium plan kullanıcıları için, soruların çeşitliliğini ve açıklamaların derinliğini artırarak daha zengin bir deneyim sunmaya çalış.
+Rolün, sadece soru yazmak değil, aynı zamanda öğrenmeyi teşvik eden, eleştirel düşünmeyi ölçen, adil ve konuyu kapsamlı bir şekilde değerlendiren, YKS'nin ruhuna uygun testler tasarlamaktır. Cevapların her zaman Türkçe olmalıdır.
+Kullanıcının üyelik planı: {{{userPlan}}}.
+{{#ifEquals userPlan "pro"}}
+Pro kullanıcılar için: En sofistike, en düşündürücü ve en kapsamlı YKS sorularını oluştur. Sorular, birden fazla konuyu birleştiren, derin analitik beceriler gerektiren ve öğrencinin bilgi düzeyini en üst seviyede test eden nitelikte olsun. Açıklamaların, bir ders kitabı kadar detaylı ve aydınlatıcı olmalı.
+{{else ifEquals userPlan "premium"}}
+Premium kullanıcılar için: Soruların çeşitliliğini, açıklamaların derinliğini ve YKS'ye uygunluğunu artırarak daha zengin bir deneyim sunmaya çalış. Sorular, konunun farklı yönlerini kapsamalı ve öğrencileri zorlayıcı olmalıdır.
+{{/ifEquals}}
 
 Kullanıcının İstekleri:
 Konu: {{{topic}}}
@@ -79,24 +87,22 @@ const testGeneratorFlow = ai.defineFlow(
     outputSchema: GenerateTestOutputSchema,
   },
   async (input) => {
-    // Ensure default questionTypes if not provided
     if (!input.questionTypes || input.questionTypes.length === 0) {
       input.questionTypes = ["multiple_choice"];
     }
-    const {output} = await prompt(input);
+
+    let modelToUse = 'googleai/gemini-2.0-flash'; // Default for free/premium
+    if (input.userPlan === 'pro') {
+      modelToUse = 'googleai/gemini-1.5-pro-latest';
+    }
+    
+    const {output} = await prompt(input, { model: modelToUse });
     if (!output || !output.questions || output.questions.length === 0) {
       throw new Error("AI YKS Test Uzmanı, belirtilen konu için YKS standartlarında bir test oluşturamadı. Lütfen konu ve ayarları kontrol edin.");
     }
-     // Ensure all multiple choice questions have 5 options
     output.questions.forEach(q => {
       if (q.questionType === "multiple_choice" && (!q.options || q.options.length !== 5)) {
-        // This is a fallback, ideally the LLM respects the prompt.
-        // Forcing 5 options might lead to poor quality if LLM doesn't provide them.
-        // Consider throwing an error or logging if options are not as expected.
         console.warn(`Soru "${q.questionText}" için 5 seçenek bekleniyordu, ancak ${q.options?.length || 0} seçenek üretildi. LLM prompt'unu kontrol edin.`);
-        // As a very basic fallback, fill with placeholders if critically needed, but this is not ideal.
-        // if (!q.options) q.options = [];
-        // while (q.options.length < 5) q.options.push("Eksik Seçenek");
       }
     });
     return output;

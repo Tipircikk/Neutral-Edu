@@ -11,11 +11,13 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import type { UserProfile } from '@/types';
 
 const SummarizeTopicInputSchema = z.object({
   inputText: z.string().describe('Özetlenecek YKS konu başlığı (örn: "Organik Kimyada İzomeri", "Servet-i Fünun Dönemi Şiiri") veya doğrudan akademik metin içeriği.'),
   summaryLength: z.enum(["short", "medium", "detailed"]).optional().default("medium").describe("İstenen özetin YKS öğrencisi için ideal uzunluğu: 'short' (ana hatlar), 'medium' (dengeli ve kapsamlı), 'detailed' (çok derinlemesine)."),
   outputFormat: z.enum(["paragraph", "bullet_points"]).optional().default("paragraph").describe("Özetin çıktı formatı: 'paragraph' (akıcı metin) veya 'bullet_points' (maddeler halinde)."),
+  userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı.")
 });
 export type SummarizeTopicInput = z.infer<typeof SummarizeTopicInputSchema>;
 
@@ -36,7 +38,13 @@ const prompt = ai.definePrompt({
   input: {schema: SummarizeTopicInputSchema},
   output: {schema: SummarizeTopicOutputSchema},
   prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilere karmaşık akademik konuları ve uzun metinleri en hızlı ve etkili şekilde özümsetme konusunda uzmanlaşmış, son derece bilgili ve pedagojik yetenekleri gelişmiş bir AI YKS danışmanısın.
-Görevin, bilginin özünü damıtmak, en kritik noktaları belirlemek, YKS bağlantılarını kurmak ve öğrencinin zamandan maksimum tasarruf ederek konuya hakim olmasını sağlamaktır. Cevapların her zaman Türkçe olmalıdır. Premium plan kullanıcıları için, özetlerin derinliğini artırabilir ve daha fazla bağlantı veya örnek sunabilirsin.
+Görevin, bilginin özünü damıtmak, en kritik noktaları belirlemek, YKS bağlantılarını kurmak ve öğrencinin zamandan maksimum tasarruf ederek konuya hakim olmasını sağlamaktır. Cevapların her zaman Türkçe olmalıdır.
+Kullanıcının üyelik planı: {{{userPlan}}}.
+{{#ifEquals userPlan "pro"}}
+Pro kullanıcılar için: {{{inputText}}} konusunu veya metnini, bir üniversite profesörünün titizliğiyle, en ince ayrıntılarına kadar analiz et. Konunun felsefi temellerine, tarihsel gelişimine ve YKS dışındaki akademik dünyadaki yerine dahi değin. En kapsamlı, en derin ve en düşündürücü özeti sun.
+{{else ifEquals userPlan "premium"}}
+Premium kullanıcılar için: Özetlerin derinliğini artır, daha fazla bağlantı kur, farklı bakış açıları sun ve konuyu daha geniş bir perspektiften ele al. Standart kullanıcıya göre daha zenginleştirilmiş ve detaylı bir içerik sağla.
+{{/ifEquals}}
 
 Özetlenecek Girdi (YKS Konusu veya Metni):
 {{{inputText}}}
@@ -66,7 +74,12 @@ const topicSummarizerFlow = ai.defineFlow(
     outputSchema: SummarizeTopicOutputSchema,
   },
   async (input) => {
-    const {output} = await prompt(input);
+    let modelToUse = 'googleai/gemini-2.0-flash'; // Default for free/premium
+    if (input.userPlan === 'pro') {
+      modelToUse = 'googleai/gemini-1.5-pro-latest';
+    }
+
+    const {output} = await prompt(input, { model: modelToUse });
     if (!output || !output.topicSummary) {
       throw new Error("AI YKS Danışmanı, belirtilen konu veya metin için YKS odaklı bir özet oluşturamadı. Lütfen girdiyi kontrol edin.");
     }

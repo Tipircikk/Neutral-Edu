@@ -95,6 +95,7 @@ export default function EditUserDialog({ user, isOpen, onOpenChange, onUserUpdat
               <SelectContent>
                 <SelectItem value="free">Ücretsiz</SelectItem>
                 <SelectItem value="premium">Premium</SelectItem>
+                <SelectItem value="pro">Pro</SelectItem> 
               </SelectContent>
             </Select>
           </div>
@@ -122,5 +123,3 @@ export default function EditUserDialog({ user, isOpen, onOpenChange, onUserUpdat
     </Dialog>
   );
 }
-
-    
