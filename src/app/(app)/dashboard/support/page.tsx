@@ -21,7 +21,7 @@ import { useUser } from "@/hooks/useUser";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase/config";
 import { collection, query, where, getDocs, orderBy, Timestamp as FirestoreTimestamp, addDoc, serverTimestamp, doc, updateDoc, Timestamp } from "firebase/firestore";
-import type { SupportTicket, SupportTicketStatus, SupportTicketSubject, SupportMessage } from "@/types";
+import type { SupportTicket, SupportTicketStatus, SupportTicketSubject, SupportMessage, UserProfile } from "@/types";
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { useForm, Controller, type SubmitHandler } from "react-hook-form";
@@ -57,7 +57,7 @@ export default function SupportPage() {
   const [isSendingMessage, setIsSendingMessage] = useState(false);
 
 
-  const { control, handleSubmit, register, reset, formState: { errors } } = useForm<CreateTicketFormValues>({
+  const { control, handleSubmit, register, reset: resetCreateTicketForm, formState: { errors } } = useForm<CreateTicketFormValues>({
     resolver: zodResolver(CreateTicketSchema),
     defaultValues: {
       subject: "other",
@@ -87,9 +87,9 @@ export default function SupportPage() {
         } as SupportTicket;
       });
       setTickets(userTickets);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching user tickets:", error);
-      toast({ title: "Hata", description: "Destek talepleriniz çekilirken bir hata oluştu.", variant: "destructive" });
+      toast({ title: "Hata", description: error.message || "Destek talepleriniz çekilirken bir hata oluştu.", variant: "destructive" });
     } finally {
       setIsLoadingTickets(false);
     }
@@ -104,6 +104,7 @@ export default function SupportPage() {
   const fetchTicketMessages = async (ticketId: string) => {
     if (!selectedTicketToView || selectedTicketToView.id !== ticketId) return;
     setIsLoadingMessages(true);
+    setTicketMessages([]);
     try {
       const messagesCollectionRef = collection(db, "supportTickets", ticketId, "messages");
       const q = query(messagesCollectionRef, orderBy("timestamp", "asc"));
@@ -117,9 +118,9 @@ export default function SupportPage() {
         } as SupportMessage
       });
       setTicketMessages(fetchedMessages);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching ticket messages:", error);
-      toast({ title: "Hata", description: "Mesajlar çekilirken bir hata oluştu.", variant: "destructive" });
+      toast({ title: "Hata", description: error.message || "Mesajlar çekilirken bir hata oluştu.", variant: "destructive" });
     } finally {
       setIsLoadingMessages(false);
     }
@@ -148,6 +149,7 @@ export default function SupportPage() {
         userId: userProfile.uid,
         userEmail: userProfile.email,
         userName: userProfile.displayName || userProfile.email?.split('@')[0] || "Kullanıcı",
+        userPlan: userProfile.plan, // Save user's plan
         subject: values.subject,
         status: "open" as SupportTicketStatus,
         createdAt: nowServerTimestamp,
@@ -166,12 +168,12 @@ export default function SupportPage() {
       });
 
       toast({ title: "Talep Oluşturuldu", description: "Destek talebiniz başarıyla oluşturuldu." });
-      reset({ subject: "other", message: "" });
+      resetCreateTicketForm({ subject: "other", message: "" });
       setIsCreateTicketDialogOpen(false);
       fetchUserTickets(); 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating ticket:", error);
-      toast({ title: "Talep Oluşturma Hatası", description: "Destek talebi oluşturulurken bir hata oluştu.", variant: "destructive" });
+      toast({ title: "Talep Oluşturma Hatası", description: error.message || "Destek talebi oluşturulurken bir hata oluştu.", variant: "destructive" });
     } finally {
       setIsSubmittingTicket(false);
     }
@@ -202,21 +204,13 @@ export default function SupportPage() {
         });
 
         setNewMessageText("");
-        // Optimistically add message to UI
-        setTicketMessages(prev => [...prev, {
-            id: 'temp-' + Date.now(), // Temporary ID
-            senderId: userProfile.uid,
-            senderType: "user",
-            senderName: userProfile.displayName || userProfile.email?.split('@')[0] || "Kullanıcı",
-            text: newMessageText.trim(),
-            timestamp: Timestamp.now() // Use client-side timestamp for immediate UI update
-        }]);
-        fetchUserTickets(); 
+        fetchTicketMessages(selectedTicketToView.id); // Re-fetch messages after sending
+        fetchUserTickets(); // Refresh the main ticket list to update lastMessageAt etc.
         toast({title: "Mesaj Gönderildi"});
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error sending message:", error);
-        toast({ title: "Mesaj Gönderme Hatası", variant: "destructive"});
+        toast({ title: "Mesaj Gönderme Hatası", description: error.message || "Mesajınız gönderilirken bir hata oluştu.", variant: "destructive"});
     } finally {
         setIsSendingMessage(false);
     }
@@ -226,7 +220,7 @@ export default function SupportPage() {
   const getStatusBadgeVariant = (status: SupportTicketStatus) => {
     switch (status) {
       case "open": return "destructive";
-      case "answered": return "secondary"; // For admin replies
+      case "answered": return "secondary"; 
       case "closed_by_user":
       case "closed_by_admin": return "outline";
       default: return "default";
@@ -274,7 +268,7 @@ export default function SupportPage() {
           </div>
           <Dialog open={isCreateTicketDialogOpen} onOpenChange={setIsCreateTicketDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => { reset(); setIsCreateTicketDialogOpen(true); }}>
+              <Button onClick={() => { resetCreateTicketForm(); setIsCreateTicketDialogOpen(true); }}>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Yeni Destek Talebi Oluştur
               </Button>
@@ -375,6 +369,8 @@ export default function SupportPage() {
                             if (!isOpen) {
                               setSelectedTicketToView(null);
                               setIsViewTicketDialogOpen(false);
+                            } else if (isOpen && ticket.id !== selectedTicketToView?.id) {
+                                setSelectedTicketToView(ticket); // Ensure correct ticket is set if switching
                             }
                           }}
                         >
@@ -385,9 +381,9 @@ export default function SupportPage() {
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-xl">
                           <DialogHeader>
-                            <DialogTitle>Destek Talebi: {formatTicketSubject(ticket.subject)}</DialogTitle>
+                            <DialogTitle>Destek Talebi: {formatTicketSubject(selectedTicketToView?.subject || ticket.subject)}</DialogTitle>
                             <DialogDescription>
-                              Talep ID: {ticket.id} | Durum: {formatTicketStatus(ticket.status)}
+                              Talep ID: {selectedTicketToView?.id || ticket.id} | Durum: {formatTicketStatus(selectedTicketToView?.status || ticket.status)}
                             </DialogDescription>
                           </DialogHeader>
                           <ScrollArea className="h-[300px] w-full rounded-md border p-4 my-4 bg-muted/30">
@@ -398,16 +394,16 @@ export default function SupportPage() {
                             ) : ticketMessages.length > 0 ? (
                                 ticketMessages.map(msg => (
                                     <div key={msg.id} className={`mb-3 p-3 rounded-lg max-w-[80%] ${msg.senderType === 'user' ? 'bg-primary/10 ml-auto text-right' : 'bg-secondary/50 mr-auto text-left'}`}>
-                                        <p className="text-xs font-semibold mb-1">{msg.senderName} {msg.senderType === 'admin' && <Badge variant="outline" className="ml-1 text-xs">Destek</Badge>}</p>
+                                        <div className="text-xs font-semibold mb-1">{msg.senderName} {msg.senderType === 'admin' && <Badge variant="outline" className="ml-1 text-xs">Destek</Badge>}</div>
                                         <p className="text-sm whitespace-pre-line">{msg.text}</p>
-                                        <p className="text-xs text-muted-foreground mt-1">{msg.timestamp ? format(msg.timestamp.toDate(), 'Pp', {locale: tr}) : 'Gönderiliyor...'}</p>
+                                        <p className="text-xs text-muted-foreground mt-1">{msg.timestamp ? format(msg.timestamp.toDate(), 'PPpp', {locale: tr}) : 'Gönderiliyor...'}</p>
                                     </div>
                                 ))
                             ) : (
                                 <p className="text-sm text-muted-foreground text-center">Bu talep için henüz mesaj yok.</p>
                             )}
                           </ScrollArea>
-                          {ticket.status !== 'closed_by_admin' && ticket.status !== 'closed_by_user' && (
+                          {selectedTicketToView && selectedTicketToView.status !== 'closed_by_admin' && selectedTicketToView.status !== 'closed_by_user' && (
                             <div className="space-y-2">
                                 <Textarea 
                                     placeholder="Yanıtınızı yazın..."
@@ -439,5 +435,3 @@ export default function SupportPage() {
     </div>
   );
 }
-
-    

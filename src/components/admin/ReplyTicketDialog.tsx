@@ -15,7 +15,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import type { SupportTicket, SupportMessage } from "@/types";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { SupportTicket, SupportMessage, SupportTicketStatus } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Send } from "lucide-react";
 import { db } from "@/lib/firebase/config";
@@ -33,7 +34,8 @@ interface ReplyTicketDialogProps {
 
 export default function ReplyTicketDialog({ ticket, isOpen, onOpenChange, onTicketReplySuccess }: ReplyTicketDialogProps) {
   const [replyText, setReplyText] = useState("");
-  const [isReplying, setIsReplying] = useState(false);
+  const [currentTicketStatus, setCurrentTicketStatus] = useState<SupportTicketStatus>("open");
+  const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
   const { userProfile: adminProfile } = useUser();
 
@@ -42,7 +44,7 @@ export default function ReplyTicketDialog({ ticket, isOpen, onOpenChange, onTick
 
   const fetchMessages = async (ticketId: string) => {
     setIsLoadingMessages(true);
-    setMessages([]); // Clear previous messages
+    setMessages([]);
     try {
       const messagesCollectionRef = collection(db, "supportTickets", ticketId, "messages");
       const q = query(messagesCollectionRef, orderBy("timestamp", "asc"));
@@ -52,7 +54,7 @@ export default function ReplyTicketDialog({ ticket, isOpen, onOpenChange, onTick
         return {
           id: docSnapshot.id,
           ...data,
-          timestamp: data.timestamp instanceof Timestamp ? data.timestamp : Timestamp.now(), // Ensure it's a Timestamp
+          timestamp: data.timestamp instanceof Timestamp ? data.timestamp : Timestamp.now(),
         } as SupportMessage;
       });
       setMessages(fetchedMessages);
@@ -67,17 +69,15 @@ export default function ReplyTicketDialog({ ticket, isOpen, onOpenChange, onTick
   useEffect(() => {
     if (isOpen && ticket) {
       fetchMessages(ticket.id);
-      // Pre-fill replyText if there was a previous adminReply (this field is now part of the messages subcollection)
-      // For now, we'll clear it. A more advanced implementation could find the last admin message.
+      setCurrentTicketStatus(ticket.status);
       setReplyText("");
     } else if (!isOpen) {
-      setMessages([]); // Clear messages when dialog closes
+      setMessages([]);
       setReplyText("");
     }
   }, [isOpen, ticket]);
 
-
-  const handleReply = async () => {
+  const handleSendMessageToTicket = async () => {
     if (!ticket || !replyText.trim()) {
       toast({ title: "Yanıt Metni Gerekli", description: "Lütfen bir yanıt yazın.", variant: "destructive" });
       return;
@@ -87,13 +87,11 @@ export default function ReplyTicketDialog({ ticket, isOpen, onOpenChange, onTick
       return;
     }
 
-    setIsReplying(true);
+    setIsProcessing(true);
     try {
       const nowServerTimestamp = serverTimestamp() as Timestamp;
-      const ticketRef = doc(db, "supportTickets", ticket.id);
       const messagesCollectionRef = collection(db, "supportTickets", ticket.id, "messages");
-
-      // Add admin's message to subcollection
+      
       await addDoc(messagesCollectionRef, {
         senderId: adminProfile.uid,
         senderType: "admin",
@@ -102,9 +100,9 @@ export default function ReplyTicketDialog({ ticket, isOpen, onOpenChange, onTick
         timestamp: nowServerTimestamp,
       });
       
-      // Update parent ticket document
+      const ticketRef = doc(db, "supportTickets", ticket.id);
       const updatedTicketData: Partial<SupportTicket> = {
-        status: "answered",
+        status: currentTicketStatus === "open" ? "answered" : currentTicketStatus, // If admin replies to an open ticket, mark as answered
         updatedAt: nowServerTimestamp,
         lastMessageSnippet: replyText.trim().substring(0, 70) + (replyText.trim().length > 70 ? "..." : ""),
         lastMessageAt: nowServerTimestamp,
@@ -114,40 +112,56 @@ export default function ReplyTicketDialog({ ticket, isOpen, onOpenChange, onTick
 
       const fullUpdatedTicket: SupportTicket = {
         ...ticket,
-        status: "answered",
-        updatedAt: Timestamp.now(), // Use client-side for immediate UI update
-        lastMessageSnippet: updatedTicketData.lastMessageSnippet,
-        lastMessageAt: Timestamp.now(), // Use client-side for immediate UI update
-        lastRepliedByAdmin: true,
-        id: ticket.id
+        ...updatedTicketData,
+        id: ticket.id,
+        status: updatedTicketData.status || ticket.status, // ensure status is passed
+        updatedAt: Timestamp.now(),
+        lastMessageAt: Timestamp.now(),
       };
 
       onTicketReplySuccess(fullUpdatedTicket);
       toast({ title: "Yanıt Gönderildi", description: "Destek talebi başarıyla yanıtlandı." });
-      
-      // Optimistically add new message to local state
-      setMessages(prevMessages => [
-        ...prevMessages,
-        {
-          id: 'temp-' + Date.now(),
-          senderId: adminProfile.uid,
-          senderType: "admin",
-          senderName: "Destek Ekibi",
-          text: replyText.trim(),
-          timestamp: Timestamp.now(),
-        }
-      ]);
       setReplyText("");
-      // fetchMessages(ticket.id); // Refresh messages or rely on optimistic update
+      fetchMessages(ticket.id); // Refresh messages
     } catch (error) {
       console.error("Error replying to ticket:", error);
       toast({ title: "Yanıt Hatası", description: "Talep yanıtlanırken bir hata oluştu.", variant: "destructive" });
     } finally {
-      setIsReplying(false);
+      setIsProcessing(false);
     }
   };
 
+  const handleUpdateStatus = async (newStatus: SupportTicketStatus) => {
+    if (!ticket) return;
+    setIsProcessing(true);
+    try {
+      const ticketRef = doc(db, "supportTickets", ticket.id);
+      const updatedTicketData: Partial<SupportTicket> = {
+        status: newStatus,
+        updatedAt: serverTimestamp() as Timestamp,
+      };
+      await updateDoc(ticketRef, updatedTicketData);
+      
+      const fullUpdatedTicket: SupportTicket = { ...ticket, ...updatedTicketData, id: ticket.id };
+      onTicketReplySuccess(fullUpdatedTicket);
+      setCurrentTicketStatus(newStatus);
+      toast({ title: "Durum Güncellendi", description: `Talep durumu "${newStatus}" olarak değiştirildi.` });
+    } catch (error) {
+      console.error("Error updating ticket status:", error);
+      toast({ title: "Durum Güncelleme Hatası", variant: "destructive" });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleCloseTicket = () => {
+    handleUpdateStatus("closed_by_admin");
+  };
+
+
   if (!ticket) return null;
+
+  const isTicketClosed = ticket.status === 'closed_by_admin' || ticket.status === 'closed_by_user';
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -155,10 +169,36 @@ export default function ReplyTicketDialog({ ticket, isOpen, onOpenChange, onTick
         <DialogHeader>
           <DialogTitle>Destek Talebi: {ticket.subject}</DialogTitle>
           <DialogDescription>
-            Talep ID: {ticket.id} | Kullanıcı: {ticket.userEmail || ticket.userId}
+            Talep ID: {ticket.id} | Kullanıcı: {ticket.userEmail || ticket.userId} | Plan: {ticket.userPlan || 'Bilinmiyor'}
           </DialogDescription>
         </DialogHeader>
-        <ScrollArea className="h-[300px] w-full rounded-md border p-4 my-4 bg-muted/30">
+
+        <div className="flex items-center space-x-4 my-4">
+            <Label htmlFor="ticketStatusAdmin" className="text-sm font-medium">Talep Durumu:</Label>
+            <Select 
+                value={currentTicketStatus} 
+                onValueChange={(value: SupportTicketStatus) => {
+                    setCurrentTicketStatus(value);
+                    if (value !== ticket.status) { // Only update if changed
+                        handleUpdateStatus(value);
+                    }
+                }}
+                disabled={isProcessing || isTicketClosed}
+            >
+                <SelectTrigger id="ticketStatusAdmin" className="w-[180px]">
+                    <SelectValue placeholder="Durum Seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="open">Açık</SelectItem>
+                    <SelectItem value="answered">Yanıtlandı</SelectItem>
+                    <SelectItem value="closed_by_admin">Admin Kapattı</SelectItem>
+                    <SelectItem value="closed_by_user">Kullanıcı Kapattı</SelectItem>
+                </SelectContent>
+            </Select>
+        </div>
+
+
+        <ScrollArea className="h-[300px] w-full rounded-md border p-4 bg-muted/30">
           {isLoadingMessages ? (
             <div className="flex justify-center items-center h-full">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -187,17 +227,22 @@ export default function ReplyTicketDialog({ ticket, isOpen, onOpenChange, onTick
               onChange={(e) => setReplyText(e.target.value)}
               rows={5}
               className="mt-1"
-              disabled={isReplying || ticket.status === 'closed_by_admin' || ticket.status === 'closed_by_user'}
+              disabled={isProcessing || isTicketClosed}
             />
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isReplying}>
-            Kapat
-          </Button>
-          <Button onClick={handleReply} disabled={isReplying || !replyText.trim() || ticket.status === 'closed_by_admin' || ticket.status === 'closed_by_user'}>
-            {isReplying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4"/>} Yanıtı Gönder
-          </Button>
+        <DialogFooter className="justify-between">
+            <Button variant="destructive" onClick={handleCloseTicket} disabled={isProcessing || isTicketClosed}>
+                Talebi Kapat
+            </Button>
+            <div className="space-x-2">
+                <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isProcessing}>
+                    Kapat
+                </Button>
+                <Button onClick={handleSendMessageToTicket} disabled={isProcessing || !replyText.trim() || isTicketClosed}>
+                    {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4"/>} Yanıtı Gönder
+                </Button>
+            </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

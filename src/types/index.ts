@@ -24,20 +24,19 @@ export interface AuthContextType {
 export type SupportTicketStatus = "open" | "answered" | "closed_by_user" | "closed_by_admin";
 export type SupportTicketSubject = "premium" | "ai_tools" | "account" | "bug_report" | "other";
 
-// Updated SupportTicket structure
 export interface SupportTicket {
   id: string; // Firestore document ID
   userId: string;
   userEmail: string | null;
   userName?: string | null;
+  userPlan?: UserProfile["plan"]; // Added to prioritize tickets
   subject: SupportTicketSubject;
   status: SupportTicketStatus;
   createdAt: Timestamp;
   updatedAt?: Timestamp;
-  lastMessageSnippet?: string; // Snippet of the last message
-  lastMessageAt?: Timestamp;   // Timestamp of the last message
-  lastRepliedByAdmin?: boolean; // True if the last message was from an admin
-  // adminReply, repliedBy are removed as messages will be in subcollection
+  lastMessageSnippet?: string;
+  lastMessageAt?: Timestamp;
+  lastRepliedByAdmin?: boolean;
 }
 
 export interface SupportMessage {
@@ -50,7 +49,7 @@ export interface SupportMessage {
 }
 
 export interface PricingConfig {
-  premium?: { price: string };
-  pro?: { price: string };
+  premium?: { price: string; originalPrice?: string; };
+  pro?: { price: string; originalPrice?: string; };
   updatedAt?: Timestamp;
 }

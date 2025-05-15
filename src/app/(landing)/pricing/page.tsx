@@ -8,7 +8,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { CheckCircle, XCircle, ArrowRight, Sparkles, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase/config";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, Timestamp } from "firebase/firestore";
+import type { PricingConfig } from "@/types";
 
 interface PlanFeature {
   text: string;
@@ -52,7 +53,7 @@ const initialPricingPlans: PricingPlan[] = [
   },
   {
     name: "Premium",
-    price: "100₺", // Default, will be overridden by Firestore if available
+    price: "100₺", 
     originalPrice: "200₺",
     frequency: "/ay",
     description: "Daha fazla güç ve özelliğe ihtiyaç duyan özel akademisyenler için.",
@@ -68,13 +69,13 @@ const initialPricingPlans: PricingPlan[] = [
       { text: "En Gelişmiş AI Modelleri", included: false },
     ],
     cta: "Premium'a Yükseltin",
-    ctaLink: "#contact-sales", // Yükseltmeler manuel olduğu için şimdilik bu şekilde
+    ctaLink: "#contact-sales", 
     isPrimary: false,
     badge: "%50 İNDİRİM",
   },
   {
     name: "Pro",
-    price: "300₺", // Default, will be overridden by Firestore if available
+    price: "300₺", 
     originalPrice: "600₺",
     frequency: "/ay",
     description: "Maksimum potansiyelini açığa çıkarmak isteyen en talepkar kullanıcılar için.",
@@ -90,7 +91,7 @@ const initialPricingPlans: PricingPlan[] = [
       { text: "En Gelişmiş ve Deneysel AI Modellerine Erişim", included: true },
     ],
     cta: "Pro'ya Geçin",
-    ctaLink: "#contact-sales", // Yükseltmeler manuel olduğu için şimdilik bu şekilde
+    ctaLink: "#contact-sales", 
     isPrimary: true,
     badge: "YENİ & %50 İNDİRİM",
   },
@@ -107,24 +108,32 @@ export default function PricingPage() {
         const pricingDocRef = doc(db, "pricingConfig", "currentPrices");
         const docSnap = await getDoc(pricingDocRef);
         if (docSnap.exists()) {
-          const fetchedData = docSnap.data();
+          const fetchedData = docSnap.data() as PricingConfig;
           const updatedPlans = initialPricingPlans.map(plan => {
             if (plan.name === "Premium" && fetchedData.premium?.price) {
-              return { ...plan, price: fetchedData.premium.price + "₺" };
+              return { 
+                ...plan, 
+                price: fetchedData.premium.price + "₺",
+                originalPrice: fetchedData.premium.originalPrice ? fetchedData.premium.originalPrice + "₺" : null
+              };
             }
             if (plan.name === "Pro" && fetchedData.pro?.price) {
-              return { ...plan, price: fetchedData.pro.price + "₺" };
+              return { 
+                ...plan, 
+                price: fetchedData.pro.price + "₺",
+                originalPrice: fetchedData.pro.originalPrice ? fetchedData.pro.originalPrice + "₺" : null
+              };
             }
             return plan;
           });
           setPricingPlans(updatedPlans);
         } else {
           console.log("No pricing config found, using defaults.");
-          setPricingPlans(initialPricingPlans); // Fallback to initial hardcoded plans
+          setPricingPlans(initialPricingPlans); 
         }
       } catch (error) {
         console.error("Error fetching pricing:", error);
-        setPricingPlans(initialPricingPlans); // Fallback if fetch fails
+        setPricingPlans(initialPricingPlans); 
       } finally {
         setLoading(false);
       }
@@ -167,7 +176,7 @@ export default function PricingPage() {
                 </CardHeader>
                 <CardContent className="space-y-6 text-center flex-grow">
                   <div>
-                    {plan.originalPrice && (
+                    {plan.originalPrice && plan.originalPrice !== plan.price && (
                       <span className="text-2xl line-through text-muted-foreground mr-2">{plan.originalPrice}</span>
                     )}
                     <span className="text-5xl font-bold text-foreground">{plan.price}</span>
@@ -217,5 +226,3 @@ export default function PricingPage() {
     </div>
   );
 }
-
-    

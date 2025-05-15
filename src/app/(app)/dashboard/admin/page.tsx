@@ -18,9 +18,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import type { UserProfile, SupportTicket, PricingConfig, SupportMessage } from "@/types";
+import type { UserProfile, SupportTicket, PricingConfig } from "@/types";
 import { db } from "@/lib/firebase/config";
-import { collection, getDocs, query, orderBy, Timestamp as FirestoreTimestamp, doc, updateDoc, setDoc, serverTimestamp, getDoc, addDoc } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, Timestamp as FirestoreTimestamp, doc, updateDoc, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
@@ -45,6 +45,8 @@ export default function AdminPage() {
 
   const [premiumPrice, setPremiumPrice] = useState("");
   const [proPrice, setProPrice] = useState("");
+  const [premiumOriginalPrice, setPremiumOriginalPrice] = useState("");
+  const [proOriginalPrice, setProOriginalPrice] = useState("");
   const [isSavingPrices, setIsSavingPrices] = useState(false);
 
   useEffect(() => {
@@ -78,9 +80,9 @@ export default function AdminPage() {
         } as UserProfile;
       });
       setAllUsers(usersList);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching users:", error);
-      toast({ title: "Kullanıcılar Yüklenemedi", description: "Kullanıcı listesi çekilirken bir hata oluştu.", variant: "destructive" });
+      toast({ title: "Kullanıcılar Yüklenemedi", description: error.message || "Kullanıcı listesi çekilirken bir hata oluştu.", variant: "destructive" });
     } finally {
       setUsersLoading(false);
     }
@@ -90,33 +92,60 @@ export default function AdminPage() {
     setTicketsLoading(true);
     try {
       const ticketsCollectionRef = collection(db, "supportTickets");
-      // Order by status: open first, then answered. Then by last message time.
-      const ticketsQuery = query(
-        ticketsCollectionRef,
-        orderBy("status", "asc"), // 'answered', 'closed_by_admin', 'closed_by_user', 'open'
-        orderBy("lastMessageAt", "desc")
-      );
+      const ticketsQuery = query(ticketsCollectionRef, orderBy("lastMessageAt", "desc"));
       const querySnapshot = await getDocs(ticketsQuery);
-      const ticketsList = querySnapshot.docs.map(docSnapshot => {
+      
+      const ticketsListPromises = querySnapshot.docs.map(async (docSnapshot) => {
         const data = docSnapshot.data();
+        let userPlan: UserProfile["plan"] | undefined = data.userPlan;
+
+        if (!userPlan && data.userId) {
+          try {
+            const userDoc = await getDoc(doc(db, "users", data.userId));
+            if (userDoc.exists()) {
+              userPlan = (userDoc.data() as UserProfile).plan;
+            }
+          } catch (userFetchError) {
+            console.warn(`Could not fetch user plan for ticket ${docSnapshot.id}:`, userFetchError);
+          }
+        }
+        
         return {
           id: docSnapshot.id,
           ...data,
+          userPlan, // Add userPlan to the ticket object
           createdAt: data.createdAt instanceof FirestoreTimestamp ? data.createdAt : FirestoreTimestamp.now(),
           updatedAt: data.updatedAt instanceof FirestoreTimestamp ? data.updatedAt : undefined,
           lastMessageAt: data.lastMessageAt instanceof FirestoreTimestamp ? data.lastMessageAt : (data.createdAt instanceof FirestoreTimestamp ? data.createdAt : FirestoreTimestamp.now()),
         } as SupportTicket;
-      }).sort((a,b) => {
-        // Custom sort to ensure 'open' tickets are always first, then 'answered'
-        const statusOrder = { open: 0, answered: 1, closed_by_user: 2, closed_by_admin: 3 };
-        if (statusOrder[a.status] < statusOrder[b.status]) return -1;
-        if (statusOrder[a.status] > statusOrder[b.status]) return 1;
-        return 0; // Keep original sort for same status (by lastMessageAt desc)
       });
+
+      let ticketsList = await Promise.all(ticketsListPromises);
+
+      const planOrder: Record<UserProfile["plan"], number> = { pro: 0, premium: 1, free: 2 };
+      const statusOrder = { open: 0, answered: 1, closed_by_user: 2, closed_by_admin: 3 };
+
+      ticketsList.sort((a, b) => {
+        const planAOrder = a.userPlan ? planOrder[a.userPlan] : planOrder.free;
+        const planBOrder = b.userPlan ? planOrder[b.userPlan] : planOrder.free;
+        if (planAOrder < planBOrder) return -1;
+        if (planAOrder > planBOrder) return 1;
+
+        const statusAOrder = statusOrder[a.status];
+        const statusBOrder = statusOrder[b.status];
+        if (statusAOrder < statusBOrder) return -1;
+        if (statusAOrder > statusBOrder) return 1;
+        
+        // For same plan and status, sort by lastMessageAt descending
+        const timeA = a.lastMessageAt?.toMillis() || 0;
+        const timeB = b.lastMessageAt?.toMillis() || 0;
+        return timeB - timeA;
+      });
+      
       setSupportTickets(ticketsList);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching support tickets:", error);
-      toast({ title: "Destek Talepleri Yüklenemedi", description: "Destek talepleri çekilirken bir hata oluştu.", variant: "destructive" });
+      toast({ title: "Destek Talepleri Yüklenemedi", description: error.message || "Destek talepleri çekilirken bir hata oluştu.", variant: "destructive" });
     } finally {
       setTicketsLoading(false);
     }
@@ -130,12 +159,14 @@ export default function AdminPage() {
         const prices = priceConfigDoc.data() as PricingConfig;
         setPremiumPrice(prices.premium?.price || "");
         setProPrice(prices.pro?.price || "");
+        setPremiumOriginalPrice(prices.premium?.originalPrice || "");
+        setProOriginalPrice(prices.pro?.originalPrice || "");
       } else {
         console.log("No pricing config found, using defaults or empty fields.");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching prices:", err);
-      toast({ title: "Fiyatlar Yüklenemedi", description: "Mevcut fiyatlandırma bilgileri çekilirken bir hata oluştu.", variant: "destructive" });
+      toast({ title: "Fiyatlar Yüklenemedi", description: err.message || "Mevcut fiyatlandırma bilgileri çekilirken bir hata oluştu.", variant: "destructive" });
     }
   };
 
@@ -223,21 +254,20 @@ export default function AdminPage() {
   };
 
   const handleTicketReplySuccess = (updatedTicketFromDialog: SupportTicket) => {
-     // Update the local state of supportTickets with the new information
      setSupportTickets(prevTickets =>
       prevTickets.map(t => (t.id === updatedTicketFromDialog.id ? { ...t, ...updatedTicketFromDialog } : t))
     );
-    // Optionally re-fetch all tickets to ensure full consistency if other admins might be working
-    fetchSupportTickets();
+    fetchSupportTickets(); // Re-fetch for full consistency and resorting
   };
 
   const handleSavePrices = async () => {
     setIsSavingPrices(true);
     const priceData: PricingConfig = {};
-    if (premiumPrice.trim() !== "") priceData.premium = { price: premiumPrice };
-    if (proPrice.trim() !== "") priceData.pro = { price: proPrice };
-
-    if (Object.keys(priceData).length === 0) {
+    
+    priceData.premium = { price: premiumPrice, originalPrice: premiumOriginalPrice || undefined };
+    priceData.pro = { price: proPrice, originalPrice: proOriginalPrice || undefined };
+    
+    if (!premiumPrice && !proPrice && !premiumOriginalPrice && !proOriginalPrice) {
         toast({ title: "Değişiklik Yok", description: "Kaydedilecek yeni fiyat bilgisi girilmedi.", variant: "default" });
         setIsSavingPrices(false);
         return;
@@ -249,9 +279,9 @@ export default function AdminPage() {
       const priceConfigRef = doc(db, "pricingConfig", "currentPrices");
       await setDoc(priceConfigRef, priceData, { merge: true });
       toast({ title: "Fiyatlar Güncellendi", description: "Yeni fiyatlar başarıyla kaydedildi." });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving prices:", error);
-      toast({ title: "Fiyat Kaydetme Hatası", description: "Fiyatlar güncellenirken bir hata oluştu.", variant: "destructive" });
+      toast({ title: "Fiyat Kaydetme Hatası", description: error.message || "Fiyatlar güncellenirken bir hata oluştu.", variant: "destructive" });
     } finally {
       setIsSavingPrices(false);
     }
@@ -353,7 +383,7 @@ export default function AdminPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Inbox className="h-6 w-6" /> Destek Talepleri</CardTitle>
-          <CardDescription>Kullanıcı destek taleplerini görüntüleyin ve yanıtlayın.</CardDescription>
+          <CardDescription>Kullanıcı destek taleplerini görüntüleyin ve yanıtlayın. Talepler önceliklendirilmiştir (Pro &gt; Premium &gt; Ücretsiz, Açık &gt; Yanıtlanmış).</CardDescription>
         </CardHeader>
         <CardContent>
           {ticketsLoading ? (
@@ -368,6 +398,7 @@ export default function AdminPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Kullanıcı</TableHead>
+                  <TableHead>Plan</TableHead>
                   <TableHead>Konu</TableHead>
                   <TableHead>Durum</TableHead>
                   <TableHead>Son Mesaj (Özet)</TableHead>
@@ -379,6 +410,19 @@ export default function AdminPage() {
                 {supportTickets.map((ticket) => (
                   <TableRow key={ticket.id}>
                     <TableCell className="font-medium">{ticket.userEmail || ticket.userId}</TableCell>
+                    <TableCell>
+                        {ticket.userPlan ? (
+                            <Badge
+                                variant={ticket.userPlan === 'pro' ? 'default' : ticket.userPlan === 'premium' ? 'secondary' : 'outline'}
+                                className={
+                                    ticket.userPlan === 'pro' ? 'bg-purple-600 hover:bg-purple-700 text-white' :
+                                    ticket.userPlan === 'premium' ? 'bg-blue-500 hover:bg-blue-600 text-white' : ''
+                                }
+                            >
+                                {ticket.userPlan.charAt(0).toUpperCase() + ticket.userPlan.slice(1)}
+                            </Badge>
+                        ) : <Badge variant="outline">Bilinmiyor</Badge>}
+                    </TableCell>
                     <TableCell>{formatTicketSubject(ticket.subject)}</TableCell>
                     <TableCell>
                       <Badge
@@ -411,33 +455,61 @@ export default function AdminPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><DollarSign className="h-6 w-6" /> Fiyatlandırma Yönetimi</CardTitle>
-          <CardDescription>Premium ve Pro planlarının fiyatlarını güncelleyin. Bu değişiklikler fiyatlandırma sayfasını etkileyecektir.</CardDescription>
+          <CardDescription>Premium ve Pro planlarının güncel ve orijinal fiyatlarını güncelleyin.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <Label htmlFor="premiumPrice">Premium Fiyatı (₺)</Label>
-              <Input
-                id="premiumPrice"
-                type="number"
-                placeholder="örn: 100"
-                value={premiumPrice}
-                onChange={(e) => setPremiumPrice(e.target.value)}
-                disabled={isSavingPrices}
-              />
+        <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4 p-4 border rounded-md">
+                    <h3 className="text-lg font-semibold">Premium Plan</h3>
+                    <div>
+                        <Label htmlFor="premiumPrice">Güncel Fiyat (₺)</Label>
+                        <Input
+                            id="premiumPrice"
+                            type="number"
+                            placeholder="örn: 100"
+                            value={premiumPrice}
+                            onChange={(e) => setPremiumPrice(e.target.value)}
+                            disabled={isSavingPrices}
+                        />
+                    </div>
+                    <div>
+                        <Label htmlFor="premiumOriginalPrice">Orijinal Fiyat (₺) (isteğe bağlı)</Label>
+                        <Input
+                            id="premiumOriginalPrice"
+                            type="number"
+                            placeholder="örn: 200"
+                            value={premiumOriginalPrice}
+                            onChange={(e) => setPremiumOriginalPrice(e.target.value)}
+                            disabled={isSavingPrices}
+                        />
+                    </div>
+                </div>
+                <div className="space-y-4 p-4 border rounded-md">
+                     <h3 className="text-lg font-semibold">Pro Plan</h3>
+                    <div>
+                        <Label htmlFor="proPrice">Güncel Fiyat (₺)</Label>
+                        <Input
+                            id="proPrice"
+                            type="number"
+                            placeholder="örn: 300"
+                            value={proPrice}
+                            onChange={(e) => setProPrice(e.target.value)}
+                            disabled={isSavingPrices}
+                        />
+                    </div>
+                    <div>
+                        <Label htmlFor="proOriginalPrice">Orijinal Fiyat (₺) (isteğe bağlı)</Label>
+                        <Input
+                            id="proOriginalPrice"
+                            type="number"
+                            placeholder="örn: 600"
+                            value={proOriginalPrice}
+                            onChange={(e) => setProOriginalPrice(e.target.value)}
+                            disabled={isSavingPrices}
+                        />
+                    </div>
+                </div>
             </div>
-            <div>
-              <Label htmlFor="proPrice">Pro Fiyatı (₺)</Label>
-              <Input
-                id="proPrice"
-                type="number"
-                placeholder="örn: 300"
-                value={proPrice}
-                onChange={(e) => setProPrice(e.target.value)}
-                disabled={isSavingPrices}
-              />
-            </div>
-          </div>
           <Button onClick={handleSavePrices} disabled={isSavingPrices}>
             {isSavingPrices ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Fiyatları Kaydet"}
           </Button>
@@ -500,5 +572,3 @@ export default function AdminPage() {
     </div>
   );
 }
-
-    
