@@ -2,7 +2,7 @@
 'use server';
 
 /**
- * @fileOverview YKS'ye hazırlanan öğrencilere yönelik PDF belgelerini özetleyen, basitleştirilmiş açıklamalar, 
+ * @fileOverview YKS'ye hazırlanan öğrencilere yönelik PDF belgelerini özetleyen, basitleştirilmiş açıklamalar,
  * madde işaretleriyle anahtar fikirler, ana fikir, potansiyel sınav soruları ve ilgili örnekler içeren bir AI ajanı.
  *
  * - summarizePdfForStudent - PDF özetleme sürecini yöneten fonksiyon.
@@ -46,8 +46,8 @@ const prompt = ai.definePrompt({
   name: 'summarizePdfForStudentPrompt',
   input: {schema: SummarizePdfForStudentInputSchema},
   output: {schema: SummarizePdfForStudentOutputSchema},
-  prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilere akademik metinleri en etkili şekilde anlamaları ve sınava nokta atışı hazırlanmaları konusunda yardımcı olan, son derece deneyimli ve uzman bir AI YKS koçusun. 
-Görevin, karmaşık bilgileri YKS formatına ve öğrenci seviyesine uygun şekilde basitleştirmek, önemli noktaları vurgulamak ve öğrencinin konuyu derinlemesine kavramasını sağlamaktır. Cevapların her zaman YKS öğrencisinin bakış açısıyla, onun için en faydalı olacak şekilde ve Türkçe dilinde olmalıdır.
+  prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilere akademik metinleri en etkili şekilde anlamaları ve sınava nokta atışı hazırlanmaları konusunda yardımcı olan, son derece deneyimli ve uzman bir AI YKS koçusun.
+Görevin, karmaşık bilgileri YKS formatına ve öğrenci seviyesine uygun şekilde basitleştirmek, önemli noktaları vurgulamak ve öğrencinin konuyu derinlemesine kavramasını sağlamaktır. Cevapların her zaman YKS öğrencisinin bakış açısıyla, onun için en faydalı olacak şekilde ve Türkçe dilinde olmalıdır. Premium plan kullanıcıları için daha kapsamlı analizler ve derinlemesine içgörüler sunmaya çalış.
 
 Bir PDF'den çıkarılan aşağıdaki metin verildiğinde, {{summaryLength}} uzunluk tercihine, {{outputDetail}} çıktı detayı isteğine ve varsa {{keywords}} anahtar kelimelerine veya {{pageRange}} sayfa aralığı bilgisine göre, öğrenci dostu, motive edici ve YKS'ye odaklı bir tonda aşağıdaki görevleri yerine getir. Çıktını, belirtilen şemaya harfiyen uyacak şekilde yapılandır.
 
@@ -95,28 +95,27 @@ const summarizePdfForStudentFlow = ai.defineFlow(
     if (!output) {
       throw new Error("AI, PDF özeti için şemaya uygun bir yanıt üretemedi.");
     }
-    
-    // Output detail'e göre gereksiz alanları temizleyebilir veya LLM'in bunu zaten yaptığına güvenebiliriz.
-    // Şimdilik LLM'in formattedStudyOutput'u doğru şekilde oluşturduğuna güveniyoruz.
-    // Örneğin:
-    // if (input.outputDetail === "key_points_only") {
-    //   output.summary = "Sadece anahtar noktalar istendi.";
-    //   output.mainIdea = "Sadece anahtar noktalar istendi.";
-    //   output.examTips = [];
-    //   output.practiceQuestions = [];
-    // } // Bu tür bir mantık eklenebilir, ancak prompt'un bunu yönetmesi daha iyi olabilir.
 
-    if (output.practiceQuestions === undefined && SummarizePdfForStudentOutputSchema.shape.practiceQuestions.isOptional() === false && input.outputDetail === 'full') {
+    // Ensure practiceQuestions is an empty array if not provided by LLM and 'full' or 'questions_only' output is expected.
+    const shouldHaveQuestions = input.outputDetail === 'full' || input.outputDetail === 'questions_only';
+    if (shouldHaveQuestions && output.practiceQuestions === undefined) {
         output.practiceQuestions = [];
     }
-    if (input.outputDetail !== 'full' && input.outputDetail !== 'questions_only') {
-        output.practiceQuestions = undefined; // Remove if not requested
+    // Remove practiceQuestions if not requested
+    if (!shouldHaveQuestions) {
+        output.practiceQuestions = undefined;
     }
+
+    // Clear other fields based on outputDetail, LLM might not always respect this perfectly
     if (input.outputDetail !== 'full' && input.outputDetail !== 'key_points_only') {
-        output.keyPoints = [];
+        output.keyPoints = []; // Or set to a message like "Not requested"
     }
      if (input.outputDetail !== 'full' && input.outputDetail !== 'exam_tips_only') {
-        output.examTips = [];
+        output.examTips = []; // Or set to a message like "Not requested"
+    }
+    if (input.outputDetail === 'key_points_only' || input.outputDetail === 'exam_tips_only' || input.outputDetail === 'questions_only') {
+        if(input.outputDetail !== 'full') output.summary = "Sadece istenen bölüm üretildi."; // Or clear it
+        if(input.outputDetail !== 'full') output.mainIdea = "Sadece istenen bölüm üretildi."; // Or clear it
     }
 
 

@@ -46,8 +46,8 @@ const prompt = ai.definePrompt({
   name: 'flashcardGeneratorPrompt',
   input: {schema: GenerateFlashcardsInputSchema},
   output: {schema: GenerateFlashcardsOutputSchema},
-  prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilerin kritik bilgileri hızlı ve etkili bir şekilde ezberlemelerine ve pekiştirmelerine yardımcı olmak amacıyla, verilen metinlerden YKS odaklı, kaliteli bilgi kartları (flashcards) oluşturan uzman bir AI eğitim materyali geliştiricisisin. 
-Amacın, metindeki en önemli tanımları, kavramları, formülleri, tarihleri veya olguları belirleyip bunları soru-cevap veya terim-tanım formatında bilgi kartlarına dönüştürmektir. Kartlar, YKS öğrencisinin seviyesine uygun, net ve akılda kalıcı olmalıdır.
+  prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilerin kritik bilgileri hızlı ve etkili bir şekilde ezberlemelerine ve pekiştirmelerine yardımcı olmak amacıyla, verilen metinlerden YKS odaklı, kaliteli bilgi kartları (flashcards) oluşturan uzman bir AI eğitim materyali geliştiricisisin.
+Amacın, metindeki en önemli tanımları, kavramları, formülleri, tarihleri veya olguları belirleyip bunları soru-cevap veya terim-tanım formatında bilgi kartlarına dönüştürmektir. Kartlar, YKS öğrencisinin seviyesine uygun, net ve akılda kalıcı olmalıdır. Premium plan kullanıcıları için, kartlara ek ipuçları veya bağlantılı kavramlar ekleyerek daha zengin içerik sun.
 
 Kullanıcının Girdileri:
 Metin İçeriği:
@@ -61,7 +61,7 @@ Lütfen bu bilgilere dayanarak, aşağıdaki formatta ve prensiplerde {{numFlash
 1.  **Bilgi Kartları**: Her bir kart için:
     *   **Ön Yüz (front)**: Bir soru, YKS'de çıkabilecek bir kavram, önemli bir terim veya ezberlenmesi gereken bir bilgi kırıntısı olmalı. Açık ve net olmalı.
     *   **Arka Yüz (back)**: Ön yüzdeki sorunun cevabı, kavramın tanımı, terimin açıklaması veya bilginin detayı olmalı. Kısa, öz ve doğru bilgi içermeli. YKS öğrencisinin anlayacağı dilde olmalı.
-    *   **Konu (topic) (isteğe bağlı)**: Bilgi kartının metindeki hangi ana konuyla veya alt başlıkla ilgili olduğunu belirten kısa bir etiket.
+    *   **Konu (topic) (isteğe bağlı)**: Bilgi kartının ilgili olduğu ana konu veya alt başlık.
 2.  **Özet Başlık (summaryTitle) (isteğe bağlı)**: Bilgi kartlarının temel aldığı ana metin için kısa, açıklayıcı bir başlık.
 
 Zorluk Seviyesi Ayarı ({{{difficulty}}}):
@@ -87,8 +87,6 @@ const flashcardGeneratorFlow = ai.defineFlow(
     outputSchema: GenerateFlashcardsOutputSchema,
   },
   async (input) => {
-    // TODO: Flow'un asıl mantığı burada implemente edilecek.
-    // Şimdilik, prompt'u çağırıp çıktısını döndürüyor.
     const {output} = await prompt(input);
     if (!output || !output.flashcards || output.flashcards.length === 0) {
       throw new Error("AI YKS Bilgi Kartı Uzmanı, belirtilen metin için bilgi kartı oluşturamadı. Lütfen metni ve ayarları kontrol edin.");

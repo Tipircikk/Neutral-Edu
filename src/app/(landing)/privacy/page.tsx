@@ -1,4 +1,3 @@
-
 // src/app/(landing)/privacy/page.tsx
 "use client";
 
@@ -24,16 +23,16 @@ export default function PrivacyPage() {
             <p>Aşağıdaki türde bilgileri toplayabiliriz:</p>
             <ul className="list-disc pl-6">
               <li>
-                <strong>Kişisel Kimlik Bilgileri:</strong> Kayıt olduğunuzda e-posta adresinizi toplarız. UID'niz, plan türünüz, günlük kotanız, son özet tarihiniz ve yönetici durumunuz Firebase Firestore'da saklanır.
+                <strong>Kişisel Kimlik Bilgileri:</strong> Kayıt olduğunuzda e-posta adresinizi toplarız. UID'niz, plan türünüz, günlük kotanız, son işlem tarihiniz ve yönetici durumunuz Firebase Firestore'da saklanır.
               </li>
               <li>
-                <strong>Yüklenen Belgeler:</strong> Bir PDF yüklediğinizde, metin içeriği çıkarılır ve özetleme için Gemini API'sine gönderilir. Kullanıcı PDF'lerini yalnızca özetleme amacıyla işleriz. Bu belgeler, açık bir "özeti kaydet" özelliği kullanmadığınız sürece (varsa) varsayılan olarak uzun süreli saklanmaz; bu durumda Firebase Storage'da saklanır.
+                <strong>Yüklenen Belgeler ve Girilen Metinler:</strong> Bir PDF yüklediğinizde veya metin girdiğinizde, içerik çıkarılır ve yapay zeka işlemesi için üçüncü parti API'lere (örn: Google Gemini) gönderilir. Kullanıcı tarafından sağlanan içerikleri yalnızca istenen AI işlemini gerçekleştirmek amacıyla işleriz. Bu belgeler veya metinler, açık bir "kaydet" özelliği kullanmadığınız sürece (varsa) varsayılan olarak uzun süreli saklanmaz.
               </li>
               <li>
-                <strong>Oluşturulan Özetler:</strong> Yapay zeka tarafından oluşturulan özetler size gösterilir. Üçüncü taraflarla paylaşılmazlar. Bir "özeti kaydet" özelliği kullanılırsa, hesabınızla ilişkili Firebase Storage'da saklanabilirler.
+                <strong>Oluşturulan AI İçerikleri:</strong> Yapay zeka tarafından oluşturulan özetler, çözümler, testler vb. size gösterilir. Üçüncü taraflarla paylaşılmazlar. Bir "kaydet" özelliği kullanılırsa, hesabınızla ilişkili Firebase Storage'da veya Firestore'da saklanabilirler.
               </li>
               <li>
-                <strong>Kullanım Günlükleri:</strong> Analitik, kota takibi ve hizmet iyileştirme için kullanım günlüklerini (ör. kullanıcı kimliği, özet oluşturma zaman damgası, potansiyel olarak işlenen karakter sayısı) saklarız. Bu günlükler Firebase Firestore'da saklanır.
+                <strong>Kullanım Günlükleri:</strong> Analitik, kota takibi ve hizmet iyileştirme için kullanım günlüklerini (ör. kullanıcı kimliği, işlem zaman damgası, potansiyel olarak işlenen karakter sayısı) saklarız. Bu günlükler Firebase Firestore'da saklanır.
               </li>
             </ul>
 
@@ -42,7 +41,7 @@ export default function PrivacyPage() {
             <ul className="list-disc pl-6">
               <li>Hizmetimizi sağlamak, işletmek ve sürdürmek.</li>
               <li>Hesabınızı yönetmek ve müşteri desteği sağlamak.</li>
-              <li>PDF yüklemelerinizi işlemek ve özetler oluşturmak.</li>
+              <li>PDF yüklemelerinizi veya metin girdilerinizi işlemek ve AI tabanlı içerikler oluşturmak.</li>
               <li>Günlük kotanızı izlemek ve uygulamak.</li>
               <li>Hizmetimizi geliştirmek ve yeni özellikler geliştirmek.</li>
               <li>Analitik ve güvenlik amacıyla kullanımı izlemek.</li>
@@ -50,7 +49,7 @@ export default function PrivacyPage() {
 
             <h2 className="text-2xl font-semibold text-foreground">4. Veri Depolama ve Güvenlik</h2>
             <p>
-              Kullanıcı profil bilgileriniz, kullanım günlükleriniz ve isteğe bağlı olarak kaydedilen özetleriniz, güçlü güvenlik önlemleri sağlayan Firebase (Firestore ve Storage) üzerinde saklanır.
+              Kullanıcı profil bilgileriniz, kullanım günlükleriniz ve isteğe bağlı olarak kaydedilen AI içerikleri, güçlü güvenlik önlemleri sağlayan Firebase (Firestore ve Storage) üzerinde saklanır.
             </p>
             <p>
               Kişisel Bilgilerinizi korumak için ticari olarak kabul edilebilir yöntemler kullanmaya çalışsak da, İnternet üzerinden hiçbir iletim yöntemi veya elektronik depolama yöntemi %100 güvenli değildir.
@@ -61,12 +60,12 @@ export default function PrivacyPage() {
               Kişisel olarak tanımlanabilir bilgilerinizi dış taraflara satmayız, takas etmeyiz veya başka bir şekilde aktarmayız.
             </p>
             <p>
-              Yüklenen PDF içeriği, işlenmek üzere Gemini API'sine gönderilir. Google'ın bu verileri kullanımı, kendi gizlilik politikaları ve şartlarına tabidir.
+              Yüklenen PDF içeriği veya girilen metinler, işlenmek üzere Google Gemini gibi üçüncü parti yapay zeka API'lerine gönderilir. Bu API sağlayıcılarının verilerinizi nasıl kullandığı, kendi gizlilik politikaları ve hizmet şartlarına tabidir.
             </p>
             <p>
               Yasalarca zorunlu kılınırsa veya kamu makamlarının geçerli taleplerine yanıt olarak bilgilerinizi ifşa edebiliriz.
             </p>
-            
+
             <h2 className="text-2xl font-semibold text-foreground">6. Veri Haklarınız</h2>
             <p>
               Yerel veri koruma yasalarına tabi olarak kişisel verilerinizle ilgili belirli haklara sahip olabilirsiniz. Bunlar, kişisel verilerinize erişme, bunları düzeltme veya silme hakkını içerebilir. Bu hakları kullanmak için lütfen bizimle iletişime geçin.

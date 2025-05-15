@@ -1,11 +1,10 @@
-
 // src/app/(landing)/pricing/page.tsx
 "use client";
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle, XCircle, ArrowRight } from "lucide-react"; // Removed Percent
+import { CheckCircle, XCircle, ArrowRight } from "lucide-react";
 
 const pricingPlans = [
   {
@@ -15,13 +14,14 @@ const pricingPlans = [
     frequency: "/ay",
     description: "NeutralEdu AI'ı denemek ve günlük kullanım için mükemmel.",
     features: [
-      { text: "Günde 2 Özet", included: true },
+      { text: "Günde 2 Özet/İşlem", included: true },
       { text: "İndirilebilir Özetler (TXT)", included: true },
-      { text: "Standart Gemini Destekli Özetler", included: true },
+      { text: "Standart AI Destekli Yanıtlar", included: true },
       { text: "Anahtar Noktalar ve Açıklamalar", included: true },
       { text: "Örnek Sorular", included: true },
       { text: "Daha Hızlı İşleme", included: false },
       { text: "Öncelikli Destek", included: false },
+      { text: "Gelişmiş AI Modelleri", included: false },
     ],
     cta: "Ücretsiz Kaydolun",
     ctaLink: "/signup",
@@ -34,13 +34,14 @@ const pricingPlans = [
     frequency: "/ay",
     description: "Daha fazla güç ve özelliğe ihtiyaç duyan özel akademisyenler için.",
     features: [
-      { text: "Günde 10 Özet", included: true },
+      { text: "Günde 10 Özet/İşlem", included: true },
       { text: "İndirilebilir Özetler (TXT/PDF*)", included: true }, // *PDF yakında
-      { text: "Gelişmiş Gemini Destekli Özetler", included: true },
-      { text: "Anahtar Noktalar ve Açıklamalar", included: true },
-      { text: "Örnek Sorular", included: true },
+      { text: "Gelişmiş AI Destekli Yanıtlar", included: true },
+      { text: "Anahtar Noktalar ve Detaylı Açıklamalar", included: true },
+      { text: "Kapsamlı Örnek Sorular", included: true },
       { text: "Daha Hızlı İşleme", included: true },
       { text: "Öncelikli Destek", included: true },
+      { text: "Gelişmiş AI Modellerine Erişim (En iyi sonuçlar için)", included: true },
     ],
     cta: "Premium'a Yükseltin",
     ctaLink: "#contact-sales", // Manuel yükseltme için yer tutucu
@@ -58,14 +59,14 @@ export default function PricingPage() {
             Basit, Şeffaf Fiyatlandırma
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Çalışma ihtiyaçlarınıza en uygun planı seçin. Gizli ücret yok, istediğiniz zaman yükseltin veya düşürün (şimdilik manuel).
+            Çalışma ihtiyaçlarınıza en uygun planı seçin. Gizli ücret yok. Premium yükseltmeler şu an için manueldir.
           </p>
         </div>
 
         <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto items-stretch">
           {pricingPlans.map((plan) => (
-            <Card 
-              key={plan.name} 
+            <Card
+              key={plan.name}
               className={`flex flex-col ${plan.isPrimary ? 'border-2 border-primary shadow-xl' : 'shadow-lg'} bg-card transform hover:-translate-y-2 transition-transform duration-300`}
             >
               <CardHeader className="text-center relative pb-4">
@@ -99,12 +100,12 @@ export default function PricingPage() {
                 </ul>
               </CardContent>
               <CardFooter className="mt-auto">
-                <Button 
-                  size="lg" 
-                  className="w-full text-lg py-6" 
+                <Button
+                  size="lg"
+                  className="w-full text-lg py-6"
                   variant={plan.isPrimary ? 'default' : 'outline'}
                   asChild={plan.ctaLink.startsWith('/')}
-                  disabled={plan.ctaLink === "#contact-sales"} // Manuel yükseltme için şimdilik devre dışı
+                  disabled={plan.ctaLink === "#contact-sales"}
                 >
                   {plan.ctaLink.startsWith('/') ? (
                     <Link href={plan.ctaLink}>

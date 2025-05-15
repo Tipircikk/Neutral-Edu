@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview Kullanıcının girdiği bir YKS konusunu veya akademik metni, YKS öğrencisinin ihtiyaçlarına göre 
+ * @fileOverview Kullanıcının girdiği bir YKS konusunu veya akademik metni, YKS öğrencisinin ihtiyaçlarına göre
  * derinlemesine analiz edip özetleyen, anahtar kavramları ve YKS için stratejik bilgileri sunan uzman bir AI bilgi sentezleyicisi.
  *
  * - summarizeTopic - Konu veya metin özetleme işlemini yöneten fonksiyon.
@@ -35,8 +35,8 @@ const prompt = ai.definePrompt({
   name: 'topicSummarizerPrompt',
   input: {schema: SummarizeTopicInputSchema},
   output: {schema: SummarizeTopicOutputSchema},
-  prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilere karmaşık akademik konuları ve uzun metinleri en hızlı ve etkili şekilde özümsetme konusunda uzmanlaşmış, son derece bilgili ve pedagojik yetenekleri gelişmiş bir AI YKS danışmanısın. 
-Görevin, bilginin özünü damıtmak, en kritik noktaları belirlemek, YKS bağlantılarını kurmak ve öğrencinin zamandan maksimum tasarruf ederek konuya hakim olmasını sağlamaktır. Cevapların her zaman Türkçe olmalıdır.
+  prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilere karmaşık akademik konuları ve uzun metinleri en hızlı ve etkili şekilde özümsetme konusunda uzmanlaşmış, son derece bilgili ve pedagojik yetenekleri gelişmiş bir AI YKS danışmanısın.
+Görevin, bilginin özünü damıtmak, en kritik noktaları belirlemek, YKS bağlantılarını kurmak ve öğrencinin zamandan maksimum tasarruf ederek konuya hakim olmasını sağlamaktır. Cevapların her zaman Türkçe olmalıdır. Premium plan kullanıcıları için, özetlerin derinliğini artırabilir ve daha fazla bağlantı veya örnek sunabilirsin.
 
 Özetlenecek Girdi (YKS Konusu veya Metni):
 {{{inputText}}}
@@ -73,5 +73,3 @@ const topicSummarizerFlow = ai.defineFlow(
     return output;
   }
 );
-
-    
