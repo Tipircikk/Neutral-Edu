@@ -5,7 +5,7 @@ import { Wand2 } from "lucide-react";
 
 export default function AiToolsLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-5xl mx-auto">
       <Card className="shadow-md">
         <CardHeader>
           <div className="flex items-center gap-3">

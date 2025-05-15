@@ -5,13 +5,13 @@ import { useUser } from "@/hooks/useUser";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Wand2, FileScan, HelpCircle, ArrowRight } from "lucide-react";
+import { Wand2, FileScan, HelpCircle, ArrowRight, Gem } from "lucide-react";
 
 export default function DashboardHomePage() {
   const { userProfile } = useUser();
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 max-w-5xl mx-auto">
       <div>
         <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
           Hoş Geldin, {userProfile?.displayName || userProfile?.email?.split('@')[0] || "Kullanıcı"}!
@@ -50,10 +50,10 @@ export default function DashboardHomePage() {
                 <CardTitle>AI Soru Çözücü</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground text-sm">Zorlandığın soruları yapay zekaya sor, adım adım çözümler al. (Yakında)</p>
+                <p className="text-muted-foreground text-sm">Zorlandığın soruları yapay zekaya sor, adım adım çözümler al.</p>
               </CardContent>
               <CardFooter>
-                <Button variant="ghost" size="sm" className="text-primary group-hover:underline" disabled>
+                <Button variant="ghost" size="sm" className="text-primary group-hover:underline">
                   Soru Sor <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </CardFooter>
@@ -82,20 +82,20 @@ export default function DashboardHomePage() {
         </CardContent>
       </Card>
 
-      {userProfile?.plan !== 'premium' && (
+      {(userProfile?.plan !== 'premium' && userProfile?.plan !== 'pro') && (
         <Card className="shadow-lg bg-gradient-to-r from-primary via-purple-600 to-pink-500 text-primary-foreground">
           <CardHeader>
-            <CardTitle className="text-2xl">NeutralEdu AI Premium</CardTitle>
-            <CardDescription className="text-primary-foreground/80">Daha fazla özet hakkı ve özel özelliklerle sınırları zorla!</CardDescription>
+            <CardTitle className="text-2xl">NeutralEdu AI Premium/Pro</CardTitle>
+            <CardDescription className="text-primary-foreground/80">Daha fazla işlem hakkı ve özel özelliklerle sınırları zorla!</CardDescription>
           </CardHeader>
           <CardContent>
             <ul className="list-disc list-inside space-y-1 mb-4 text-sm">
-              <li>Günde 10 özet hakkı</li>
-              <li>Öncelikli işleme</li>
-              <li>Gelişmiş AI modelleri (Yakında)</li>
+              <li>Günde 10 (Premium) veya 50 (Pro) işlem hakkı</li>
+              <li>Potansiyel olarak daha gelişmiş AI modelleri</li>
+              <li>Öncelikli destek</li>
             </ul>
             <Button variant="secondary" asChild className="bg-white text-primary hover:bg-white/90">
-              <Link href="/pricing">Premium Planları İncele</Link>
+              <Link href="/pricing">Planları İncele</Link>
             </Button>
           </CardContent>
         </Card>
