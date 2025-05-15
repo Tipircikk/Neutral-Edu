@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Lightbulb, Brain, Loader2, AlertTriangle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
@@ -15,6 +17,8 @@ export default function TopicSummarizerPage() {
   const [topicOrText, setTopicOrText] = useState("");
   const [summaryOutput, setSummaryOutput] = useState<SummarizeTopicOutput | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
+  const [summaryLength, setSummaryLength] = useState<"short" | "medium" | "detailed">("medium");
+  const [outputFormat, setOutputFormat] = useState<"paragraph" | "bullet_points">("paragraph");
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
   const [canProcess, setCanProcess] = useState(false);
@@ -52,7 +56,11 @@ export default function TopicSummarizerPage() {
     setCanProcess(true);
 
     try {
-      const input: SummarizeTopicInput = { inputText: topicOrText, summaryLength: "medium", outputFormat: "paragraph" }; // Default values
+      const input: SummarizeTopicInput = { 
+        inputText: topicOrText, 
+        summaryLength, 
+        outputFormat 
+      };
       const result = await summarizeTopic(input);
 
       if (result && result.topicSummary) {
@@ -98,9 +106,46 @@ export default function TopicSummarizerPage() {
             <CardTitle className="text-2xl">AI Konu Özetleyici</CardTitle>
           </div>
           <CardDescription>
-            Geniş konuları veya uzun metinleri temel kavramlarına indirgeyerek hızlı ve etkili bir şekilde öğrenin.
+            Geniş konuları veya uzun metinleri temel kavramlarına indirgeyerek hızlı ve etkili bir şekilde öğrenin. Özet uzunluğunu ve çıktı formatını seçebilirsiniz.
           </CardDescription>
         </CardHeader>
+         <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
+            <div>
+                <Label htmlFor="summaryLength" className="mb-1 block">Özet Uzunluğu</Label>
+                <Select
+                value={summaryLength}
+                onValueChange={(value: "short" | "medium" | "detailed") => setSummaryLength(value)}
+                disabled={isSummarizing || !canProcess}
+                >
+                <SelectTrigger id="summaryLength">
+                    <SelectValue placeholder="Özet uzunluğunu seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="short">Kısa (Ana Hatlar)</SelectItem>
+                    <SelectItem value="medium">Orta (Dengeli)</SelectItem>
+                    <SelectItem value="detailed">Detaylı (Derinlemesine)</SelectItem>
+                </SelectContent>
+                </Select>
+            </div>
+            <div>
+                <Label htmlFor="outputFormat" className="mb-1 block">Çıktı Formatı</Label>
+                <Select
+                value={outputFormat}
+                onValueChange={(value: "paragraph" | "bullet_points") => setOutputFormat(value)}
+                disabled={isSummarizing || !canProcess}
+                >
+                <SelectTrigger id="outputFormat">
+                    <SelectValue placeholder="Çıktı formatını seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="paragraph">Paragraf</SelectItem>
+                    <SelectItem value="bullet_points">Madde İşaretleri</SelectItem>
+                </SelectContent>
+                </Select>
+            </div>
+          </div>
+        </CardContent>
       </Card>
 
        {!canProcess && !isSummarizing && userProfile && userProfile.dailyRemainingQuota <=0 && (
@@ -164,7 +209,20 @@ export default function TopicSummarizerPage() {
                   </ul>
                 </>
               )}
+               {summaryOutput.yksConnections && summaryOutput.yksConnections.length > 0 && (
+                <>
+                  <h3 className="font-semibold text-foreground mt-4">YKS Bağlantıları:</h3>
+                  <ul className="list-disc pl-5">
+                    {summaryOutput.yksConnections.map((connection, index) => (
+                      <li key={index}>{connection}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </div>
+             {summaryOutput.sourceReliability && (
+                <p className="text-xs text-muted-foreground mt-3 italic">Kaynak Güvenilirliği/Not: {summaryOutput.sourceReliability}</p>
+            )}
             <div className="mt-4 p-3 text-xs text-destructive-foreground bg-destructive/80 rounded-md flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
               <span>NeutralEdu AI bir yapay zekadır bu nedenle hata yapabilir, bu yüzden verdiği bilgileri doğrulayınız.</span>
@@ -175,3 +233,5 @@ export default function TopicSummarizerPage() {
     </div>
   );
 }
+
+    

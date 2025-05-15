@@ -22,7 +22,7 @@ import { collection, getDocs, query, orderBy, Timestamp as FirestoreTimestamp } 
 import { getDefaultQuota } from "@/lib/firebase/firestore";
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
-
+import EditUserDialog from "@/components/admin/EditUserDialog"; // Import the dialog
 
 export default function AdminPage() {
   const { userProfile: adminUserProfile, loading: adminLoading } = useUser();
@@ -32,45 +32,49 @@ export default function AdminPage() {
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState(true);
 
+  const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
+  const [isEditUserDialogOpen, setIsEditUserDialogOpen] = useState(false);
+
   useEffect(() => {
     if (!adminLoading && !adminUserProfile?.isAdmin) {
       router.replace("/dashboard");
     }
   }, [adminUserProfile, adminLoading, router]);
 
+  const fetchAllUsers = async () => {
+    setUsersLoading(true);
+    try {
+      const usersCollection = collection(db, "users");
+      const usersQuery = query(usersCollection, orderBy("isAdmin", "desc"), orderBy("plan", "desc"), orderBy("email"));
+      const querySnapshot = await getDocs(usersQuery);
+      const usersList = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        let lastSummaryDate = data.lastSummaryDate;
+        if (lastSummaryDate && typeof lastSummaryDate === 'object' && 'seconds' in lastSummaryDate && 'nanoseconds' in lastSummaryDate) {
+            lastSummaryDate = new FirestoreTimestamp(lastSummaryDate.seconds, lastSummaryDate.nanoseconds);
+        }
+        return {
+            uid: doc.id, // Use doc.id as uid
+            ...data,
+            lastSummaryDate: lastSummaryDate,
+        } as UserProfile;
+      });
+      setAllUsers(usersList);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (adminUserProfile?.isAdmin) {
-      const fetchUsers = async () => {
-        setUsersLoading(true);
-        try {
-          const usersCollection = collection(db, "users");
-          const usersQuery = query(usersCollection, orderBy("isAdmin", "desc"), orderBy("plan", "desc"), orderBy("email"));
-          const querySnapshot = await getDocs(usersQuery);
-          const usersList = querySnapshot.docs.map(doc => {
-            const data = doc.data();
-            let lastSummaryDate = data.lastSummaryDate;
-            if (lastSummaryDate && typeof lastSummaryDate === 'object' && 'seconds' in lastSummaryDate && 'nanoseconds' in lastSummaryDate) {
-                lastSummaryDate = new FirestoreTimestamp(lastSummaryDate.seconds, lastSummaryDate.nanoseconds);
-            }
-            return {
-                uid: doc.id,
-                ...data,
-                lastSummaryDate: lastSummaryDate,
-            } as UserProfile;
-          });
-          setAllUsers(usersList);
-        } catch (error) {
-          console.error("Error fetching users:", error);
-        } finally {
-          setUsersLoading(false);
-        }
-      };
+      fetchAllUsers();
 
       const fetchSupportTickets = async () => {
         setTicketsLoading(true);
         try {
           const ticketsCollection = collection(db, "supportTickets");
-          // Order by status (open first), then by creation date (newest first)
           const ticketsQuery = query(ticketsCollection, orderBy("status", "asc"), orderBy("createdAt", "desc"));
           const querySnapshot = await getDocs(ticketsQuery);
           const ticketsList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SupportTicket));
@@ -81,8 +85,6 @@ export default function AdminPage() {
           setTicketsLoading(false);
         }
       };
-
-      fetchUsers();
       fetchSupportTickets();
     }
   }, [adminUserProfile]);
@@ -106,13 +108,16 @@ export default function AdminPage() {
         lastDate = user.lastSummaryDate.toDate();
     } else if (typeof user.lastSummaryDate === 'string') {
         lastDate = new Date(user.lastSummaryDate);
-    } else {
+    } else { // Assuming it's null or some other type not convertible
         return 0;
     }
     lastDate.setHours(0,0,0,0);
+
     if (lastDate.getTime() === today.getTime()) {
       const totalQuota = getDefaultQuota(user.plan);
-      return totalQuota - user.dailyRemainingQuota;
+      // Ensure dailyRemainingQuota is a number, default to 0 if not
+      const remainingQuota = typeof user.dailyRemainingQuota === 'number' ? user.dailyRemainingQuota : 0;
+      return totalQuota - remainingQuota;
     }
     return 0;
   };
@@ -136,6 +141,16 @@ export default function AdminPage() {
       case "closed_by_admin": return "Admin Kapattı";
       default: return status;
     }
+  };
+
+  const handleOpenEditUserDialog = (user: UserProfile) => {
+    setEditingUser(user);
+    setIsEditUserDialogOpen(true);
+  };
+
+  const handleUserUpdate = (updatedUser: UserProfile) => {
+    // Refresh the user list or update the specific user in the list
+    setAllUsers(prevUsers => prevUsers.map(u => u.uid === updatedUser.uid ? updatedUser : u));
   };
 
 
@@ -171,7 +186,7 @@ export default function AdminPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Users className="h-6 w-6" /> Kullanıcı Yönetimi</CardTitle>
-          <CardDescription>Kullanıcıların planlarını ve rollerini görüntüleyin.</CardDescription>
+          <CardDescription>Kullanıcıların planlarını ve rollerini görüntüleyin ve düzenleyin.</CardDescription>
         </CardHeader>
         <CardContent>
           {usersLoading ? (
@@ -208,7 +223,7 @@ export default function AdminPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="outline" size="sm" disabled>
+                      <Button variant="outline" size="sm" onClick={() => handleOpenEditUserDialog(user)}>
                         <Edit3 className="mr-2 h-3 w-3"/> Düzenle
                       </Button>
                     </TableCell>
@@ -307,6 +322,16 @@ export default function AdminPage() {
           <p className="text-sm text-muted-foreground">Bu bölüm gelecekte eklenecek genel uygulama ayarları için bir yer tutucudur (Örn: Bakım modu, AI model seçimi vb.).</p>
         </CardContent>
       </Card>
+      {editingUser && (
+        <EditUserDialog
+          user={editingUser}
+          isOpen={isEditUserDialogOpen}
+          onOpenChange={setIsEditUserDialogOpen}
+          onUserUpdate={handleUserUpdate}
+        />
+      )}
     </div>
   );
 }
+
+    

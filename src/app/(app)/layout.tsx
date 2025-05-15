@@ -2,10 +2,11 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect } from "react";
-import { useRouter, usePathname } from "next/navigation"; 
+import { useEffect, useState } // Added useState
+  from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
-import { useUser } from "@/hooks/useUser"; 
+import { useUser } from "@/hooks/useUser";
 import {
   SidebarProvider,
   Sidebar,
@@ -23,19 +24,20 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
-import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy } from "lucide-react"; // Changed MessageSquareQuestion to LifeBuoy
+import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy } from "lucide-react";
 import Link from "next/link";
 import QuotaDisplay from "@/components/dashboard/QuotaDisplay";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
-import { signOut as firebaseSignOut } from "@/hooks/useAuth"; 
-import Footer from "@/components/layout/Footer"; 
-import { SidebarInset } from "@/components/ui/sidebar"; 
+import { signOut as firebaseSignOut } from "@/hooks/useAuth";
+import Footer from "@/components/layout/Footer";
+import { SidebarInset } from "@/components/ui/sidebar";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
   const { userProfile, loading: userProfileLoading } = useUser();
   const router = useRouter();
   const pathname = usePathname();
+  const [isAiToolsSubmenuOpen, setIsAiToolsSubmenuOpen] = useState(false); // State for AI Tools submenu
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -43,8 +45,15 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     }
   }, [user, authLoading, router]);
 
+  // Open AI Tools submenu if a path inside it is active
+  useEffect(() => {
+    if (pathname.startsWith('/dashboard/ai-tools')) {
+      setIsAiToolsSubmenuOpen(true);
+    }
+  }, [pathname]);
+
   const handleSignOut = async () => {
-    await firebaseSignOut(); 
+    await firebaseSignOut();
     router.push("/");
   };
 
@@ -52,7 +61,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     if (!email) return "U";
     return email.substring(0, 2).toUpperCase();
   };
-  
+
   const totalQuota = userProfile ? getDefaultQuota(userProfile.plan) : 0;
 
   if (authLoading || userProfileLoading || !user) {
@@ -63,8 +72,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  const isAiToolsPath = pathname.startsWith('/dashboard/ai-tools');
+  const isAiToolsPathActive = pathname.startsWith('/dashboard/ai-tools');
   const isSupportPath = pathname === "/dashboard/support";
+  const isAdminPath = pathname.startsWith("/dashboard/admin");
 
   return (
     <SidebarProvider defaultOpen>
@@ -105,33 +115,40 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 </SidebarMenuItem>
 
                 <SidebarMenuItem>
-                  <SidebarMenuButton className="justify-between" isActive={isAiToolsPath} isSubmenu tooltip="Yapay Zeka Araçları">
+                  <SidebarMenuButton
+                    className="justify-between"
+                    isActive={isAiToolsPathActive}
+                    onClick={() => setIsAiToolsSubmenuOpen(!isAiToolsSubmenuOpen)}
+                    data-state={isAiToolsSubmenuOpen ? "open" : "closed"} // For styling chevrons
+                    tooltip="Yapay Zeka Araçları"
+                  >
                     <div className="flex items-center gap-2"><Wand2 /> <span>Yapay Zeka Araçları</span></div>
-                    <ChevronDown className="size-4 submenu-arrow group-data-[state=open]:hidden" />
-                    <ChevronUp className="size-4 submenu-arrow group-data-[state=open]:!block hidden" />
+                    {isAiToolsSubmenuOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
                   </SidebarMenuButton>
-                  <SidebarMenuSub>
-                    <SidebarMenuSubItem>
-                      <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/pdf-summarizer"}>
-                        <Link href="/dashboard/ai-tools/pdf-summarizer"><FileScan /><span>AI PDF Özetleyici</span></Link>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                    <SidebarMenuSubItem>
-                      <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/question-solver"}>
-                        <Link href="/dashboard/ai-tools/question-solver"><HelpCircle /><span>AI Soru Çözücü</span></Link>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                     <SidebarMenuSubItem>
-                      <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/test-generator"}>
-                        <Link href="/dashboard/ai-tools/test-generator"><FileTextIcon /><span>AI Test Oluşturucu</span></Link>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                    <SidebarMenuSubItem>
-                      <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/topic-summarizer"}>
-                        <Link href="/dashboard/ai-tools/topic-summarizer"><Lightbulb /><span>AI Konu Özetleyici</span></Link>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                  </SidebarMenuSub>
+                  {isAiToolsSubmenuOpen && (
+                    <SidebarMenuSub>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/pdf-summarizer"}>
+                          <Link href="/dashboard/ai-tools/pdf-summarizer"><FileScan /><span>AI PDF Özetleyici</span></Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/question-solver"}>
+                          <Link href="/dashboard/ai-tools/question-solver"><HelpCircle /><span>AI Soru Çözücü</span></Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/test-generator"}>
+                          <Link href="/dashboard/ai-tools/test-generator"><FileTextIcon /><span>AI Test Oluşturucu</span></Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/topic-summarizer"}>
+                          <Link href="/dashboard/ai-tools/topic-summarizer"><Lightbulb /><span>AI Konu Özetleyici</span></Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    </SidebarMenuSub>
+                  )}
                 </SidebarMenuItem>
 
                 <SidebarMenuItem>
@@ -142,7 +159,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
                 {userProfile?.isAdmin && (
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname.startsWith("/dashboard/admin")} tooltip="Admin Paneli">
+                    <SidebarMenuButton asChild isActive={isAdminPath} tooltip="Admin Paneli">
                       <Link href="/dashboard/admin"><ShieldCheck /><span>Admin Paneli</span></Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -189,3 +206,5 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     </SidebarProvider>
   );
 }
+
+    

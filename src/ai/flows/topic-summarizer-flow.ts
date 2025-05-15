@@ -45,9 +45,9 @@ Lütfen bu girdiyi derinlemesine analiz et ve aşağıdaki formatta, istenen det
 
 1.  **Konu Özeti**: Girdinin açık, anlaşılır, akıcı ve YKS odaklı bir özeti. {{{summaryLength}}} uzunluğa göre detay seviyesini ayarla:
     *   'short': Konunun YKS için en can alıcı noktalarını içeren 2-3 cümlelik bir özet.
-    *   'medium': Ana argümanları, önemli tanımları ve YKS için kritik alt başlıkları içeren, dengeli ve öğretici bir paragraf (veya madde işaretleri).
+    *   'medium': Ana argümanları, önemli tanımları ve YKS için kritik alt başlıkları içeren, dengeli ve öğretici bir metin.
     *   'detailed': Konunun tüm önemli yönlerini, örneklerini ve YKS'de çıkabilecek detaylarını içeren daha kapsamlı, yapılandırılmış bir özet.
-    {{{outputFormat}}} formatını dikkate alarak, paragraf veya madde işaretleri şeklinde sun. Eğer madde işaretleri seçildiyse, her maddeyi açıklayıcı ve YKS'ye yönelik bilgilerle zenginleştir.
+    İstenen çıktı formatı '{{{outputFormat}}}' olacak şekilde sun. Eğer 'bullet_points' seçildiyse, her maddeyi açıklayıcı ve YKS'ye yönelik bilgilerle zenginleştir. 'paragraph' seçildiyse, akıcı paragraflar kullan.
 2.  **Anahtar Kavramlar (YKS için Kritik)**: Özette geçen veya konuyu anlamak için YKS'de kesinlikle bilinmesi gereken 3-5 temel kavramı, terimi, formülü veya önemli ismi listele. Her bir anahtar kavram için:
     *   Kavramın kendisi.
     *   YKS öğrencisinin anlayacağı dilde, kısa ve net bir tanımı/açıklaması.
@@ -73,3 +73,5 @@ const topicSummarizerFlow = ai.defineFlow(
     return output;
   }
 );
+
+    
