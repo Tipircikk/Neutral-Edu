@@ -1,19 +1,12 @@
-// src/app/(landing)/page.tsx
-import Link from 'next/link';
 
-export default function LandingPlaceholderPage() {
+export default function LandingTestPage() {
   return (
-    <div style={{ padding: '20px', fontFamily: 'sans-serif', textAlign: 'center', minHeight: 'calc(100vh - 200px)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-      <h1 className="text-3xl font-bold mb-4">Landing Page Section</h1>
-      <p className="text-muted-foreground mb-8">
-        This is a placeholder page for content that might be specific to a `/landing/...` route structure.
+    <div style={{ padding: '50px', textAlign: 'center', fontFamily: 'sans-serif' }}>
+      <h1>Landing Test Sayfası</h1>
+      <p>Eğer bu yazıyı görüyorsanız, /landing yolu çalışıyor demektir.</p>
+      <p>
+        Ana karşılama sayfası <a href="/" style={{ color: 'blue', textDecoration: 'underline' }}>burada</a>.
       </p>
-      <p className="text-muted-foreground">
-        The main landing page content is now served at the root (`/`).
-      </p>
-      <Link href="/" className="mt-8 text-primary hover:underline">
-        Go to Main Landing Page (/)
-      </Link>
     </div>
   );
 }
