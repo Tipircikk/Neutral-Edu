@@ -13,11 +13,14 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input"; // Added Input for date
 import { Switch } from "@/components/ui/switch";
 import type { UserProfile } from "@/types";
 import { updateUserProfile, getDefaultQuota } from "@/lib/firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { Timestamp } from "firebase/firestore"; // Added Timestamp import
+import { format, parseISO } from 'date-fns'; // For date input handling
 
 interface EditUserDialogProps {
   user: UserProfile | null;
@@ -29,6 +32,7 @@ interface EditUserDialogProps {
 export default function EditUserDialog({ user, isOpen, onOpenChange, onUserUpdate }: EditUserDialogProps) {
   const [plan, setPlan] = useState<UserProfile["plan"]>("free");
   const [isAdmin, setIsAdmin] = useState(false);
+  const [planExpiryDate, setPlanExpiryDate] = useState<string>(""); // Store as string for input field
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
 
@@ -36,6 +40,11 @@ export default function EditUserDialog({ user, isOpen, onOpenChange, onUserUpdat
     if (user) {
       setPlan(user.plan);
       setIsAdmin(user.isAdmin || false);
+      if (user.planExpiryDate && user.planExpiryDate instanceof Timestamp) {
+        setPlanExpiryDate(format(user.planExpiryDate.toDate(), 'yyyy-MM-dd'));
+      } else {
+        setPlanExpiryDate("");
+      }
     }
   }, [user]);
 
@@ -43,18 +52,39 @@ export default function EditUserDialog({ user, isOpen, onOpenChange, onUserUpdat
     if (!user) return;
     setIsSaving(true);
 
-    // If plan changes, reset daily quota to the new plan's default
     const newDailyQuota = user.plan !== plan ? getDefaultQuota(plan) : user.dailyRemainingQuota;
+
+    let expiryTimestamp: Timestamp | null = null;
+    if ((plan === "premium" || plan === "pro") && planExpiryDate) {
+      try {
+        expiryTimestamp = Timestamp.fromDate(parseISO(planExpiryDate));
+      } catch (e) {
+        toast({ title: "Geçersiz Tarih", description: "Lütfen geçerli bir bitiş tarihi girin.", variant: "destructive" });
+        setIsSaving(false);
+        return;
+      }
+    } else if (plan === "free") {
+        expiryTimestamp = null; // Free plan has no expiry
+    }
+
 
     const updatedFields: Partial<UserProfile> = {
       plan,
       isAdmin,
       dailyRemainingQuota: newDailyQuota,
+      planExpiryDate: expiryTimestamp,
     };
 
     try {
       await updateUserProfile(user.uid, updatedFields);
-      onUserUpdate({ ...user, ...updatedFields, uid: user.uid }); // Ensure uid is passed along
+      // Ensure planExpiryDate is correctly passed to onUserUpdate
+      const fullUpdatedUser: UserProfile = {
+        ...user,
+        ...updatedFields,
+        planExpiryDate: expiryTimestamp, // Ensure this is the Timestamp or null
+        uid: user.uid
+      };
+      onUserUpdate(fullUpdatedUser);
       toast({
         title: "Kullanıcı Güncellendi",
         description: `${user.email} için bilgiler başarıyla güncellendi.`,
@@ -80,7 +110,7 @@ export default function EditUserDialog({ user, isOpen, onOpenChange, onUserUpdat
         <DialogHeader>
           <DialogTitle>Kullanıcıyı Düzenle</DialogTitle>
           <DialogDescription>
-            {user.email} kullanıcısının planını ve admin yetkisini düzenleyin.
+            {user.email} kullanıcısının planını, admin yetkisini ve abonelik süresini düzenleyin.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -95,10 +125,26 @@ export default function EditUserDialog({ user, isOpen, onOpenChange, onUserUpdat
               <SelectContent>
                 <SelectItem value="free">Ücretsiz</SelectItem>
                 <SelectItem value="premium">Premium</SelectItem>
-                <SelectItem value="pro">Pro</SelectItem> 
+                <SelectItem value="pro">Pro</SelectItem>
               </SelectContent>
             </Select>
           </div>
+
+          {(plan === "premium" || plan === "pro") && (
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="planExpiryDate" className="text-right">
+                Plan Bitiş Tarihi
+              </Label>
+              <Input
+                id="planExpiryDate"
+                type="date"
+                value={planExpiryDate}
+                onChange={(e) => setPlanExpiryDate(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+          )}
+
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="isAdmin" className="text-right">
               Admin Yetkisi

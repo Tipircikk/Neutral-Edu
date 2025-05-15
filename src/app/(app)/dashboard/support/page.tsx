@@ -2,73 +2,101 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useForm, type SubmitHandler, Controller } from "react-hook-form"; // Added Controller
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, Send, LifeBuoy, CheckCircle } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, LifeBuoy, PlusCircle, Eye } from "lucide-react";
 import { useUser } from "@/hooks/useUser";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase/config";
-import { collection, addDoc, serverTimestamp, Timestamp } from "firebase/firestore";
-import type { SupportTicketSubject, SupportTicketStatus } from "@/types";
+import { collection, query, where, getDocs, orderBy, Timestamp as FirestoreTimestamp } from "firebase/firestore";
+import type { SupportTicket, SupportTicketStatus } from "@/types";
+import { format } from 'date-fns';
+import { tr } from 'date-fns/locale';
 
-const supportTicketSchema = z.object({
-  subject: z.enum(["premium", "ai_tools", "account", "bug_report", "other"], {
-    required_error: "Lütfen bir konu seçin.",
-  }),
-  message: z.string().min(20, { message: "Mesajınız en az 20 karakter olmalıdır." }).max(2000, { message: "Mesajınız en fazla 2000 karakter olabilir." }),
-});
-
-type SupportTicketFormValues = z.infer<typeof supportTicketSchema>;
+// TODO: Implement CreateTicketDialog and TicketDetailViewDialog
+// import CreateTicketDialog from "@/components/dashboard/support/CreateTicketDialog";
+// import TicketDetailViewDialog from "@/components/dashboard/support/TicketDetailViewDialog";
 
 export default function SupportPage() {
   const { userProfile, loading: userLoading } = useUser();
   const { toast } = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submissionSuccess, setSubmissionSuccess] = useState(false);
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [isLoadingTickets, setIsLoadingTickets] = useState(true);
+  const [isCreateTicketDialogOpen, setIsCreateTicketDialogOpen] = useState(false);
+  const [selectedTicketToView, setSelectedTicketToView] = useState<SupportTicket | null>(null);
 
-  const { register, handleSubmit, control, formState: { errors }, reset } = useForm<SupportTicketFormValues>({
-    resolver: zodResolver(supportTicketSchema),
-    defaultValues: {
-      subject: undefined,
-      message: "",
-    },
-  });
-
-  const onSubmit: SubmitHandler<SupportTicketFormValues> = async (data) => {
-    if (!userProfile) {
-      toast({ title: "Hata", description: "Destek talebi göndermek için giriş yapmalısınız.", variant: "destructive" });
-      return;
-    }
-    setIsSubmitting(true);
-    setSubmissionSuccess(false);
+  const fetchUserTickets = useCallback(async () => {
+    if (!userProfile) return;
+    setIsLoadingTickets(true);
     try {
-      await addDoc(collection(db, "supportTickets"), {
-        userId: userProfile.uid,
-        userEmail: userProfile.email,
-        userName: userProfile.displayName,
-        subject: data.subject as SupportTicketSubject,
-        message: data.message,
-        status: "open" as SupportTicketStatus,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+      const ticketsCollection = collection(db, "supportTickets");
+      const q = query(
+        ticketsCollection,
+        where("userId", "==", userProfile.uid),
+        orderBy("createdAt", "desc")
+      );
+      const querySnapshot = await getDocs(q);
+      const userTickets = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt instanceof FirestoreTimestamp ? data.createdAt : FirestoreTimestamp.now(),
+          updatedAt: data.updatedAt instanceof FirestoreTimestamp ? data.updatedAt : undefined,
+          lastReplyAt: data.lastReplyAt instanceof FirestoreTimestamp ? data.lastReplyAt : undefined,
+        } as SupportTicket;
       });
-      toast({ title: "Talep Gönderildi", description: "Destek talebiniz başarıyla alındı. En kısa sürede size dönüş yapacağız." });
-      setSubmissionSuccess(true);
-      reset(); 
+      setTickets(userTickets);
     } catch (error) {
-      console.error("Error submitting support ticket:", error);
-      toast({ title: "Gönderim Hatası", description: "Destek talebiniz gönderilirken bir hata oluştu. Lütfen tekrar deneyin.", variant: "destructive" });
+      console.error("Error fetching user tickets:", error);
+      toast({ title: "Hata", description: "Destek talepleriniz çekilirken bir hata oluştu.", variant: "destructive" });
     } finally {
-      setIsSubmitting(false);
+      setIsLoadingTickets(false);
+    }
+  }, [userProfile, toast]);
+
+  useEffect(() => {
+    if (userProfile) {
+      fetchUserTickets();
+    }
+  }, [userProfile, fetchUserTickets]);
+
+  const getStatusBadgeVariant = (status: SupportTicketStatus) => {
+    switch (status) {
+      case "open":
+        return "destructive";
+      case "answered":
+        return "secondary"; // Or some other color like green
+      case "closed_by_user":
+      case "closed_by_admin":
+        return "outline";
+      default:
+        return "default";
     }
   };
+
+  const formatTicketStatus = (status: SupportTicketStatus): string => {
+    switch (status) {
+      case "open": return "Açık";
+      case "answered": return "Yanıtlandı";
+      case "closed_by_user": return "Kullanıcı Kapattı";
+      case "closed_by_admin": return "Admin Kapattı";
+      default: return status;
+    }
+  };
+   const formatTicketSubject = (subject: SupportTicket['subject']): string => {
+    switch (subject) {
+      case "premium": return "Premium Üyelik";
+      case "ai_tools": return "Yapay Zeka Araçları";
+      case "account": return "Hesap Sorunları";
+      case "bug_report": return "Hata Bildirimi";
+      case "other": return "Diğer";
+      default: return subject;
+    }
+  };
+
 
   if (userLoading) {
     return (
@@ -80,77 +108,89 @@ export default function SupportPage() {
   }
 
   return (
-    <div className="space-y-8 max-w-2xl mx-auto">
+    <div className="space-y-8">
       <Card className="shadow-lg">
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <div className="flex items-center gap-3">
             <LifeBuoy className="h-8 w-8 text-primary" />
-            <CardTitle className="text-3xl">Destek Talebi Oluştur</CardTitle>
+            <CardTitle className="text-3xl">Destek Taleplerim</CardTitle>
           </div>
-          <CardDescription>
-            NeutralEdu AI ile ilgili soru, sorun veya geri bildirimleriniz için bize ulaşın.
-          </CardDescription>
+          <Button onClick={() => { /*setIsCreateTicketDialogOpen(true) */ toast({title: "Yakında!", description: "Yeni destek talebi oluşturma özelliği yakında eklenecektir."})}}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Yeni Destek Talebi Oluştur
+          </Button>
         </CardHeader>
+        <CardDescription className="px-6 pb-2">
+            Oluşturduğunuz destek taleplerini buradan takip edebilirsiniz.
+        </CardDescription>
         <CardContent>
-          {submissionSuccess ? (
-            <Alert variant="default" className="bg-green-100 dark:bg-green-900/30 border-green-500">
-              <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
-              <AlertTitle className="text-green-700 dark:text-green-300">Talebiniz Başarıyla Gönderildi!</AlertTitle>
-              <AlertDescription className="text-green-600 dark:text-green-400">
-                Destek ekibimiz talebinizi aldı ve en kısa sürede inceleyecektir. Yanıtlar genellikle e-posta adresinize gönderilir.
-                <Button variant="link" onClick={() => setSubmissionSuccess(false)} className="mt-2 p-0 h-auto text-primary">Yeni bir talep oluştur</Button>
-              </AlertDescription>
-            </Alert>
+          {isLoadingTickets ? (
+            <div className="flex justify-center items-center py-10">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="ml-2 text-muted-foreground">Talepleriniz yükleniyor...</p>
+            </div>
+          ) : tickets.length === 0 ? (
+            <p className="text-center text-muted-foreground py-10">Henüz oluşturulmuş bir destek talebiniz bulunmuyor.</p>
           ) : (
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-              <div>
-                <Label htmlFor="subject" className="mb-1 block">Konu</Label>
-                <Controller
-                  name="subject"
-                  control={control}
-                  render={({ field }) => (
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value}
-                      disabled={isSubmitting}
-                    >
-                      <SelectTrigger id="subject" className="w-full">
-                        <SelectValue placeholder="Bir konu seçin..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="premium">Premium Üyelik Hakkında</SelectItem>
-                        <SelectItem value="ai_tools">Yapay Zeka Araçları Hakkında</SelectItem>
-                        <SelectItem value="account">Hesap Sorunları</SelectItem>
-                        <SelectItem value="bug_report">Hata Bildirimi</SelectItem>
-                        <SelectItem value="other">Diğer</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-                {errors.subject && <p className="text-sm text-destructive mt-1">{errors.subject.message}</p>}
-              </div>
-
-              <div>
-                <Label htmlFor="message" className="mb-1 block">Mesajınız</Label>
-                <Textarea
-                  id="message"
-                  placeholder="Lütfen sorununuzu veya geri bildiriminizi detaylı bir şekilde açıklayın..."
-                  rows={8}
-                  {...register("message")}
-                  className={errors.message ? "border-destructive" : ""}
-                  disabled={isSubmitting}
-                />
-                {errors.message && <p className="text-sm text-destructive mt-1">{errors.message.message}</p>}
-              </div>
-
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                Destek Talebi Gönder
-              </Button>
-            </form>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Konu</TableHead>
+                  <TableHead>Durum</TableHead>
+                  <TableHead>Son Güncelleme</TableHead>
+                  <TableHead className="text-right">İşlemler</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tickets.map((ticket) => (
+                  <TableRow key={ticket.id}>
+                    <TableCell className="font-medium">{formatTicketSubject(ticket.subject)}</TableCell>
+                    <TableCell>
+                      <Badge variant={getStatusBadgeVariant(ticket.status)}
+                        className={ticket.status === 'answered' ? 'bg-green-500 hover:bg-green-600 text-white' : ''}
+                      >
+                        {formatTicketStatus(ticket.status)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {format( (ticket.lastReplyAt || ticket.updatedAt || ticket.createdAt).toDate(), 'PPpp', { locale: tr })}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="outline" size="sm" onClick={() => { /*setSelectedTicketToView(ticket) */ toast({title: "Yakında!", description: "Talep detaylarını görüntüleme yakında eklenecektir."}) }}>
+                        <Eye className="mr-2 h-3 w-3" /> Görüntüle
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
+
+      {/* Placeholder for CreateTicketDialog - To be implemented later
+      {isCreateTicketDialogOpen && (
+        <CreateTicketDialog
+          isOpen={isCreateTicketDialogOpen}
+          onOpenChange={setIsCreateTicketDialogOpen}
+          onTicketCreated={() => {
+            fetchUserTickets(); // Refresh list after creation
+            setIsCreateTicketDialogOpen(false);
+          }}
+        />
+      )}
+      */}
+
+      {/* Placeholder for TicketDetailViewDialog - To be implemented later
+      {selectedTicketToView && (
+        <TicketDetailViewDialog
+          ticket={selectedTicketToView}
+          isOpen={!!selectedTicketToView}
+          onOpenChange={() => setSelectedTicketToView(null)}
+          onReplySuccess={fetchUserTickets} // Refresh list after reply
+        />
+      )}
+      */}
     </div>
   );
 }

@@ -8,14 +8,15 @@ export interface UserProfile {
   displayName?: string | null;
   plan: "free" | "premium" | "pro";
   dailyRemainingQuota: number;
-  lastSummaryDate: Timestamp | string | null; 
-  isAdmin?: boolean; 
+  lastSummaryDate: Timestamp | string | null;
+  isAdmin?: boolean;
+  planExpiryDate?: Timestamp | null; // Added for subscription duration
 }
 
 export interface AuthContextType {
   user: FirebaseUser | null;
   loading: boolean;
-  isAdmin?: boolean; 
+  isAdmin?: boolean;
 }
 
 export type SupportTicketStatus = "open" | "answered" | "closed_by_user" | "closed_by_admin";
@@ -27,11 +28,11 @@ export interface SupportTicket {
   userEmail: string | null;
   userName?: string | null;
   subject: SupportTicketSubject;
-  message: string;
+  message: string; // Initial message
   status: SupportTicketStatus;
   createdAt: Timestamp;
   updatedAt?: Timestamp;
-  adminReply?: string;
+  adminReply?: string; // Single admin reply (to be evolved into a conversation model)
   repliedBy?: string; // Admin UID
   lastReplyAt?: Timestamp;
 }
