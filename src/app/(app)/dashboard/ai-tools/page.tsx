@@ -75,7 +75,7 @@ const allAiTools = [
 ];
 
 const ToolCard = ({ tool }: { tool: typeof allAiTools[0] }) => (
-  <Card key={tool.name} className="flex flex-col hover:shadow-xl transition-shadow duration-300">
+  <Card className="flex flex-col hover:shadow-xl transition-shadow duration-300">
     <CardHeader className="items-center text-center">
       {tool.icon}
       <CardTitle>{tool.name}</CardTitle>
