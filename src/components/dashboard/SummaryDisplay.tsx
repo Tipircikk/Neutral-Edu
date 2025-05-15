@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Copy, Download, Save, Loader2, AlertTriangle } from "lucide-react"; 
+import { Copy, Download, AlertTriangle, ThumbsUp, ThumbsDown } from "lucide-react"; 
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { SummarizePdfForStudentOutput } from "@/ai/flows/summarize-pdf"; 
@@ -11,11 +11,9 @@ import type { SummarizePdfForStudentOutput } from "@/ai/flows/summarize-pdf";
 type SummaryDisplayProps = {
   summaryOutput: SummarizePdfForStudentOutput | null; 
   originalFileName?: string;
-  onSave?: () => Promise<void>; 
-  isSaving?: boolean;
 };
 
-export default function SummaryDisplay({ summaryOutput, originalFileName, onSave, isSaving }: SummaryDisplayProps) {
+export default function SummaryDisplay({ summaryOutput, originalFileName }: SummaryDisplayProps) {
   const { toast } = useToast();
 
   if (!summaryOutput || !summaryOutput.formattedStudyOutput) { 
@@ -47,6 +45,14 @@ export default function SummaryDisplay({ summaryOutput, originalFileName, onSave
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     toast({ title: "İndirildi", description: "Özet metin dosyası olarak indirildi." });
+  };
+
+  const handleFeedback = (type: "like" | "dislike") => {
+    // TODO: Implement actual feedback saving logic to Firestore
+    toast({
+      title: "Geri Bildiriminiz Alındı!",
+      description: type === "like" ? "Özeti beğendiğiniz için teşekkür ederiz." : "Daha iyisini yapmak için çalışacağız.",
+    });
   };
 
   const formatOutputForDisplay = (text: string): JSX.Element[] => {
@@ -92,6 +98,15 @@ export default function SummaryDisplay({ summaryOutput, originalFileName, onSave
             {formatOutputForDisplay(formattedStudyOutput)}
           </div>
         </ScrollArea>
+        <div className="mt-4 flex justify-end items-center gap-3">
+            <span className="text-sm text-muted-foreground">Bu özeti faydalı buldunuz mu?</span>
+            <Button variant="outline" size="icon" onClick={() => handleFeedback("like")} title="Beğendim">
+                <ThumbsUp className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="icon" onClick={() => handleFeedback("dislike")} title="Beğenmedim">
+                <ThumbsDown className="h-4 w-4" />
+            </Button>
+        </div>
         <div className="mt-4 p-3 text-xs text-destructive-foreground bg-destructive/80 rounded-md flex items-center gap-2">
           <AlertTriangle className="h-4 w-4" />
           <span>NeutralEdu AI bir yapay zekadır bu nedenle hata yapabilir, bu yüzden verdiği bilgileri doğrulayınız.</span>

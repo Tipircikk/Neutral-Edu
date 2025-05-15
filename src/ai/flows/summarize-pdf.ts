@@ -15,7 +15,10 @@ import {z} from 'genkit';
 
 const SummarizePdfForStudentInputSchema = z.object({
   pdfText: z.string().describe('PDF belgesinden çıkarılan metin içeriği.'),
-  summaryLength: z.enum(["short", "medium", "detailed"]).default("medium").describe("İstenen özetin uzunluğu: 'short' (çok kısa), 'medium' (dengeli), 'detailed' (kapsamlı).")
+  summaryLength: z.enum(["short", "medium", "detailed"]).optional().default("medium").describe("İstenen özetin uzunluğu: 'short' (çok kısa), 'medium' (dengeli), 'detailed' (kapsamlı)."),
+  keywords: z.string().optional().describe("Özetin odaklanması istenen, virgülle ayrılmış anahtar kelimeler."),
+  pageRange: z.string().optional().describe("Özetlenecek sayfa aralığı, örn: '5-10'. AI, bu bilginin sağlandığı metin parçasına odaklanacaktır."),
+  outputDetail: z.enum(["full", "key_points_only", "exam_tips_only", "questions_only"]).optional().default("full").describe("İstenen özet çıktısının detayı: 'full' (tüm bölümler), 'key_points_only' (sadece anahtar noktalar), 'exam_tips_only' (sadece sınav ipuçları), 'questions_only' (sadece örnek sorular).")
 });
 export type SummarizePdfForStudentInput = z.infer<typeof SummarizePdfForStudentInputSchema>;
 
@@ -30,7 +33,7 @@ const SummarizePdfForStudentOutputSchema = z.object({
     answer: z.string().describe("Sorunun doğru cevabı (sadece harf veya seçenek metni)."),
     explanation: z.string().optional().describe("Doğru cevap için YKS düzeyinde kısa ve net bir açıklama.")
   })).describe('İçeriğe dayalı, YKS formatında 3-5 çoktan seçmeli alıştırma sorusu, cevap anahtarı ve açıklamalarıyla birlikte.')),
-  formattedStudyOutput: z.string().describe('Tüm bölümleri (Özet, Anahtar Noktalar, Ana Fikir, Sınav İpuçları, Alıştırma Soruları) net Markdown başlıkları ile içeren, doğrudan çalışma PDF\'si olarak kullanılabilecek birleştirilmiş metin.')
+  formattedStudyOutput: z.string().describe('Tüm istenen bölümleri (Özet, Anahtar Noktalar, Ana Fikir, Sınav İpuçları, Alıştırma Soruları) net Markdown başlıkları ile içeren, doğrudan çalışma PDF\'si olarak kullanılabilecek birleştirilmiş metin.')
 });
 
 export type SummarizePdfForStudentOutput = z.infer<typeof SummarizePdfForStudentOutputSchema>;
@@ -46,23 +49,34 @@ const prompt = ai.definePrompt({
   prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilere akademik metinleri en etkili şekilde anlamaları ve sınava nokta atışı hazırlanmaları konusunda yardımcı olan, son derece deneyimli ve uzman bir AI YKS koçusun. 
 Görevin, karmaşık bilgileri YKS formatına ve öğrenci seviyesine uygun şekilde basitleştirmek, önemli noktaları vurgulamak ve öğrencinin konuyu derinlemesine kavramasını sağlamaktır. Cevapların her zaman YKS öğrencisinin bakış açısıyla, onun için en faydalı olacak şekilde ve Türkçe dilinde olmalıdır.
 
-Bir PDF'den çıkarılan aşağıdaki metin verildiğinde, {{summaryLength}} uzunluk tercihine göre, öğrenci dostu, motive edici ve YKS'ye odaklı bir tonda aşağıdaki görevleri yerine getir. Çıktını, belirtilen şemaya harfiyen uyacak şekilde yapılandır.
+Bir PDF'den çıkarılan aşağıdaki metin verildiğinde, {{summaryLength}} uzunluk tercihine, {{outputDetail}} çıktı detayı isteğine ve varsa {{keywords}} anahtar kelimelerine veya {{pageRange}} sayfa aralığı bilgisine göre, öğrenci dostu, motive edici ve YKS'ye odaklı bir tonda aşağıdaki görevleri yerine getir. Çıktını, belirtilen şemaya harfiyen uyacak şekilde yapılandır.
 
-1.  **Özet (Paragraf Formatında)**: Metni, bir YKS öğrencisinin kolayca anlayabileceği, akıcı ve net bir dille özetle. {{summaryLength}} seçeneğine göre özetin detay seviyesini ayarla:
+Öğrencinin Özel İstekleri:
+{{#if keywords}}
+- Odaklanılacak Anahtar Kelimeler: {{{keywords}}} (Lütfen özetini bu kelimeler etrafında şekillendir.)
+{{/if}}
+{{#if pageRange}}
+- Odaklanılacak Sayfa Aralığı (Kavramsal): {{{pageRange}}} (Lütfen bu metnin belirtilen sayfa aralığından geldiğini varsayarak veya o aralıktaki bilgilere öncelik vererek özetle.)
+{{/if}}
+
+İstenen Çıktı Detayı: {{{outputDetail}}}
+
+İstenen Çıktı Bölümleri:
+1.  **Özet (Paragraf Formatında)**: Metni, bir YKS öğrencisinin kolayca anlayabileceği, akıcı ve net bir dille özetle. {{summaryLength}} seçeneğine göre özetin detay seviyesini ayarla. Eğer 'outputDetail' sadece belirli bir bölümü istiyorsa (örn: 'key_points_only'), bu bölümü atlayabilir veya çok kısa tutabilirsin.
     *   'short': Konunun sadece en kritik özünü birkaç cümleyle ver.
     *   'medium': Ana argümanları ve önemli alt başlıkları içeren dengeli bir özet sun.
     *   'detailed': Metnin tüm önemli yönlerini kapsayan, daha kapsamlı bir özet oluştur.
     Her zaman paragraflar halinde yaz.
-2.  **Anahtar Noktalar (Madde İşaretleri)**: Metindeki YKS için en önemli, akılda kalıcı olması gereken bilgileri 5-7 madde halinde listele. Bunlar, öğrencinin hızlı tekrar yapmasına ve konunun iskeletini görmesine yardımcı olmalı.
-3.  **Ana Fikir**: Parçanın YKS açısından temel mesajını veya konusunu tek ve etkili bir cümleyle ifade et. "Bu metin YKS'de şu konuyu anlamak için önemlidir: ..." gibi bir giriş yapabilirsin.
-4.  **YKS Sınav İpuçları (Madde İşaretleri)**: Metinden YKS'de soru olarak çıkma potansiyeli yüksek olan kilit tanımları, önemli tarihleri, formülleri, kavramları, neden-sonuç ilişkilerini veya karşılaştırmaları 4-6 madde halinde belirt. "YKS'de Bu Kısımlara Dikkat!" gibi bir başlık kullanabilirsin.
-5.  **YKS Tarzı Alıştırma Soruları (isteğe bağlı ama şiddetle tavsiye edilir)**: Eğer içerik uygunsa, metindeki bilgileri kullanarak YKS formatına uygun, anlamayı ve yorumlamayı ölçen 3-5 adet çoktan seçmeli soru oluştur. Her soru için:
+2.  **Anahtar Noktalar (Madde İşaretleri)**: Metindeki YKS için en önemli, akılda kalıcı olması gereken bilgileri 5-7 madde halinde listele. Bunlar, öğrencinin hızlı tekrar yapmasına ve konunun iskeletini görmesine yardımcı olmalı. Eğer 'outputDetail' sadece belirli bir bölümü istiyorsa (örn: 'exam_tips_only'), bu bölümü atlayabilirsin.
+3.  **Ana Fikir**: Parçanın YKS açısından temel mesajını veya konusunu tek ve etkili bir cümleyle ifade et. "Bu metin YKS'de şu konuyu anlamak için önemlidir: ..." gibi bir giriş yapabilirsin. Eğer 'outputDetail' sadece belirli bir bölümü istiyorsa, bu bölümü atlayabilirsin.
+4.  **YKS Sınav İpuçları (Madde İşaretleri)**: Metinden YKS'de soru olarak çıkma potansiyeli yüksek olan kilit tanımları, önemli tarihleri, formülleri, kavramları, neden-sonuç ilişkilerini veya karşılaştırmaları 4-6 madde halinde belirt. "YKS'de Bu Kısımlara Dikkat!" gibi bir başlık kullanabilirsin. Eğer 'outputDetail' sadece belirli bir bölümü istiyorsa (örn: 'key_points_only'), bu bölümü atlayabilirsin.
+5.  **YKS Tarzı Alıştırma Soruları (isteğe bağlı ama şiddetle tavsiye edilir)**: Eğer içerik uygunsa ve 'outputDetail' 'questions_only' veya 'full' ise, metindeki bilgileri kullanarak YKS formatına uygun, anlamayı ve yorumlamayı ölçen 3-5 adet çoktan seçmeli soru oluştur. Her soru için:
     *   **Soru Metni**: Açık ve net olmalı.
     *   **Seçenekler**: A, B, C, D, E şeklinde 5 seçenek sun. Çeldiriciler mantıklı ve konuya yakın olmalı.
     *   **Doğru Cevap**: Sadece doğru seçeneğin harfini belirt (örn: "C").
     *   **Açıklama**: Doğru cevabın neden doğru olduğunu ve diğer seçeneklerin neden yanlış olduğunu kısaca YKS öğrencisinin anlayacağı dilde açıkla.
-    Eğer içerik soru üretmeye uygun değilse, bu bölümü atla ve 'practiceQuestions' alanını boş bırak.
-6.  **Formatlanmış Çalışma Çıktısı**: Yukarıdaki tüm bölümleri (Özet, Anahtar Noktalar, Ana Fikir, YKS Sınav İpuçları ve Alıştırma Soruları - eğer oluşturulduysa) net Markdown formatlaması kullanarak tek bir dizede birleştir. "## Özet", "## Anahtar Noktalar", "## Ana Fikir", "## YKS Sınav İpuçları", "## YKS Tarzı Alıştırma Soruları" gibi başlıklar kullan. Bu birleştirilmiş çıktı doğrudan kullanılacaktır.
+    Eğer içerik soru üretmeye uygun değilse veya 'outputDetail' bunu istemiyorsa, bu bölümü atla ve 'practiceQuestions' alanını boş bırak.
+6.  **Formatlanmış Çalışma Çıktısı**: Yukarıdaki istenen bölümleri ({{{outputDetail}}} seçeneğine göre) net Markdown formatlaması kullanarak tek bir dizede birleştir. "## Özet", "## Anahtar Noktalar", "## Ana Fikir", "## YKS Sınav İpuçları", "## YKS Tarzı Alıştırma Soruları" gibi başlıklar kullan. Bu birleştirilmiş çıktı doğrudan kullanılacaktır. Eğer 'outputDetail' örneğin 'key_points_only' ise, formattedStudyOutput sadece "## Anahtar Noktalar" başlığını ve içeriğini içermelidir.
 
 Unutma, hedefin öğrencinin YKS'de başarılı olmasına yardımcı olmak. Bilgiyi en sindirilebilir ve en akılda kalıcı şekilde sun.
 
@@ -81,10 +95,31 @@ const summarizePdfForStudentFlow = ai.defineFlow(
     if (!output) {
       throw new Error("AI, PDF özeti için şemaya uygun bir yanıt üretemedi.");
     }
-    // Ensure practiceQuestions is an array, even if empty, if not provided by AI but schema expects it.
-     if (output.practiceQuestions === undefined && SummarizePdfForStudentOutputSchema.shape.practiceQuestions.isOptional() === false) {
+    
+    // Output detail'e göre gereksiz alanları temizleyebilir veya LLM'in bunu zaten yaptığına güvenebiliriz.
+    // Şimdilik LLM'in formattedStudyOutput'u doğru şekilde oluşturduğuna güveniyoruz.
+    // Örneğin:
+    // if (input.outputDetail === "key_points_only") {
+    //   output.summary = "Sadece anahtar noktalar istendi.";
+    //   output.mainIdea = "Sadece anahtar noktalar istendi.";
+    //   output.examTips = [];
+    //   output.practiceQuestions = [];
+    // } // Bu tür bir mantık eklenebilir, ancak prompt'un bunu yönetmesi daha iyi olabilir.
+
+    if (output.practiceQuestions === undefined && SummarizePdfForStudentOutputSchema.shape.practiceQuestions.isOptional() === false && input.outputDetail === 'full') {
         output.practiceQuestions = [];
     }
+    if (input.outputDetail !== 'full' && input.outputDetail !== 'questions_only') {
+        output.practiceQuestions = undefined; // Remove if not requested
+    }
+    if (input.outputDetail !== 'full' && input.outputDetail !== 'key_points_only') {
+        output.keyPoints = [];
+    }
+     if (input.outputDetail !== 'full' && input.outputDetail !== 'exam_tips_only') {
+        output.examTips = [];
+    }
+
+
     return output;
   }
 );

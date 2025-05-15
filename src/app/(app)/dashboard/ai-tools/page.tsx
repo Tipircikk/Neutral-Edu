@@ -2,7 +2,7 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { FileScan, HelpCircle, FileTextIcon, Lightbulb, ArrowRight } from "lucide-react";
+import { FileScan, HelpCircle, FileTextIcon, Lightbulb, ArrowRight, LayoutGrid } from "lucide-react"; // Added LayoutGrid
 
 const aiTools = [
   {
@@ -17,21 +17,28 @@ const aiTools = [
     description: "Karmaşık sorularınıza adım adım çözümler ve açıklamalar alın. İsterseniz soru içeren bir görsel de yükleyebilirsiniz.",
     icon: <HelpCircle className="h-10 w-10 text-primary mb-4" />,
     link: "/dashboard/ai-tools/question-solver",
-    status: "active", // Changed from soon
+    status: "active",
   },
   {
     name: "AI Test Oluşturucu",
     description: "Belirlediğiniz konulardan pratik testler oluşturun.",
     icon: <FileTextIcon className="h-10 w-10 text-primary mb-4" />,
     link: "/dashboard/ai-tools/test-generator",
-    status: "active", // Changed from soon
+    status: "active",
   },
   {
     name: "AI Konu Özetleyici",
     description: "Geniş konuları veya metinleri temel kavramlarına indirgeyerek hızlıca öğrenin.",
     icon: <Lightbulb className="h-10 w-10 text-primary mb-4" />,
     link: "/dashboard/ai-tools/topic-summarizer",
-    status: "active", // Changed from soon
+    status: "active",
+  },
+  {
+    name: "AI Bilgi Kartı Oluşturucu",
+    description: "Önemli kavramlardan ve tanımlardan hızlıca çalışmak için etkileşimli bilgi kartları (flashcard) oluşturun.",
+    icon: <LayoutGrid className="h-10 w-10 text-primary mb-4" />,
+    link: "/dashboard/ai-tools/flashcard-generator",
+    status: "soon", // New tool, initially as "soon"
   },
 ];
 

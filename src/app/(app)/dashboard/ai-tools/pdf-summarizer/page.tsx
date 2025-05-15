@@ -13,6 +13,7 @@ import { Terminal, Loader2, AlertTriangle, FileScan } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 
 
 export default function PdfSummarizerPage() {
@@ -20,7 +21,12 @@ export default function PdfSummarizerPage() {
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [pdfTextContent, setPdfTextContent] = useState<string | null>(null);
   const [currentFileName, setCurrentFileName] = useState<string | undefined>(undefined);
-  const [summaryLength, setSummaryLength] = useState<"short" | "medium" | "detailed">("medium");
+  
+  const [summaryLength, setSummaryLength] = useState<SummarizePdfForStudentInput["summaryLength"]>("medium");
+  const [keywords, setKeywords] = useState<string>("");
+  const [pageRange, setPageRange] = useState<string>("");
+  const [outputDetail, setOutputDetail] = useState<SummarizePdfForStudentInput["outputDetail"]>("full");
+
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
 
@@ -73,7 +79,13 @@ export default function PdfSummarizerPage() {
       setPdfTextContent(text);
       toast({ title: "Metin Çıkarıldı", description: "Şimdi özetiniz oluşturuluyor..." });
 
-      const input: SummarizePdfForStudentInput = { pdfText: text, summaryLength };
+      const input: SummarizePdfForStudentInput = { 
+        pdfText: text, 
+        summaryLength,
+        keywords: keywords.trim() || undefined,
+        pageRange: pageRange.trim() || undefined,
+        outputDetail
+      };
       const result = await summarizePdfForStudent(input);
       
       if (result && result.formattedStudyOutput) { 
@@ -101,6 +113,8 @@ export default function PdfSummarizerPage() {
     }
   };
   
+  const isProcessingDisabled = isSummarizing || (!canSummarize && !isSummarizing && userProfile?.dailyRemainingQuota === 0);
+
   if (userProfileLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-20rem)]">
@@ -119,27 +133,72 @@ export default function PdfSummarizerPage() {
                 <CardTitle className="text-2xl">AI PDF Özetleyici</CardTitle>
             </div>
           <CardDescription>
-            PDF belgenizi yükleyin, özet uzunluğunu seçin ve yapay zekanın sizin için kapsamlı bir özet oluşturmasına izin verin.
+            PDF belgenizi yükleyin, özetleme seçeneklerini ayarlayın ve yapay zekanın sizin için kapsamlı bir özet oluşturmasına izin verin.
           </CardDescription>
         </CardHeader>
-         <CardContent>
-          <div className="mb-4 max-w-xs">
-            <Label htmlFor="summaryLength" className="mb-1 block">Özet Uzunluğu</Label>
-            <Select
-              value={summaryLength}
-              onValueChange={(value: "short" | "medium" | "detailed") => setSummaryLength(value)}
-              disabled={isSummarizing || (!canSummarize && !isSummarizing && userProfile?.dailyRemainingQuota === 0)}
-            >
-              <SelectTrigger id="summaryLength">
-                <SelectValue placeholder="Özet uzunluğunu seçin" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="short">Kısa (Ana Fikir)</SelectItem>
-                <SelectItem value="medium">Orta (Dengeli)</SelectItem>
-                <SelectItem value="detailed">Detaylı (Kapsamlı)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+         <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <Label htmlFor="summaryLength" className="mb-1 block">Özet Uzunluğu</Label>
+                    <Select
+                    value={summaryLength}
+                    onValueChange={(value: SummarizePdfForStudentInput["summaryLength"]) => setSummaryLength(value)}
+                    disabled={isProcessingDisabled}
+                    >
+                    <SelectTrigger id="summaryLength">
+                        <SelectValue placeholder="Özet uzunluğunu seçin" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="short">Kısa (Ana Fikir)</SelectItem>
+                        <SelectItem value="medium">Orta (Dengeli)</SelectItem>
+                        <SelectItem value="detailed">Detaylı (Kapsamlı)</SelectItem>
+                    </SelectContent>
+                    </Select>
+                </div>
+                 <div>
+                    <Label htmlFor="outputDetail" className="mb-1 block">Çıktı Detayı</Label>
+                    <Select
+                    value={outputDetail}
+                    onValueChange={(value: SummarizePdfForStudentInput["outputDetail"]) => setOutputDetail(value)}
+                    disabled={isProcessingDisabled}
+                    >
+                    <SelectTrigger id="outputDetail">
+                        <SelectValue placeholder="Çıktı detayını seçin" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="full">Tam Özet (Varsayılan)</SelectItem>
+                        <SelectItem value="key_points_only">Sadece Anahtar Noktalar</SelectItem>
+                        <SelectItem value="exam_tips_only">Sadece Sınav İpuçları</SelectItem>
+                        <SelectItem value="questions_only">Sadece Örnek Sorular</SelectItem>
+                    </SelectContent>
+                    </Select>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div>
+                    <Label htmlFor="keywords" className="mb-1 block">Anahtar Kelimeler (isteğe bağlı)</Label>
+                    <Input 
+                        id="keywords" 
+                        placeholder="örn: fotosentez, hücre zarı, enerji"
+                        value={keywords}
+                        onChange={(e) => setKeywords(e.target.value)}
+                        disabled={isProcessingDisabled}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Virgülle ayırarak birden fazla anahtar kelime girebilirsiniz.</p>
+                </div>
+                <div>
+                    <Label htmlFor="pageRange" className="mb-1 block">Sayfa Aralığı (isteğe bağlı)</Label>
+                    <Input 
+                        id="pageRange" 
+                        placeholder="örn: 5-10, 12, 15-20"
+                        value={pageRange}
+                        onChange={(e) => setPageRange(e.target.value)}
+                        disabled={isProcessingDisabled}
+                    />
+                     <p className="text-xs text-muted-foreground mt-1">Belirli sayfalara odaklanmak için (AI yorumuna göre).</p>
+                </div>
+            </div>
         </CardContent>
       </Card>
 
@@ -177,7 +236,7 @@ export default function PdfSummarizerPage() {
           <Terminal className="h-4 w-4" />
           <AlertTitle>Özetlemeye Hazır!</AlertTitle>
           <AlertDescription>
-            Başlamak için yukarıdaki formu kullanarak bir PDF belgesi yükleyin. Yapay zeka tarafından oluşturulan özetiniz burada görünecektir.
+            Başlamak için yukarıdaki formu kullanarak bir PDF belgesi yükleyin ve seçenekleri ayarlayın. Yapay zeka tarafından oluşturulan özetiniz burada görünecektir.
           </AlertDescription>
         </Alert>
       )}

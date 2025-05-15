@@ -2,7 +2,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useState } // Added useState
+import { useEffect, useState } 
   from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
@@ -24,7 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
-import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy } from "lucide-react";
+import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid } from "lucide-react"; 
 import Link from "next/link";
 import QuotaDisplay from "@/components/dashboard/QuotaDisplay";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
@@ -37,7 +37,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const { userProfile, loading: userProfileLoading } = useUser();
   const router = useRouter();
   const pathname = usePathname();
-  const [isAiToolsSubmenuOpen, setIsAiToolsSubmenuOpen] = useState(false); // State for AI Tools submenu
+  const [isAiToolsSubmenuOpen, setIsAiToolsSubmenuOpen] = useState(false); 
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -45,7 +45,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     }
   }, [user, authLoading, router]);
 
-  // Open AI Tools submenu if a path inside it is active
   useEffect(() => {
     if (pathname.startsWith('/dashboard/ai-tools')) {
       setIsAiToolsSubmenuOpen(true);
@@ -119,7 +118,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                     className="justify-between"
                     isActive={isAiToolsPathActive}
                     onClick={() => setIsAiToolsSubmenuOpen(!isAiToolsSubmenuOpen)}
-                    data-state={isAiToolsSubmenuOpen ? "open" : "closed"} // For styling chevrons
+                    data-state={isAiToolsSubmenuOpen ? "open" : "closed"} 
                     tooltip="Yapay Zeka Araçları"
                   >
                     <div className="flex items-center gap-2"><Wand2 /> <span>Yapay Zeka Araçları</span></div>
@@ -145,6 +144,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/topic-summarizer"}>
                           <Link href="/dashboard/ai-tools/topic-summarizer"><Lightbulb /><span>AI Konu Özetleyici</span></Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                       <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/flashcard-generator"}>
+                          <Link href="/dashboard/ai-tools/flashcard-generator"><LayoutGrid /><span>AI Bilgi Kartları</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                     </SidebarMenuSub>
@@ -206,5 +210,3 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     </SidebarProvider>
   );
 }
-
-    
