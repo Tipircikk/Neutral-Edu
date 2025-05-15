@@ -71,7 +71,9 @@ export default function TestGeneratorPage() {
       if (result && result.questions && result.questions.length > 0) {
         setTestOutput(result);
         toast({ title: "Test Hazır!", description: "Belirttiğiniz konu için bir test oluşturuldu." });
-        if (decrementQuota) await decrementQuota();
+        if (decrementQuota) {
+            await decrementQuota(currentProfile); // Pass currentProfile
+        }
         const updatedProfileAgain = await memoizedCheckAndResetQuota();
         if (updatedProfileAgain) {
           setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);

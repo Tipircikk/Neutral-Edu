@@ -96,7 +96,9 @@ export default function PdfSummarizerPage() {
       if (result && result.formattedStudyOutput) { 
         setSummaryOutput(result); 
         toast({ title: "Özet Oluşturuldu!", description: "PDF özetiniz hazır." });
-        if (decrementQuota) await decrementQuota(); 
+        if (decrementQuota) {
+            await decrementQuota(currentProfile); // Pass currentProfile
+        }
         const updatedProfileAgain = await memoizedCheckAndResetQuota(); 
          if (updatedProfileAgain) {
           setCanSummarize((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);

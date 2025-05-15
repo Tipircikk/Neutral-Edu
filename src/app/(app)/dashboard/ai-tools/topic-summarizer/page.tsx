@@ -70,7 +70,9 @@ export default function TopicSummarizerPage() {
       if (result && result.topicSummary) {
         setSummaryOutput(result);
         toast({ title: "Özet Hazır!", description: "Konu veya metin başarıyla özetlendi." });
-        if (decrementQuota) await decrementQuota();
+        if (decrementQuota) {
+            await decrementQuota(currentProfile); // Pass currentProfile
+        }
         const updatedProfileAgain = await memoizedCheckAndResetQuota();
         if (updatedProfileAgain) {
           setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);

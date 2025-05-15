@@ -67,33 +67,47 @@ export const useUser = () => {
         return updatedProfile;
       } catch (error) {
         console.error("Error resetting quota:", error);
-        toast({ title: "Error", description: "Failed to update daily quota.", variant: "destructive" });
+        toast({ title: "Hata", description: "Failed to update daily quota.", variant: "destructive" });
         return userProfile; // Return old profile on error
       }
     }
     return userProfile;
-  }, [authUser, userProfile, toast]);
+  }, [authUser, userProfile, toast, setUserProfile]);
 
 
-  const decrementQuota = useCallback(async () => {
-    if (!authUser || !userProfile || userProfile.dailyRemainingQuota <= 0) return false;
+  const decrementQuota = useCallback(async (profileData: UserProfile) => {
+    if (!authUser) {
+        // console.warn("Decrement quota called without authUser.");
+        return false;
+    }
+    if (!profileData) {
+        // console.warn("Decrement quota called without profileData.");
+        return false;
+    }
+    if (profileData.dailyRemainingQuota <= 0) {
+      // console.warn("Attempted to decrement quota but it's already 0 or less based on provided profileData.");
+      return false;
+    }
 
-    const newQuota = userProfile.dailyRemainingQuota - 1;
-    const today = new Date(); // Ensure lastSummaryDate is also updated
+    const newQuota = profileData.dailyRemainingQuota - 1;
+    const today = new Date();
     try {
-      const updatedFields: Partial<UserProfile> = { 
+      const updatedFields: Partial<UserProfile> = {
         dailyRemainingQuota: newQuota,
-        lastSummaryDate: Timestamp.fromDate(today) // Update last summary date to today
+        lastSummaryDate: Timestamp.fromDate(today)
       };
       await updateUserProfile(authUser.uid, updatedFields);
-      setUserProfile(prev => prev ? { ...prev, ...updatedFields } : null);
+      setUserProfile(prev => {
+        if (!prev) return null;
+        return { ...prev, ...updatedFields };
+      });
       return true;
     } catch (error) {
       console.error("Error decrementing quota:", error);
-      toast({ title: "Error", description: "Failed to update your quota.", variant: "destructive" });
+      toast({ title: "Hata", description: "Kota güncellenirken bir hata oluştu.", variant: "destructive" });
       return false;
     }
-  }, [authUser, userProfile, toast]);
+  }, [authUser, toast, setUserProfile]);
 
   return { userProfile, loading: loading || authLoading, fetchUserProfile, checkAndResetQuota, decrementQuota };
 };

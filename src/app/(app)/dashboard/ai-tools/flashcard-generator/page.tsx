@@ -75,7 +75,9 @@ export default function FlashcardGeneratorPage() {
       if (result && result.flashcards && result.flashcards.length > 0) {
         setFlashcardsOutput(result);
         toast({ title: "Bilgi Kartları Hazır!", description: "Metniniz için bilgi kartları oluşturuldu." });
-        if (decrementQuota) await decrementQuota();
+        if (decrementQuota) {
+            await decrementQuota(currentProfile); // Pass currentProfile
+        }
         const updatedProfileAgain = await memoizedCheckAndResetQuota();
         if (updatedProfileAgain) {
           setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);

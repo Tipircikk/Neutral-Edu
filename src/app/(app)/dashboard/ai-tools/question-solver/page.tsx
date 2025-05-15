@@ -11,7 +11,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { solveQuestion, type SolveQuestionOutput, type SolveQuestionInput } from "@/ai/flows/question-solver-flow"; 
-import NextImage from "next/image"; // Renamed to avoid conflict with Lucide's Image
+import NextImage from "next/image"; 
 
 export default function QuestionSolverPage() {
   const [questionText, setQuestionText] = useState("");
@@ -41,7 +41,7 @@ export default function QuestionSolverPage() {
     if (file) {
       if (file.size > 5 * 1024 * 1024) { // 5MB limit
         toast({ title: "Dosya Boyutu Büyük", description: "Lütfen 5MB'den küçük bir görsel yükleyin.", variant: "destructive" });
-        event.target.value = ""; // Reset file input
+        event.target.value = ""; 
         return;
       }
       setImageFile(file);
@@ -91,7 +91,9 @@ export default function QuestionSolverPage() {
       if (result && result.solution) {
         setAnswer(result);
         toast({ title: "Çözüm Hazır!", description: "Sorunuz için bir çözüm oluşturuldu." });
-        if (decrementQuota) await decrementQuota();
+        if (decrementQuota) {
+            await decrementQuota(currentProfile); // Pass currentProfile
+        }
         const updatedProfileAgain = await memoizedCheckAndResetQuota();
         if (updatedProfileAgain) {
           setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
