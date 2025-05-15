@@ -42,6 +42,8 @@ export default function QuestionSolverPage() {
       if (file.size > 5 * 1024 * 1024) { // 5MB limit
         toast({ title: "Dosya Boyutu Büyük", description: "Lütfen 5MB'den küçük bir görsel yükleyin.", variant: "destructive" });
         event.target.value = ""; 
+        setImageFile(null);
+        setImageDataUri(null);
         return;
       }
       setImageFile(file);
@@ -81,18 +83,16 @@ export default function QuestionSolverPage() {
       }
       const input: SolveQuestionInput = { 
         questionText: questionText.trim() || undefined, 
+        imageDataUri: imageDataUri || undefined,
         userPlan: currentProfile.plan 
       };
-      if (imageDataUri) {
-        input.imageDataUri = imageDataUri;
-      }
       const result = await solveQuestion(input);
 
       if (result && result.solution) {
         setAnswer(result);
         toast({ title: "Çözüm Hazır!", description: "Sorunuz için bir çözüm oluşturuldu." });
         if (decrementQuota) {
-            await decrementQuota(currentProfile); // Pass currentProfile
+            await decrementQuota(currentProfile);
         }
         const updatedProfileAgain = await memoizedCheckAndResetQuota();
         if (updatedProfileAgain) {
@@ -233,9 +233,6 @@ export default function QuestionSolverPage() {
                 </>
               )}
             </div>
-            {answer.confidenceScore !== undefined && (
-                <p className="text-xs text-muted-foreground mt-3 italic">AI Güven Skoru: {Math.round(answer.confidenceScore * 100)}%</p>
-            )}
             <div className="mt-4 p-3 text-xs text-destructive-foreground bg-destructive/80 rounded-md flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
               <span>NeutralEdu AI bir yapay zekadır bu nedenle hata yapabilir, bu yüzden verdiği bilgileri doğrulayınız.</span>
@@ -246,3 +243,5 @@ export default function QuestionSolverPage() {
     </div>
   );
 }
+
+    

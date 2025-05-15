@@ -16,7 +16,7 @@ import { generateFlashcards, type GenerateFlashcardsOutput, type GenerateFlashca
 
 export default function FlashcardGeneratorPage() {
   const [inputText, setInputText] = useState("");
-  const [numFlashcards, setNumFlashcards] = useState<GenerateFlashcardsInput["numFlashcards"]>(5);
+  const [numFlashcards, setNumFlashcards] = useState<number>(5); // Changed type to number for direct input
   const [difficulty, setDifficulty] = useState<GenerateFlashcardsInput["difficulty"]>("medium");
   const [flashcardsOutput, setFlashcardsOutput] = useState<GenerateFlashcardsOutput | null>(null); 
   const [isGenerating, setIsGenerating] = useState(false);
@@ -45,6 +45,10 @@ export default function FlashcardGeneratorPage() {
     }
      if (inputText.trim().length < 50) {
       toast({ title: "Metin Çok Kısa", description: "Lütfen en az 50 karakterlik bir metin girin.", variant: "destructive" });
+      return;
+    }
+    if (numFlashcards < 3 || numFlashcards > 15) {
+      toast({ title: "Geçersiz Kart Sayısı", description: "Bilgi kartı sayısı 3 ile 15 arasında olmalıdır.", variant: "destructive" });
       return;
     }
 
@@ -76,7 +80,7 @@ export default function FlashcardGeneratorPage() {
         setFlashcardsOutput(result);
         toast({ title: "Bilgi Kartları Hazır!", description: "Metniniz için bilgi kartları oluşturuldu." });
         if (decrementQuota) {
-            await decrementQuota(currentProfile); // Pass currentProfile
+            await decrementQuota(currentProfile);
         }
         const updatedProfileAgain = await memoizedCheckAndResetQuota();
         if (updatedProfileAgain) {
@@ -152,11 +156,9 @@ export default function FlashcardGeneratorPage() {
                         value={numFlashcards}
                         onChange={(e) => {
                             const val = parseInt(e.target.value, 10);
-                            if (val >= 3 && val <= 15) setNumFlashcards(val);
-                            else if (e.target.value === "") setNumFlashcards(3); // Or handle empty string differently
+                            // Allow any number to be typed, validation happens on submit
+                            setNumFlashcards(isNaN(val) ? 3 : val); // Default to 3 if NaN
                         }}
-                        min="3"
-                        max="15"
                         className="w-full p-2 border rounded-md bg-input border-border"
                         disabled={isGenerating || !canProcess}
                     />
@@ -237,3 +239,5 @@ export default function FlashcardGeneratorPage() {
     </div>
   );
 }
+
+    

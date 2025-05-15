@@ -24,7 +24,7 @@ const SolveQuestionOutputSchema = z.object({
   solution: z.string().describe('Sorunun YKS öğrencisinin anlayacağı dilde, detaylı, adım adım çözümü ve mantıksal açıklaması.'),
   relatedConcepts: z.array(z.string()).optional().describe('Çözümle ilgili veya sorunun ait olduğu konudaki YKS için önemli 2-3 anahtar akademik kavram veya konu başlığı.'),
   examStrategyTips: z.array(z.string()).optional().describe("Bu tür soruları YKS'de çözerken kullanılabilecek stratejiler veya dikkat edilmesi gereken noktalar."),
-  confidenceScore: z.number().min(0).max(1).optional().describe('AI\'nın çözümden ne kadar emin olduğu (0 ile 1 arasında). Özellikle yoruma açık veya eksik bilgili sorularda daha düşük bir skor belirtilir.'),
+  // confidenceScore alanını kaldırdık.
 });
 export type SolveQuestionOutput = z.infer<typeof SolveQuestionOutputSchema>;
 
@@ -38,6 +38,7 @@ const prompt = ai.definePrompt({
   output: {schema: SolveQuestionOutputSchema},
   prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) hazırlık sürecindeki öğrencilere her türlü akademik soruyu (Matematik, Geometri, Fizik, Kimya, Biyoloji, Türkçe, Edebiyat, Tarih, Coğrafya, Felsefe vb.) çözmede yardımcı olan, alanında zirve yapmış, son derece sabırlı, pedagojik formasyonu güçlü ve motive edici bir AI YKS uzman öğretmenisin.
 Amacın sadece doğru cevabı vermek değil, aynı zamanda sorunun çözüm mantığını en ince ayrıntısına kadar açıklamak, altında yatan temel prensipleri ve YKS'de sıkça sorulan püf noktalarını vurgulamak ve öğrencinin konuyu tam anlamıyla "öğrenmesini" sağlamaktır. Öğrencinin bu soru tipini bir daha gördüğünde kendinden emin bir şekilde çözebilmesi için gereken her türlü bilgiyi ve stratejiyi sun. Cevapların her zaman Türkçe olmalıdır.
+
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#ifEquals userPlan "pro"}}
 Pro kullanıcılar için: Çözümlerini en üst düzeyde akademik titizlikle, birden fazla çözüm yolunu (varsa) karşılaştırarak, konunun en derin ve karmaşık noktalarına değinerek sun. Öğrencinin ufkunu açacak bağlantılar kur ve ileri düzey düşünme becerilerini tetikle. En sofistike ve en kapsamlı yanıtı vermek için en gelişmiş AI yeteneklerini kullan.
@@ -66,7 +67,6 @@ Lütfen bu soruyu/soruları analiz et ve aşağıdaki formatta, son derece detay
     *   **Sonuç ve Kontrol**: Elde edilen sonucu net bir şekilde belirt. Mümkünse, sonucun mantıklı olup olmadığını veya nasıl kontrol edilebileceğini kısaca açıkla.
 2.  **İlgili Kavramlar (isteğe bağlı)**: Çözümde kullanılan veya soruyla yakından ilişkili, YKS'de bilinmesi gereken 2-3 temel akademik kavramı listele. Bu kavramların YKS'deki önemine ve soruyla bağlantısına değin.
 3.  **YKS Strateji İpuçları (isteğe bağlı)**: Bu tür sorularla YKS'de karşılaşıldığında zaman kazanmak, doğru yaklaşımı sergilemek veya yaygın hatalardan kaçınmak için 2-3 pratik strateji veya ipucu ver.
-4.  **Güven Skoru (isteğe bağlı)**: Verdiğin çözümden ne kadar emin olduğunu 0 (emin değilim/bilgi yetersiz) ile 1 (çok eminim/kesin çözüm) arasında bir değerle belirt.
 
 Davranış Kuralları:
 *   Eğer hem görsel hem de metin girdisi varsa, bunları birbiriyle %100 ilişkili kabul et. Metin, görseldeki soruyu tamamlayıcı veya açıklayıcı olabilir. Görseldeki soruyu tanımla ve metinle birleştirerek kapsamlı bir yanıt oluştur.
@@ -89,7 +89,6 @@ const questionSolverFlow = ai.defineFlow(
       throw new Error("YKS sorusu çözmek için lütfen bir metin girin veya bir görsel yükleyin.");
     }
     
-    // Tüm kullanıcılar için standart model kullanılacak.
     const modelToUse = 'googleai/gemini-2.0-flash';
 
     const {output} = await prompt(input, { model: modelToUse });
@@ -99,3 +98,5 @@ const questionSolverFlow = ai.defineFlow(
     return output;
   }
 );
+
+    

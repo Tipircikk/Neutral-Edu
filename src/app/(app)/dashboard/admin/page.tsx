@@ -5,10 +5,10 @@ import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/hooks/useUser";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ShieldAlert, Users, BarChart3, Settings, MessageSquareWarning, Edit3, Inbox, DollarSign } from "lucide-react"; // Added DollarSign
+import { Loader2, ShieldAlert, Users, BarChart3, Settings, MessageSquareWarning, Edit3, Inbox, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input"; // Added Input
-import { Label } from "@/components/ui/label"; // Added Label
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -20,11 +20,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import type { UserProfile, SupportTicket } from "@/types";
 import { db } from "@/lib/firebase/config";
-import { collection, getDocs, query, orderBy, Timestamp as FirestoreTimestamp } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, Timestamp as FirestoreTimestamp, doc, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import EditUserDialog from "@/components/admin/EditUserDialog"; 
+import ReplyTicketDialog from "@/components/admin/ReplyTicketDialog";
+import { useToast } from "@/hooks/use-toast";
 
 export default function AdminPage() {
   const { userProfile: adminUserProfile, loading: adminLoading } = useUser();
@@ -33,11 +35,14 @@ export default function AdminPage() {
   const [usersLoading, setUsersLoading] = useState(true);
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState(true);
+  const { toast } = useToast();
 
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [isEditUserDialogOpen, setIsEditUserDialogOpen] = useState(false);
 
-  // States for future pricing management
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
+  const [isReplyTicketDialogOpen, setIsReplyTicketDialogOpen] = useState(false);
+
   const [premiumPrice, setPremiumPrice] = useState("");
   const [proPrice, setProPrice] = useState("");
   const [isSavingPrices, setIsSavingPrices] = useState(false);
@@ -89,28 +94,28 @@ export default function AdminPage() {
     }
   };
 
-  // Future: useEffect to fetch current prices from Firestore for pricing management
-  // useEffect(() => {
-  //   if (adminUserProfile?.isAdmin) {
-  //     const fetchCurrentPrices = async () => {
-  //       // try {
-  //       //   const priceConfigDoc = await getDoc(doc(db, "pricingConfig", "currentPrices"));
-  //       //   if (priceConfigDoc.exists()) {
-  //       //     const prices = priceConfigDoc.data();
-  //       //     setPremiumPrice(prices.premium?.price || "");
-  //       //     setProPrice(prices.pro?.price || "");
-  //       //   }
-  //       // } catch (err) { console.error("Error fetching prices:", err); }
-  //     };
-  //     // fetchCurrentPrices();
-  //   }
-  // }, [adminUserProfile]);
-
+  const fetchCurrentPrices = async () => {
+    try {
+      const priceConfigDocRef = doc(db, "pricingConfig", "currentPrices");
+      const priceConfigDoc = await getDoc(priceConfigDocRef);
+      if (priceConfigDoc.exists()) {
+        const prices = priceConfigDoc.data();
+        setPremiumPrice(prices.premium?.price || "");
+        setProPrice(prices.pro?.price || "");
+      } else {
+        console.log("No pricing config found, using defaults or empty fields.");
+      }
+    } catch (err) { 
+      console.error("Error fetching prices:", err);
+      toast({ title: "Fiyatlar Yüklenemedi", description: "Mevcut fiyatlandırma bilgileri çekilirken bir hata oluştu.", variant: "destructive" });
+    }
+  };
 
   useEffect(() => {
     if (adminUserProfile?.isAdmin) {
       fetchAllUsers();
       fetchSupportTickets();
+      fetchCurrentPrices();
     }
   }, [adminUserProfile]);
 
@@ -182,16 +187,48 @@ export default function AdminPage() {
     setAllUsers(prevUsers => prevUsers.map(u => u.uid === updatedUser.uid ? updatedUser : u));
   };
 
+  const handleOpenReplyDialog = (ticket: SupportTicket) => {
+    setSelectedTicket(ticket);
+    setIsReplyTicketDialogOpen(true);
+  };
+  
+  // Placeholder for actual reply submission logic
+  const handleTicketReply = async (ticketId: string, replyText: string) => {
+    console.log("Replying to ticket:", ticketId, "with text:", replyText);
+    // Here you would typically update the ticket in Firestore with the reply and change status
+    // For now, just a toast and close the dialog
+    toast({ title: "Yanıt Kaydedildi (Simülasyon)", description: `Talep ${ticketId} için yanıtınız kaydedildi.`});
+    // Example: Update supportTickets state if reply is successful
+    // setSupportTickets(prevTickets => 
+    //   prevTickets.map(t => t.id === ticketId ? { ...t, status: 'answered', adminReply: replyText } : t)
+    // );
+  };
+
+
   const handleSavePrices = async () => {
-    // setIsSavingPrices(true);
-    // // Future: Logic to save premiumPrice and proPrice to Firestore
-    // // e.g., await updateDoc(doc(db, "pricingConfig", "currentPrices"), {
-    // //   premium: { price: premiumPrice, ...otherPremiumFields },
-    // //   pro: { price: proPrice, ...otherProFields }
-    // // });
-    // console.log("Fiyatlar kaydedilecek:", { premiumPrice, proPrice });
-    // // toast({ title: "Fiyatlar Güncellendi" });
-    // setIsSavingPrices(false);
+    setIsSavingPrices(true);
+    const priceData: { premium?: { price: string }, pro?: { price: string }, updatedAt?: any } = {};
+    if (premiumPrice.trim() !== "") priceData.premium = { price: premiumPrice };
+    if (proPrice.trim() !== "") priceData.pro = { price: proPrice };
+
+    if (Object.keys(priceData).length === 0) {
+        toast({ title: "Değişiklik Yok", description: "Kaydedilecek yeni fiyat bilgisi girilmedi.", variant: "default" });
+        setIsSavingPrices(false);
+        return;
+    }
+    
+    priceData.updatedAt = serverTimestamp();
+
+    try {
+      const priceConfigRef = doc(db, "pricingConfig", "currentPrices");
+      await setDoc(priceConfigRef, priceData, { merge: true });
+      toast({ title: "Fiyatlar Güncellendi", description: "Yeni fiyatlar başarıyla kaydedildi." });
+    } catch (error) {
+      console.error("Error saving prices:", error);
+      toast({ title: "Fiyat Kaydetme Hatası", description: "Fiyatlar güncellenirken bir hata oluştu.", variant: "destructive" });
+    } finally {
+      setIsSavingPrices(false);
+    }
   };
 
 
@@ -282,7 +319,7 @@ export default function AdminPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Inbox className="h-6 w-6" /> Destek Talepleri</CardTitle>
-          <CardDescription>Kullanıcı destek taleplerini görüntüleyin.</CardDescription>
+          <CardDescription>Kullanıcı destek taleplerini görüntüleyin ve yanıtlayın (yanıtlama henüz aktif değil).</CardDescription>
         </CardHeader>
         <CardContent>
           {ticketsLoading ? (
@@ -321,8 +358,8 @@ export default function AdminPage() {
                         : 'N/A'}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="outline" size="sm" disabled> 
-                        <MessageSquareWarning className="mr-2 h-3 w-3"/> Yanıtla
+                      <Button variant="outline" size="sm" onClick={() => handleOpenReplyDialog(ticket)}>
+                        <MessageSquareWarning className="mr-2 h-3 w-3"/> Yanıtla (UI)
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -336,7 +373,7 @@ export default function AdminPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><DollarSign className="h-6 w-6" /> Fiyatlandırma Yönetimi</CardTitle>
-          <CardDescription>Premium ve Pro planlarının fiyatlarını güncelleyin. (Bu bölüm henüz işlevsel değildir)</CardDescription>
+          <CardDescription>Premium ve Pro planlarının fiyatlarını güncelleyin. Bu değişiklikler fiyatlandırma sayfasını etkileyecektir.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -348,7 +385,7 @@ export default function AdminPage() {
                 placeholder="örn: 100" 
                 value={premiumPrice} 
                 onChange={(e) => setPremiumPrice(e.target.value)}
-                disabled // İşlevsel olana kadar devre dışı
+                disabled={isSavingPrices}
               />
             </div>
             <div>
@@ -359,14 +396,13 @@ export default function AdminPage() {
                 placeholder="örn: 300" 
                 value={proPrice} 
                 onChange={(e) => setProPrice(e.target.value)}
-                disabled // İşlevsel olana kadar devre dışı
+                disabled={isSavingPrices}
               />
             </div>
           </div>
-          <Button onClick={handleSavePrices} disabled={true || isSavingPrices}>
-            {isSavingPrices ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Fiyatları Kaydet (Yakında)"}
+          <Button onClick={handleSavePrices} disabled={isSavingPrices}>
+            {isSavingPrices ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Fiyatları Kaydet"}
           </Button>
-           <p className="text-xs text-muted-foreground">Not: Bu bölümdeki değişiklikler şu anda canlı fiyatlandırma sayfasını etkilemeyecektir. Fiyatlar şu anda `src/app/(landing)/pricing/page.tsx` dosyasında sabit olarak tanımlanmıştır.</p>
         </CardContent>
       </Card>
 
@@ -377,7 +413,7 @@ export default function AdminPage() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">Bu bölüm yakında detaylı kullanım raporları ve grafikleri içerecektir.</p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
             <Card className="bg-muted/50">
               <CardHeader><CardTitle className="text-lg">Toplam Kullanıcı</CardTitle></CardHeader>
               <CardContent><p className="text-3xl font-bold">{allUsers.length}</p></CardContent>
@@ -387,8 +423,12 @@ export default function AdminPage() {
               <CardContent><p className="text-3xl font-bold">{allUsers.reduce((sum, user) => sum + getUsageToday(user), 0)}</p></CardContent>
             </Card>
             <Card className="bg-muted/50">
-              <CardHeader><CardTitle className="text-lg">Aktif Pro/Premium Üye</CardTitle></CardHeader>
-              <CardContent><p className="text-3xl font-bold">{allUsers.filter(u => u.plan === 'premium' || u.plan === 'pro').length}</p></CardContent>
+              <CardHeader><CardTitle className="text-lg">Aktif Premium Üyeler</CardTitle></CardHeader>
+              <CardContent><p className="text-3xl font-bold">{allUsers.filter(u => u.plan === 'premium').length}</p></CardContent>
+            </Card>
+            <Card className="bg-muted/50">
+              <CardHeader><CardTitle className="text-lg">Aktif Pro Üyeler</CardTitle></CardHeader>
+              <CardContent><p className="text-3xl font-bold">{allUsers.filter(u => u.plan === 'pro').length}</p></CardContent>
             </Card>
           </div>
         </CardContent>
@@ -411,6 +451,16 @@ export default function AdminPage() {
           onUserUpdate={handleUserUpdate}
         />
       )}
+      {selectedTicket && (
+        <ReplyTicketDialog
+          ticket={selectedTicket}
+          isOpen={isReplyTicketDialogOpen}
+          onOpenChange={setIsReplyTicketDialogOpen}
+          onTicketReply={handleTicketReply} // Pass the actual reply handler
+        />
+      )}
     </div>
   );
 }
+
+    
