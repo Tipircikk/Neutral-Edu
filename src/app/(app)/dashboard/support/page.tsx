@@ -3,21 +3,43 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose
+} from "@/components/ui/dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, LifeBuoy, PlusCircle, Eye } from "lucide-react";
+import { Loader2, LifeBuoy, PlusCircle, Eye, Send, MessageSquare } from "lucide-react";
 import { useUser } from "@/hooks/useUser";
 import { useToast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase/config";
-import { collection, query, where, getDocs, orderBy, Timestamp as FirestoreTimestamp } from "firebase/firestore";
-import type { SupportTicket, SupportTicketStatus } from "@/types";
+import { collection, query, where, getDocs, orderBy, Timestamp as FirestoreTimestamp, addDoc, serverTimestamp, doc, updateDoc } from "firebase/firestore";
+import type { SupportTicket, SupportTicketStatus, SupportTicketSubject, SupportMessage } from "@/types";
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
+import { useForm, Controller, type SubmitHandler } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
-// TODO: Implement CreateTicketDialog and TicketDetailViewDialog
-// import CreateTicketDialog from "@/components/dashboard/support/CreateTicketDialog";
-// import TicketDetailViewDialog from "@/components/dashboard/support/TicketDetailViewDialog";
+
+const CreateTicketSchema = z.object({
+  subject: z.custom<SupportTicketSubject>((val) => ["premium", "ai_tools", "account", "bug_report", "other"].includes(val as string), {
+    message: "Lütfen geçerli bir konu seçin.",
+  }),
+  message: z.string().min(10, { message: "Mesajınız en az 10 karakter olmalıdır." }).max(1000, { message: "Mesajınız en fazla 1000 karakter olabilir." }),
+});
+type CreateTicketFormValues = z.infer<typeof CreateTicketSchema>;
 
 export default function SupportPage() {
   const { userProfile, loading: userLoading } = useUser();
@@ -25,7 +47,22 @@ export default function SupportPage() {
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [isLoadingTickets, setIsLoadingTickets] = useState(true);
   const [isCreateTicketDialogOpen, setIsCreateTicketDialogOpen] = useState(false);
+  const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
+
   const [selectedTicketToView, setSelectedTicketToView] = useState<SupportTicket | null>(null);
+  const [ticketMessages, setTicketMessages] = useState<SupportMessage[]>([]);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [newMessageText, setNewMessageText] = useState("");
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+
+
+  const { control, handleSubmit, reset, formState: { errors } } = useForm<CreateTicketFormValues>({
+    resolver: zodResolver(CreateTicketSchema),
+    defaultValues: {
+      subject: "other",
+      message: "",
+    },
+  });
 
   const fetchUserTickets = useCallback(async () => {
     if (!userProfile) return;
@@ -35,7 +72,7 @@ export default function SupportPage() {
       const q = query(
         ticketsCollection,
         where("userId", "==", userProfile.uid),
-        orderBy("createdAt", "desc")
+        orderBy("lastMessageAt", "desc") // Order by last message time
       );
       const querySnapshot = await getDocs(q);
       const userTickets = querySnapshot.docs.map(doc => {
@@ -45,7 +82,7 @@ export default function SupportPage() {
           ...data,
           createdAt: data.createdAt instanceof FirestoreTimestamp ? data.createdAt : FirestoreTimestamp.now(),
           updatedAt: data.updatedAt instanceof FirestoreTimestamp ? data.updatedAt : undefined,
-          lastReplyAt: data.lastReplyAt instanceof FirestoreTimestamp ? data.lastReplyAt : undefined,
+          lastMessageAt: data.lastMessageAt instanceof FirestoreTimestamp ? data.lastMessageAt : data.createdAt,
         } as SupportTicket;
       });
       setTickets(userTickets);
@@ -63,17 +100,123 @@ export default function SupportPage() {
     }
   }, [userProfile, fetchUserTickets]);
 
+  const fetchTicketMessages = async (ticketId: string) => {
+    if (!selectedTicketToView || selectedTicketToView.id !== ticketId) return;
+    setIsLoadingMessages(true);
+    try {
+      const messagesCollection = collection(db, "supportTickets", ticketId, "messages");
+      const q = query(messagesCollection, orderBy("timestamp", "asc"));
+      const querySnapshot = await getDocs(q);
+      const fetchedMessages = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SupportMessage));
+      setTicketMessages(fetchedMessages);
+    } catch (error) {
+      console.error("Error fetching ticket messages:", error);
+      toast({ title: "Hata", description: "Mesajlar çekilirken bir hata oluştu.", variant: "destructive" });
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedTicketToView) {
+      fetchTicketMessages(selectedTicketToView.id);
+    } else {
+      setTicketMessages([]);
+    }
+  }, [selectedTicketToView]);
+
+
+  const handleCreateTicket: SubmitHandler<CreateTicketFormValues> = async (values) => {
+    if (!userProfile) {
+      toast({ title: "Hata", description: "Yeni talep oluşturmak için giriş yapmalısınız.", variant: "destructive" });
+      return;
+    }
+    setIsSubmittingTicket(true);
+    try {
+      const now = serverTimestamp() as Timestamp; // serverTimestamp for reliable ordering
+      const initialMessageText = values.message;
+      
+      // 1. Create the main support ticket document
+      const newTicketRef = await addDoc(collection(db, "supportTickets"), {
+        userId: userProfile.uid,
+        userEmail: userProfile.email,
+        userName: userProfile.displayName,
+        subject: values.subject,
+        status: "open" as SupportTicketStatus,
+        createdAt: now,
+        updatedAt: now,
+        lastMessageSnippet: initialMessageText.substring(0, 50) + (initialMessageText.length > 50 ? "..." : ""),
+        lastMessageAt: now,
+        lastRepliedByAdmin: false,
+      });
+
+      // 2. Add the initial message to the 'messages' subcollection
+      await addDoc(collection(db, "supportTickets", newTicketRef.id, "messages"), {
+        senderId: userProfile.uid,
+        senderType: "user",
+        senderName: userProfile.displayName || userProfile.email || "Kullanıcı",
+        text: initialMessageText,
+        timestamp: now,
+      });
+
+      toast({ title: "Talep Oluşturuldu", description: "Destek talebiniz başarıyla oluşturuldu." });
+      reset();
+      setIsCreateTicketDialogOpen(false);
+      fetchUserTickets(); // Refresh the list
+    } catch (error) {
+      console.error("Error creating ticket:", error);
+      toast({ title: "Talep Oluşturma Hatası", description: "Destek talebi oluşturulurken bir hata oluştu.", variant: "destructive" });
+    } finally {
+      setIsSubmittingTicket(false);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!selectedTicketToView || !newMessageText.trim() || !userProfile) return;
+    setIsSendingMessage(true);
+    try {
+        const now = serverTimestamp() as Timestamp;
+        const messagesCollection = collection(db, "supportTickets", selectedTicketToView.id, "messages");
+        
+        await addDoc(messagesCollection, {
+            senderId: userProfile.uid,
+            senderType: "user",
+            senderName: userProfile.displayName || userProfile.email || "Kullanıcı",
+            text: newMessageText.trim(),
+            timestamp: now,
+        });
+
+        // Update parent ticket
+        const ticketDocRef = doc(db, "supportTickets", selectedTicketToView.id);
+        await updateDoc(ticketDocRef, {
+            status: "open", // Re-open if user replies to an answered ticket
+            updatedAt: now,
+            lastMessageSnippet: newMessageText.trim().substring(0, 50) + (newMessageText.trim().length > 50 ? "..." : ""),
+            lastMessageAt: now,
+            lastRepliedByAdmin: false,
+        });
+
+        setNewMessageText("");
+        fetchTicketMessages(selectedTicketToView.id); // Refresh messages
+        fetchUserTickets(); // Refresh ticket list to update lastMessageAt etc.
+        toast({title: "Mesaj Gönderildi"});
+
+    } catch (error) {
+        console.error("Error sending message:", error);
+        toast({ title: "Mesaj Gönderme Hatası", variant: "destructive"});
+    } finally {
+        setIsSendingMessage(false);
+    }
+  };
+
+
   const getStatusBadgeVariant = (status: SupportTicketStatus) => {
     switch (status) {
-      case "open":
-        return "destructive";
-      case "answered":
-        return "secondary"; // Or some other color like green
+      case "open": return "destructive";
+      case "answered": return "secondary";
       case "closed_by_user":
-      case "closed_by_admin":
-        return "outline";
-      default:
-        return "default";
+      case "closed_by_admin": return "outline";
+      default: return "default";
     }
   };
 
@@ -86,7 +229,8 @@ export default function SupportPage() {
       default: return status;
     }
   };
-   const formatTicketSubject = (subject: SupportTicket['subject']): string => {
+
+  const formatTicketSubject = (subject: SupportTicket['subject']): string => {
     switch (subject) {
       case "premium": return "Premium Üyelik";
       case "ai_tools": return "Yapay Zeka Araçları";
@@ -115,13 +259,68 @@ export default function SupportPage() {
             <LifeBuoy className="h-8 w-8 text-primary" />
             <CardTitle className="text-3xl">Destek Taleplerim</CardTitle>
           </div>
-          <Button onClick={() => { /*setIsCreateTicketDialogOpen(true) */ toast({title: "Yakında!", description: "Yeni destek talebi oluşturma özelliği yakında eklenecektir."})}}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Yeni Destek Talebi Oluştur
-          </Button>
+          <Dialog open={isCreateTicketDialogOpen} onOpenChange={setIsCreateTicketDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => setIsCreateTicketDialogOpen(true)}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Yeni Destek Talebi Oluştur
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Yeni Destek Talebi Oluştur</DialogTitle>
+                <DialogDescription>
+                  Sorununuzu veya geri bildiriminizi bize iletin. En kısa sürede yanıtlayacağız.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSubmit(handleCreateTicket)} className="space-y-4 py-4">
+                <div>
+                  <Label htmlFor="subject">Konu</Label>
+                  <Controller
+                    name="subject"
+                    control={control}
+                    render={({ field }) => (
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <SelectTrigger id="subject" className="mt-1">
+                          <SelectValue placeholder="Bir konu seçin" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="premium">Premium Üyelik Hakkında</SelectItem>
+                          <SelectItem value="ai_tools">Yapay Zeka Araçları Hakkında</SelectItem>
+                          <SelectItem value="account">Hesap Sorunları</SelectItem>
+                          <SelectItem value="bug_report">Hata Bildirimi</SelectItem>
+                          <SelectItem value="other">Diğer Konular</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {errors.subject && <p className="text-sm text-destructive mt-1">{errors.subject.message}</p>}
+                </div>
+                <div>
+                  <Label htmlFor="message">Mesajınız</Label>
+                  <Textarea
+                    id="message"
+                    placeholder="Sorununuzu detaylı bir şekilde açıklayın..."
+                    rows={6}
+                    className="mt-1"
+                    {...register("message")}
+                  />
+                  {errors.message && <p className="text-sm text-destructive mt-1">{errors.message.message}</p>}
+                </div>
+                <DialogFooter>
+                  <DialogClose asChild>
+                     <Button type="button" variant="outline" disabled={isSubmittingTicket}>İptal</Button>
+                  </DialogClose>
+                  <Button type="submit" disabled={isSubmittingTicket}>
+                    {isSubmittingTicket ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Talep Gönder"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         </CardHeader>
         <CardDescription className="px-6 pb-2">
-            Oluşturduğunuz destek taleplerini buradan takip edebilirsiniz.
+            Oluşturduğunuz destek taleplerini buradan takip edebilir ve yanıtlayabilirsiniz.
         </CardDescription>
         <CardContent>
           {isLoadingTickets ? (
@@ -137,7 +336,7 @@ export default function SupportPage() {
                 <TableRow>
                   <TableHead>Konu</TableHead>
                   <TableHead>Durum</TableHead>
-                  <TableHead>Son Güncelleme</TableHead>
+                  <TableHead>Son Mesaj</TableHead>
                   <TableHead className="text-right">İşlemler</TableHead>
                 </TableRow>
               </TableHeader>
@@ -153,12 +352,58 @@ export default function SupportPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {format( (ticket.lastReplyAt || ticket.updatedAt || ticket.createdAt).toDate(), 'PPpp', { locale: tr })}
+                      {ticket.lastMessageAt ? format(ticket.lastMessageAt.toDate(), 'PPpp', { locale: tr }) : 'N/A'}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="outline" size="sm" onClick={() => { /*setSelectedTicketToView(ticket) */ toast({title: "Yakında!", description: "Talep detaylarını görüntüleme yakında eklenecektir."}) }}>
-                        <Eye className="mr-2 h-3 w-3" /> Görüntüle
-                      </Button>
+                       <Dialog open={selectedTicketToView?.id === ticket.id} onOpenChange={(isOpen) => !isOpen && setSelectedTicketToView(null)}>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="sm" onClick={() => setSelectedTicketToView(ticket)}>
+                            <Eye className="mr-2 h-3 w-3" /> Görüntüle
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-xl">
+                          <DialogHeader>
+                            <DialogTitle>Destek Talebi: {formatTicketSubject(ticket.subject)}</DialogTitle>
+                            <DialogDescription>
+                              Talep ID: {ticket.id} | Durum: {formatTicketStatus(ticket.status)}
+                            </DialogDescription>
+                          </DialogHeader>
+                          <ScrollArea className="h-[300px] w-full rounded-md border p-4 my-4 bg-muted/30">
+                            {isLoadingMessages ? (
+                                <div className="flex justify-center items-center h-full">
+                                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                                </div>
+                            ) : ticketMessages.length > 0 ? (
+                                ticketMessages.map(msg => (
+                                    <div key={msg.id} className={`mb-3 p-3 rounded-lg max-w-[80%] ${msg.senderType === 'user' ? 'bg-primary/10 ml-auto text-right' : 'bg-secondary/50 mr-auto text-left'}`}>
+                                        <p className="text-xs font-semibold mb-1">{msg.senderName} {msg.senderType === 'admin' && <Badge variant="outline" className="ml-1 text-xs">Destek</Badge>}</p>
+                                        <p className="text-sm whitespace-pre-line">{msg.text}</p>
+                                        <p className="text-xs text-muted-foreground mt-1">{format(msg.timestamp.toDate(), 'Pp', {locale: tr})}</p>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-sm text-muted-foreground text-center">Bu talep için henüz mesaj yok.</p>
+                            )}
+                          </ScrollArea>
+                          <div className="space-y-2">
+                            <Textarea 
+                                placeholder="Yanıtınızı yazın..."
+                                value={newMessageText}
+                                onChange={(e) => setNewMessageText(e.target.value)}
+                                rows={3}
+                                disabled={isSendingMessage || ticket.status === 'closed_by_admin' || ticket.status === 'closed_by_user'}
+                            />
+                            <Button onClick={handleSendMessage} disabled={isSendingMessage || !newMessageText.trim() || ticket.status === 'closed_by_admin' || ticket.status === 'closed_by_user'}>
+                                {isSendingMessage ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4" />} Gönder
+                            </Button>
+                          </div>
+                           <DialogFooter className="mt-4">
+                                <DialogClose asChild>
+                                    <Button type="button" variant="outline">Kapat</Button>
+                                </DialogClose>
+                            </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -167,30 +412,6 @@ export default function SupportPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Placeholder for CreateTicketDialog - To be implemented later
-      {isCreateTicketDialogOpen && (
-        <CreateTicketDialog
-          isOpen={isCreateTicketDialogOpen}
-          onOpenChange={setIsCreateTicketDialogOpen}
-          onTicketCreated={() => {
-            fetchUserTickets(); // Refresh list after creation
-            setIsCreateTicketDialogOpen(false);
-          }}
-        />
-      )}
-      */}
-
-      {/* Placeholder for TicketDetailViewDialog - To be implemented later
-      {selectedTicketToView && (
-        <TicketDetailViewDialog
-          ticket={selectedTicketToView}
-          isOpen={!!selectedTicketToView}
-          onOpenChange={() => setSelectedTicketToView(null)}
-          onReplySuccess={fetchUserTickets} // Refresh list after reply
-        />
-      )}
-      */}
     </div>
   );
 }

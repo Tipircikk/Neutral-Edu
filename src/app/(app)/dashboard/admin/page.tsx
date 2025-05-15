@@ -18,13 +18,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import type { UserProfile, SupportTicket, PricingConfig } from "@/types";
+import type { UserProfile, SupportTicket, PricingConfig, SupportMessage } from "@/types";
 import { db } from "@/lib/firebase/config";
-import { collection, getDocs, query, orderBy, Timestamp as FirestoreTimestamp, doc, updateDoc, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, Timestamp as FirestoreTimestamp, doc, updateDoc, setDoc, serverTimestamp, getDoc, addDoc } from "firebase/firestore";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
-import EditUserDialog from "@/components/admin/EditUserDialog"; 
+import EditUserDialog from "@/components/admin/EditUserDialog";
 import ReplyTicketDialog from "@/components/admin/ReplyTicketDialog";
 import { useToast } from "@/hooks/use-toast";
 
@@ -57,7 +57,7 @@ export default function AdminPage() {
     setUsersLoading(true);
     try {
       const usersCollection = collection(db, "users");
-      const usersQuery = query(usersCollection, orderBy("isAdmin", "desc"), orderBy("plan", "asc")); 
+      const usersQuery = query(usersCollection, orderBy("isAdmin", "desc"), orderBy("plan", "asc"));
       const querySnapshot = await getDocs(usersQuery);
       const usersList = querySnapshot.docs.map(doc => {
         const data = doc.data();
@@ -65,10 +65,16 @@ export default function AdminPage() {
         if (lastSummaryDate && typeof lastSummaryDate === 'object' && 'seconds' in lastSummaryDate && 'nanoseconds' in lastSummaryDate) {
             lastSummaryDate = new FirestoreTimestamp(lastSummaryDate.seconds, lastSummaryDate.nanoseconds);
         }
+        let planExpiryDate = data.planExpiryDate;
+        if (planExpiryDate && typeof planExpiryDate === 'object' && 'seconds' in planExpiryDate && 'nanoseconds' in planExpiryDate) {
+            planExpiryDate = new FirestoreTimestamp(planExpiryDate.seconds, planExpiryDate.nanoseconds);
+        }
+
         return {
-            uid: doc.id, 
+            uid: doc.id,
             ...data,
             lastSummaryDate: lastSummaryDate,
+            planExpiryDate: planExpiryDate,
         } as UserProfile;
       });
       setAllUsers(usersList);
@@ -83,17 +89,17 @@ export default function AdminPage() {
   const fetchSupportTickets = async () => {
     setTicketsLoading(true);
     try {
-      const ticketsCollection = collection(db, "supportTickets");
-      const ticketsQuery = query(ticketsCollection, orderBy("status", "asc"), orderBy("createdAt", "desc"));
+      const ticketsCollectionRef = collection(db, "supportTickets");
+      const ticketsQuery = query(ticketsCollectionRef, orderBy("status", "asc"), orderBy("lastMessageAt", "desc"));
       const querySnapshot = await getDocs(ticketsQuery);
-      const ticketsList = querySnapshot.docs.map(doc => {
-        const data = doc.data();
-        return { 
-          id: doc.id, 
+      const ticketsList = querySnapshot.docs.map(docSnapshot => {
+        const data = docSnapshot.data();
+        return {
+          id: docSnapshot.id,
           ...data,
-          createdAt: data.createdAt instanceof FirestoreTimestamp ? data.createdAt : FirestoreTimestamp.now(), // Ensure createdAt is a Timestamp
+          createdAt: data.createdAt instanceof FirestoreTimestamp ? data.createdAt : FirestoreTimestamp.now(),
           updatedAt: data.updatedAt instanceof FirestoreTimestamp ? data.updatedAt : undefined,
-          lastReplyAt: data.lastReplyAt instanceof FirestoreTimestamp ? data.lastReplyAt : undefined,
+          lastMessageAt: data.lastMessageAt instanceof FirestoreTimestamp ? data.lastMessageAt : data.createdAt,
         } as SupportTicket;
       });
       setSupportTickets(ticketsList);
@@ -116,7 +122,7 @@ export default function AdminPage() {
       } else {
         console.log("No pricing config found, using defaults or empty fields.");
       }
-    } catch (err) { 
+    } catch (err) {
       console.error("Error fetching prices:", err);
       toast({ title: "Fiyatlar Yüklenemedi", description: "Mevcut fiyatlandırma bilgileri çekilirken bir hata oluştu.", variant: "destructive" });
     }
@@ -151,24 +157,23 @@ export default function AdminPage() {
     if (!user.lastSummaryDate) return 0;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     let lastDate: Date;
     if (user.lastSummaryDate instanceof FirestoreTimestamp) {
         lastDate = user.lastSummaryDate.toDate();
     } else if (typeof user.lastSummaryDate === 'string') {
         lastDate = new Date(user.lastSummaryDate);
-    } else { 
+    } else {
         return 0; // Invalid date format
     }
     lastDate.setHours(0,0,0,0);
 
     if (lastDate.getTime() === today.getTime()) {
       const totalQuota = getDefaultQuota(user.plan);
-      // If dailyRemainingQuota is undefined or not a number, assume full quota was remaining at start of day
       const remainingQuota = typeof user.dailyRemainingQuota === 'number' ? user.dailyRemainingQuota : totalQuota;
       return totalQuota - remainingQuota;
     }
-    return 0; // Not today, so usage is 0 for today
+    return 0;
   };
 
   const formatTicketSubject = (subject: SupportTicket['subject']): string => {
@@ -181,7 +186,7 @@ export default function AdminPage() {
       default: return subject;
     }
   };
-  
+
   const formatTicketStatus = (status: SupportTicket['status']): string => {
     switch (status) {
       case "open": return "Açık";
@@ -199,20 +204,19 @@ export default function AdminPage() {
 
   const handleUserUpdateSuccess = (updatedUser: UserProfile) => {
     setAllUsers(prevUsers => prevUsers.map(u => u.uid === updatedUser.uid ? updatedUser : u));
-    fetchAllUsers(); // Re-fetch to ensure data consistency, especially if quotas changed.
+    // fetchAllUsers(); // Re-fetch can be too much, rely on local update or selective fetch
   };
 
   const handleOpenReplyDialog = (ticket: SupportTicket) => {
     setSelectedTicket(ticket);
     setIsReplyTicketDialogOpen(true);
   };
-  
-  const handleTicketReplySuccess = (updatedTicket: SupportTicket) => {
-    setSupportTickets(prevTickets => 
-      prevTickets.map(t => t.id === updatedTicket.id ? { ...t, ...updatedTicket } : t)
+
+  const handleTicketReplySuccess = (updatedTicketFromDialog: SupportTicket) => {
+     setSupportTickets(prevTickets =>
+      prevTickets.map(t => (t.id === updatedTicketFromDialog.id ? { ...t, ...updatedTicketFromDialog } : t))
     );
-    // Optionally re-fetch all tickets if complex status changes occur
-    // fetchSupportTickets();
+    fetchSupportTickets(); // Refresh the list to get latest overall status
   };
 
   const handleSavePrices = async () => {
@@ -226,8 +230,8 @@ export default function AdminPage() {
         setIsSavingPrices(false);
         return;
     }
-    
-    priceData.updatedAt = serverTimestamp() as Timestamp;
+
+    priceData.updatedAt = serverTimestamp() as FirestoreTimestamp;
 
     try {
       const priceConfigRef = doc(db, "pricingConfig", "currentPrices");
@@ -273,7 +277,7 @@ export default function AdminPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Users className="h-6 w-6" /> Kullanıcı Yönetimi</CardTitle>
-          <CardDescription>Kullanıcıların planlarını ve rollerini görüntüleyin ve düzenleyin.</CardDescription>
+          <CardDescription>Kullanıcıların planlarını, rollerini ve abonelik sürelerini görüntüleyin ve düzenleyin.</CardDescription>
         </CardHeader>
         <CardContent>
           {usersLoading ? (
@@ -287,6 +291,7 @@ export default function AdminPage() {
                 <TableRow>
                   <TableHead>Email</TableHead>
                   <TableHead>Plan</TableHead>
+                  <TableHead>Plan Bitiş</TableHead>
                   <TableHead>Kalan Kota</TableHead>
                   <TableHead>Bugünkü Kullanım</TableHead>
                   <TableHead>Rolü</TableHead>
@@ -298,15 +303,20 @@ export default function AdminPage() {
                   <TableRow key={user.uid}>
                     <TableCell className="font-medium">{user.email}</TableCell>
                     <TableCell>
-                      <Badge 
+                      <Badge
                         variant={user.plan === 'pro' ? 'default' : user.plan === 'premium' ? 'secondary' : 'outline'}
                         className={
-                            user.plan === 'pro' ? 'bg-purple-600 hover:bg-purple-700 text-white' : 
+                            user.plan === 'pro' ? 'bg-purple-600 hover:bg-purple-700 text-white' :
                             user.plan === 'premium' ? 'bg-blue-500 hover:bg-blue-600 text-white' : ''
                         }
                       >
                         {user.plan.charAt(0).toUpperCase() + user.plan.slice(1)}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {user.planExpiryDate instanceof FirestoreTimestamp
+                        ? format(user.planExpiryDate.toDate(), 'PP', { locale: tr })
+                        : user.plan !== 'free' ? 'Süresiz' : 'Yok'}
                     </TableCell>
                     <TableCell>{typeof user.dailyRemainingQuota === 'number' ? user.dailyRemainingQuota : getDefaultQuota(user.plan)}</TableCell>
                     <TableCell>{getUsageToday(user)}</TableCell>
@@ -348,8 +358,8 @@ export default function AdminPage() {
                   <TableHead>Kullanıcı</TableHead>
                   <TableHead>Konu</TableHead>
                   <TableHead>Durum</TableHead>
-                  <TableHead>Mesaj (Önizleme)</TableHead>
-                  <TableHead>Tarih</TableHead>
+                  <TableHead>Son Mesaj (Özet)</TableHead>
+                  <TableHead>Son Mesaj Tarihi</TableHead>
                   <TableHead className="text-right">Eylemler</TableHead>
                 </TableRow>
               </TableHeader>
@@ -359,23 +369,23 @@ export default function AdminPage() {
                     <TableCell className="font-medium">{ticket.userEmail || ticket.userId}</TableCell>
                     <TableCell>{formatTicketSubject(ticket.subject)}</TableCell>
                     <TableCell>
-                      <Badge 
+                      <Badge
                         variant={ticket.status === 'open' ? 'destructive' : ticket.status === 'answered' ? 'secondary' : 'outline'}
                         className={ticket.status === 'answered' ? 'bg-green-500 hover:bg-green-600 text-white' : ''}
                       >
                         {formatTicketStatus(ticket.status)}
                       </Badge>
                     </TableCell>
-                    <TableCell className="max-w-xs truncate">{ticket.message}</TableCell>
+                    <TableCell className="max-w-xs truncate">{ticket.lastMessageSnippet || "İlk mesaj bekleniyor..."}</TableCell>
                     <TableCell>
-                      {ticket.createdAt instanceof FirestoreTimestamp 
-                        ? format(ticket.createdAt.toDate(), 'PPpp', { locale: tr })
+                      {ticket.lastMessageAt instanceof FirestoreTimestamp
+                        ? format(ticket.lastMessageAt.toDate(), 'PPpp', { locale: tr })
                         : 'N/A'}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button variant="outline" size="sm" onClick={() => handleOpenReplyDialog(ticket)}>
-                        <MessageSquareWarning className="mr-2 h-3 w-3"/> 
-                        {ticket.status === 'answered' ? "Yanıtı Gör/Güncelle" : "Yanıtla"}
+                        <MessageSquareWarning className="mr-2 h-3 w-3"/>
+                        Görüntüle/Yanıtla
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -385,7 +395,7 @@ export default function AdminPage() {
           )}
         </CardContent>
       </Card>
-      
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><DollarSign className="h-6 w-6" /> Fiyatlandırma Yönetimi</CardTitle>
@@ -395,22 +405,22 @@ export default function AdminPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <Label htmlFor="premiumPrice">Premium Fiyatı (₺)</Label>
-              <Input 
-                id="premiumPrice" 
-                type="number" 
-                placeholder="örn: 100" 
-                value={premiumPrice} 
+              <Input
+                id="premiumPrice"
+                type="number"
+                placeholder="örn: 100"
+                value={premiumPrice}
                 onChange={(e) => setPremiumPrice(e.target.value)}
                 disabled={isSavingPrices}
               />
             </div>
             <div>
               <Label htmlFor="proPrice">Pro Fiyatı (₺)</Label>
-              <Input 
-                id="proPrice" 
-                type="number" 
-                placeholder="örn: 300" 
-                value={proPrice} 
+              <Input
+                id="proPrice"
+                type="number"
+                placeholder="örn: 300"
+                value={proPrice}
                 onChange={(e) => setProPrice(e.target.value)}
                 disabled={isSavingPrices}
               />
@@ -467,12 +477,12 @@ export default function AdminPage() {
           onUserUpdate={handleUserUpdateSuccess}
         />
       )}
-      {selectedTicket && (
+      {selectedTicket && adminProfile && (
         <ReplyTicketDialog
           ticket={selectedTicket}
           isOpen={isReplyTicketDialogOpen}
           onOpenChange={setIsReplyTicketDialogOpen}
-          onTicketReplySuccess={handleTicketReplySuccess} 
+          onTicketReplySuccess={handleTicketReplySuccess}
         />
       )}
     </div>

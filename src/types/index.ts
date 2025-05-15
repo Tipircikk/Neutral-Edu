@@ -8,9 +8,11 @@ export interface UserProfile {
   displayName?: string | null;
   plan: "free" | "premium" | "pro";
   dailyRemainingQuota: number;
-  lastSummaryDate: Timestamp | string | null;
+  lastSummaryDate: Timestamp | string | null; // Can be string from older data, ensure conversion
   isAdmin?: boolean;
-  planExpiryDate?: Timestamp | null; // Added for subscription duration
+  planExpiryDate?: Timestamp | null;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
 }
 
 export interface AuthContextType {
@@ -22,19 +24,29 @@ export interface AuthContextType {
 export type SupportTicketStatus = "open" | "answered" | "closed_by_user" | "closed_by_admin";
 export type SupportTicketSubject = "premium" | "ai_tools" | "account" | "bug_report" | "other";
 
+// Updated SupportTicket structure
 export interface SupportTicket {
   id: string; // Firestore document ID
   userId: string;
   userEmail: string | null;
   userName?: string | null;
   subject: SupportTicketSubject;
-  message: string; // Initial message
   status: SupportTicketStatus;
   createdAt: Timestamp;
   updatedAt?: Timestamp;
-  adminReply?: string; // Single admin reply (to be evolved into a conversation model)
-  repliedBy?: string; // Admin UID
-  lastReplyAt?: Timestamp;
+  lastMessageSnippet?: string; // Snippet of the last message
+  lastMessageAt?: Timestamp;   // Timestamp of the last message
+  lastRepliedByAdmin?: boolean; // True if the last message was from an admin
+  // adminReply, repliedBy are removed as messages will be in subcollection
+}
+
+export interface SupportMessage {
+  id?: string; // Firestore document ID for the message
+  senderId: string; // UID of user or admin
+  senderType: "user" | "admin";
+  senderName: string; // Display name of sender or "Destek Ekibi"
+  text: string;
+  timestamp: Timestamp;
 }
 
 export interface PricingConfig {
