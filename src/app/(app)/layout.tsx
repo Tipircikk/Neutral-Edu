@@ -24,7 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
-import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck } from "lucide-react"; 
+import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard } from "lucide-react"; 
 import Link from "next/link";
 import QuotaDisplay from "@/components/dashboard/QuotaDisplay";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
@@ -46,7 +46,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   }, [user, authLoading, router]);
 
   useEffect(() => {
-    // Open AI Tools submenu if the current path is under /dashboard/ai-tools
     if (pathname.startsWith('/dashboard/ai-tools')) {
       setIsAiToolsSubmenuOpen(true);
     }
@@ -74,6 +73,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   const isAiToolsPathActive = pathname.startsWith('/dashboard/ai-tools');
   const isSupportPath = pathname === "/dashboard/support";
+  const isSubscriptionPath = pathname === "/dashboard/subscription";
   const isAdminPath = pathname.startsWith("/dashboard/admin");
 
   return (
@@ -162,6 +162,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 </SidebarMenuItem>
 
                 <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={isSubscriptionPath} tooltip="Aboneliğim">
+                    <Link href="/dashboard/subscription"><Gem /><span>Aboneliğim</span></Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+
+                <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={isSupportPath} tooltip="Destek Talebi">
                     <Link href="/dashboard/support"><LifeBuoy /><span>Destek Talebi</span></Link>
                   </SidebarMenuButton>
@@ -216,4 +222,3 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     </SidebarProvider>
   );
 }
-

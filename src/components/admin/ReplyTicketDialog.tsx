@@ -13,50 +13,67 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { SupportTicket } from "@/types";
+import type { SupportTicket, UserProfile } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { db } from "@/lib/firebase/config";
+import { doc, updateDoc, serverTimestamp, Timestamp } from "firebase/firestore";
+import { useUser } from "@/hooks/useUser"; // Import useUser
 
 interface ReplyTicketDialogProps {
   ticket: SupportTicket | null;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onTicketReply?: (ticketId: string, replyText: string) => Promise<void>; // Placeholder for actual reply logic
+  onTicketReplySuccess: (updatedTicket: SupportTicket) => void; 
 }
 
-export default function ReplyTicketDialog({ ticket, isOpen, onOpenChange, onTicketReply }: ReplyTicketDialogProps) {
+export default function ReplyTicketDialog({ ticket, isOpen, onOpenChange, onTicketReplySuccess }: ReplyTicketDialogProps) {
   const [replyText, setReplyText] = useState("");
   const [isReplying, setIsReplying] = useState(false);
   const { toast } = useToast();
+  const { userProfile: adminProfile } = useUser(); // Get current admin's profile
 
   useEffect(() => {
-    if (isOpen) {
-      setReplyText(""); // Clear reply text when dialog opens
+    if (isOpen && ticket) {
+      setReplyText(ticket.adminReply || ""); // Pre-fill with existing reply if any
+    } else if (!isOpen) {
+      setReplyText(""); // Clear when dialog closes
     }
-  }, [isOpen]);
+  }, [isOpen, ticket]);
 
   const handleReply = async () => {
     if (!ticket || !replyText.trim()) {
       toast({ title: "Yanıt Metni Gerekli", description: "Lütfen bir yanıt yazın.", variant: "destructive"});
       return;
     }
-    if (onTicketReply) { // If actual reply logic is provided
-      setIsReplying(true);
-      try {
-        await onTicketReply(ticket.id, replyText);
-        toast({ title: "Yanıt Gönderildi", description: "Destek talebi başarıyla yanıtlandı." });
-        onOpenChange(false);
-      } catch (error) {
-        console.error("Error replying to ticket:", error);
-        toast({ title: "Yanıt Hatası", description: "Talep yanıtlanırken bir hata oluştu.", variant: "destructive"});
-      } finally {
-        setIsReplying(false);
-      }
-    } else {
-      // Placeholder for when no onTicketReply is passed (e.g., UI setup phase)
-      toast({ title: "Yanıt Gönderildi (Simülasyon)", description: "Bu özellik henüz tam olarak aktif değil." });
-      console.log("Simulated reply for ticket:", ticket.id, "Reply:", replyText);
+    if (!adminProfile) {
+      toast({ title: "Admin Bilgisi Bulunamadı", description: "Yanıt göndermek için admin olarak giriş yapmalısınız.", variant: "destructive"});
+      return;
+    }
+
+    setIsReplying(true);
+    try {
+      const ticketRef = doc(db, "supportTickets", ticket.id);
+      const now = Timestamp.now();
+      const updatedTicketData: Partial<SupportTicket> = {
+        adminReply: replyText,
+        status: "answered",
+        repliedBy: adminProfile.uid,
+        lastReplyAt: now,
+        updatedAt: now,
+      };
+      await updateDoc(ticketRef, updatedTicketData);
+      
+      toast({ title: "Yanıt Gönderildi", description: "Destek talebi başarıyla yanıtlandı." });
+      
+      // Pass the fully updated ticket object back to the parent
+      onTicketReplySuccess({ ...ticket, ...updatedTicketData, id: ticket.id }); 
       onOpenChange(false);
+    } catch (error) {
+      console.error("Error replying to ticket:", error);
+      toast({ title: "Yanıt Hatası", description: "Talep yanıtlanırken bir hata oluştu.", variant: "destructive"});
+    } finally {
+      setIsReplying(false);
     }
   };
 
@@ -101,7 +118,7 @@ export default function ReplyTicketDialog({ ticket, isOpen, onOpenChange, onTick
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isReplying}>
             İptal
           </Button>
-          <Button onClick={handleReply} disabled={isReplying || !replyText.trim() || !onTicketReply}>
+          <Button onClick={handleReply} disabled={isReplying || !replyText.trim()}>
             {isReplying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Yanıtı Gönder"}
           </Button>
         </DialogFooter>
@@ -109,5 +126,3 @@ export default function ReplyTicketDialog({ ticket, isOpen, onOpenChange, onTick
     </Dialog>
   );
 }
-
-    

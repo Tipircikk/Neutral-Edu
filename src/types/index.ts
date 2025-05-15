@@ -6,12 +6,10 @@ export interface UserProfile {
   uid: string;
   email: string | null;
   displayName?: string | null;
-  plan: "free" | "premium" | "pro"; // Added "pro"
+  plan: "free" | "premium" | "pro";
   dailyRemainingQuota: number;
   lastSummaryDate: Timestamp | string | null; 
   isAdmin?: boolean; 
-  // Optional: Add fields for tracking total summaries made for more detailed admin views
-  // totalSummariesMade?: number; 
 }
 
 export interface AuthContextType {
@@ -38,3 +36,8 @@ export interface SupportTicket {
   lastReplyAt?: Timestamp;
 }
 
+export interface PricingConfig {
+  premium?: { price: string };
+  pro?: { price: string };
+  updatedAt?: Timestamp;
+}

@@ -5,7 +5,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/hooks/useUser";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ShieldAlert, Users, BarChart3, Settings, MessageSquareWarning, Edit3, Inbox, DollarSign } from "lucide-react";
+import { Loader2, ShieldAlert, Users, BarChart3, Settings, Inbox, Edit3, DollarSign, MessageSquareWarning } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,9 +18,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import type { UserProfile, SupportTicket } from "@/types";
+import type { UserProfile, SupportTicket, PricingConfig } from "@/types";
 import { db } from "@/lib/firebase/config";
-import { collection, getDocs, query, orderBy, Timestamp as FirestoreTimestamp, doc, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, Timestamp as FirestoreTimestamp, doc, updateDoc, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
@@ -57,7 +57,7 @@ export default function AdminPage() {
     setUsersLoading(true);
     try {
       const usersCollection = collection(db, "users");
-      const usersQuery = query(usersCollection); 
+      const usersQuery = query(usersCollection, orderBy("isAdmin", "desc"), orderBy("plan", "asc")); 
       const querySnapshot = await getDocs(usersQuery);
       const usersList = querySnapshot.docs.map(doc => {
         const data = doc.data();
@@ -74,6 +74,7 @@ export default function AdminPage() {
       setAllUsers(usersList);
     } catch (error) {
       console.error("Error fetching users:", error);
+      toast({ title: "Kullanıcılar Yüklenemedi", description: "Kullanıcı listesi çekilirken bir hata oluştu.", variant: "destructive" });
     } finally {
       setUsersLoading(false);
     }
@@ -85,10 +86,20 @@ export default function AdminPage() {
       const ticketsCollection = collection(db, "supportTickets");
       const ticketsQuery = query(ticketsCollection, orderBy("status", "asc"), orderBy("createdAt", "desc"));
       const querySnapshot = await getDocs(ticketsQuery);
-      const ticketsList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SupportTicket));
+      const ticketsList = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return { 
+          id: doc.id, 
+          ...data,
+          createdAt: data.createdAt instanceof FirestoreTimestamp ? data.createdAt : FirestoreTimestamp.now(), // Ensure createdAt is a Timestamp
+          updatedAt: data.updatedAt instanceof FirestoreTimestamp ? data.updatedAt : undefined,
+          lastReplyAt: data.lastReplyAt instanceof FirestoreTimestamp ? data.lastReplyAt : undefined,
+        } as SupportTicket;
+      });
       setSupportTickets(ticketsList);
     } catch (error) {
       console.error("Error fetching support tickets:", error);
+      toast({ title: "Destek Talepleri Yüklenemedi", description: "Destek talepleri çekilirken bir hata oluştu.", variant: "destructive" });
     } finally {
       setTicketsLoading(false);
     }
@@ -99,7 +110,7 @@ export default function AdminPage() {
       const priceConfigDocRef = doc(db, "pricingConfig", "currentPrices");
       const priceConfigDoc = await getDoc(priceConfigDocRef);
       if (priceConfigDoc.exists()) {
-        const prices = priceConfigDoc.data();
+        const prices = priceConfigDoc.data() as PricingConfig;
         setPremiumPrice(prices.premium?.price || "");
         setProPrice(prices.pro?.price || "");
       } else {
@@ -110,6 +121,7 @@ export default function AdminPage() {
       toast({ title: "Fiyatlar Yüklenemedi", description: "Mevcut fiyatlandırma bilgileri çekilirken bir hata oluştu.", variant: "destructive" });
     }
   };
+
 
   useEffect(() => {
     if (adminUserProfile?.isAdmin) {
@@ -139,22 +151,24 @@ export default function AdminPage() {
     if (!user.lastSummaryDate) return 0;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    
     let lastDate: Date;
     if (user.lastSummaryDate instanceof FirestoreTimestamp) {
         lastDate = user.lastSummaryDate.toDate();
     } else if (typeof user.lastSummaryDate === 'string') {
         lastDate = new Date(user.lastSummaryDate);
     } else { 
-        return 0;
+        return 0; // Invalid date format
     }
     lastDate.setHours(0,0,0,0);
 
     if (lastDate.getTime() === today.getTime()) {
       const totalQuota = getDefaultQuota(user.plan);
+      // If dailyRemainingQuota is undefined or not a number, assume full quota was remaining at start of day
       const remainingQuota = typeof user.dailyRemainingQuota === 'number' ? user.dailyRemainingQuota : totalQuota;
       return totalQuota - remainingQuota;
     }
-    return 0;
+    return 0; // Not today, so usage is 0 for today
   };
 
   const formatTicketSubject = (subject: SupportTicket['subject']): string => {
@@ -167,7 +181,7 @@ export default function AdminPage() {
       default: return subject;
     }
   };
-
+  
   const formatTicketStatus = (status: SupportTicket['status']): string => {
     switch (status) {
       case "open": return "Açık";
@@ -183,8 +197,9 @@ export default function AdminPage() {
     setIsEditUserDialogOpen(true);
   };
 
-  const handleUserUpdate = (updatedUser: UserProfile) => {
+  const handleUserUpdateSuccess = (updatedUser: UserProfile) => {
     setAllUsers(prevUsers => prevUsers.map(u => u.uid === updatedUser.uid ? updatedUser : u));
+    fetchAllUsers(); // Re-fetch to ensure data consistency, especially if quotas changed.
   };
 
   const handleOpenReplyDialog = (ticket: SupportTicket) => {
@@ -192,22 +207,17 @@ export default function AdminPage() {
     setIsReplyTicketDialogOpen(true);
   };
   
-  // Placeholder for actual reply submission logic
-  const handleTicketReply = async (ticketId: string, replyText: string) => {
-    console.log("Replying to ticket:", ticketId, "with text:", replyText);
-    // Here you would typically update the ticket in Firestore with the reply and change status
-    // For now, just a toast and close the dialog
-    toast({ title: "Yanıt Kaydedildi (Simülasyon)", description: `Talep ${ticketId} için yanıtınız kaydedildi.`});
-    // Example: Update supportTickets state if reply is successful
-    // setSupportTickets(prevTickets => 
-    //   prevTickets.map(t => t.id === ticketId ? { ...t, status: 'answered', adminReply: replyText } : t)
-    // );
+  const handleTicketReplySuccess = (updatedTicket: SupportTicket) => {
+    setSupportTickets(prevTickets => 
+      prevTickets.map(t => t.id === updatedTicket.id ? { ...t, ...updatedTicket } : t)
+    );
+    // Optionally re-fetch all tickets if complex status changes occur
+    // fetchSupportTickets();
   };
-
 
   const handleSavePrices = async () => {
     setIsSavingPrices(true);
-    const priceData: { premium?: { price: string }, pro?: { price: string }, updatedAt?: any } = {};
+    const priceData: PricingConfig = {};
     if (premiumPrice.trim() !== "") priceData.premium = { price: premiumPrice };
     if (proPrice.trim() !== "") priceData.pro = { price: proPrice };
 
@@ -217,7 +227,7 @@ export default function AdminPage() {
         return;
     }
     
-    priceData.updatedAt = serverTimestamp();
+    priceData.updatedAt = serverTimestamp() as Timestamp;
 
     try {
       const priceConfigRef = doc(db, "pricingConfig", "currentPrices");
@@ -230,7 +240,6 @@ export default function AdminPage() {
       setIsSavingPrices(false);
     }
   };
-
 
   if (adminLoading || (adminUserProfile?.isAdmin && (usersLoading || ticketsLoading))) {
     return (
@@ -291,9 +300,12 @@ export default function AdminPage() {
                     <TableCell>
                       <Badge 
                         variant={user.plan === 'pro' ? 'default' : user.plan === 'premium' ? 'secondary' : 'outline'}
-                        className={user.plan === 'pro' ? 'bg-purple-600 hover:bg-purple-700 text-white' : user.plan === 'premium' ? 'bg-blue-500 hover:bg-blue-600 text-white' : ''}
+                        className={
+                            user.plan === 'pro' ? 'bg-purple-600 hover:bg-purple-700 text-white' : 
+                            user.plan === 'premium' ? 'bg-blue-500 hover:bg-blue-600 text-white' : ''
+                        }
                       >
-                        {user.plan === 'pro' ? 'Pro' : user.plan === 'premium' ? 'Premium' : 'Ücretsiz'}
+                        {user.plan.charAt(0).toUpperCase() + user.plan.slice(1)}
                       </Badge>
                     </TableCell>
                     <TableCell>{typeof user.dailyRemainingQuota === 'number' ? user.dailyRemainingQuota : getDefaultQuota(user.plan)}</TableCell>
@@ -319,7 +331,7 @@ export default function AdminPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Inbox className="h-6 w-6" /> Destek Talepleri</CardTitle>
-          <CardDescription>Kullanıcı destek taleplerini görüntüleyin ve yanıtlayın (yanıtlama henüz aktif değil).</CardDescription>
+          <CardDescription>Kullanıcı destek taleplerini görüntüleyin ve yanıtlayın.</CardDescription>
         </CardHeader>
         <CardContent>
           {ticketsLoading ? (
@@ -347,7 +359,10 @@ export default function AdminPage() {
                     <TableCell className="font-medium">{ticket.userEmail || ticket.userId}</TableCell>
                     <TableCell>{formatTicketSubject(ticket.subject)}</TableCell>
                     <TableCell>
-                      <Badge variant={ticket.status === 'open' ? 'destructive' : 'secondary'}>
+                      <Badge 
+                        variant={ticket.status === 'open' ? 'destructive' : ticket.status === 'answered' ? 'secondary' : 'outline'}
+                        className={ticket.status === 'answered' ? 'bg-green-500 hover:bg-green-600 text-white' : ''}
+                      >
                         {formatTicketStatus(ticket.status)}
                       </Badge>
                     </TableCell>
@@ -359,7 +374,8 @@ export default function AdminPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <Button variant="outline" size="sm" onClick={() => handleOpenReplyDialog(ticket)}>
-                        <MessageSquareWarning className="mr-2 h-3 w-3"/> Yanıtla (UI)
+                        <MessageSquareWarning className="mr-2 h-3 w-3"/> 
+                        {ticket.status === 'answered' ? "Yanıtı Gör/Güncelle" : "Yanıtla"}
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -448,7 +464,7 @@ export default function AdminPage() {
           user={editingUser}
           isOpen={isEditUserDialogOpen}
           onOpenChange={setIsEditUserDialogOpen}
-          onUserUpdate={handleUserUpdate}
+          onUserUpdate={handleUserUpdateSuccess}
         />
       )}
       {selectedTicket && (
@@ -456,11 +472,9 @@ export default function AdminPage() {
           ticket={selectedTicket}
           isOpen={isReplyTicketDialogOpen}
           onOpenChange={setIsReplyTicketDialogOpen}
-          onTicketReply={handleTicketReply} // Pass the actual reply handler
+          onTicketReplySuccess={handleTicketReplySuccess} 
         />
       )}
     </div>
   );
 }
-
-    
