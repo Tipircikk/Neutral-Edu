@@ -7,17 +7,22 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Presentation, Wand2, Loader2, AlertTriangle, Download } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { explainTopic, type ExplainTopicOutput, type ExplainTopicInput } from "@/ai/flows/topic-explainer-flow";
 import { ScrollArea } from "@/components/ui/scroll-area";
-// Removed static import: import jsPDF from 'jspdf';
+
+// PDF Dışa Aktarma için jsPDF'i dinamik olarak import edeceğiz.
+// import jsPDF from 'jspdf'; // Statik import kaldırıldı
 
 export default function TopicExplainerPage() {
   const [topicName, setTopicName] = useState("");
   const [explanationLevel, setExplanationLevel] = useState<ExplainTopicInput["explanationLevel"]>("orta");
+  const [teacherPersona, setTeacherPersona] = useState<ExplainTopicInput["teacherPersona"]>("samimi");
+  const [customPersonaDescription, setCustomPersonaDescription] = useState("");
   const [explanationOutput, setExplanationOutput] = useState<ExplainTopicOutput | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
@@ -45,6 +50,11 @@ export default function TopicExplainerPage() {
       toast({ title: "Konu Gerekli", description: "Lütfen en az 3 karakterden oluşan bir YKS konu başlığı girin.", variant: "destructive" });
       return;
     }
+    if (teacherPersona === "ozel" && (!customPersonaDescription.trim() || customPersonaDescription.trim().length < 10)) {
+      toast({ title: "Özel Kişilik Açıklaması Yetersiz", description: "Lütfen özel hoca kişiliği için en az 10 karakterlik bir açıklama girin.", variant: "destructive" });
+      return;
+    }
+
 
     setIsGenerating(true);
     setExplanationOutput(null);
@@ -65,6 +75,8 @@ export default function TopicExplainerPage() {
       const input: ExplainTopicInput = {
         topicName,
         explanationLevel,
+        teacherPersona,
+        customPersonaDescription: teacherPersona === "ozel" ? customPersonaDescription : undefined,
         userPlan: currentProfile.plan
       };
       const result = await explainTopic(input);
@@ -100,22 +112,35 @@ export default function TopicExplainerPage() {
     toast({ title: "PDF Oluşturuluyor...", description: "Lütfen bekleyin."});
 
     try {
-      const { default: jsPDF } = await import('jspdf'); // Dynamic import
+      const { default: jsPDF } = await import('jspdf'); // Dinamik import
 
-      const doc = new jsPDF();
+      const doc = new jsPDF({
+        orientation: 'p',
+        unit: 'mm',
+        format: 'a4',
+      });
+      
+      // Varsayılan fontu ayarla (Türkçe karakterler için limitli olabilir)
+      doc.setFont('Helvetica', 'normal');
+
       const pageHeight = doc.internal.pageSize.height;
       const pageWidth = doc.internal.pageSize.width;
       const margin = 15;
       const contentWidth = pageWidth - 2 * margin;
       let currentY = margin + 5; 
-      const lineHeight = 6; // Approximate line height for 10pt font
+      const lineHeight = 6; // Yaklaşık satır yüksekliği (10pt font için)
+      const titleFontSize = 16;
+      const headingFontSize = 12;
+      const textFontSize = 10;
+      const smallTextFontSize = 8;
 
-      const addWrappedText = (text: string, options: { x?: number, y?: number, fontSize?: number, fontStyle?: "normal" | "bold" | "italic" | "bolditalic", maxWidth?: number, isTitle?: boolean, isListItem?: boolean }) => {
-        const { x = margin, fontSize = 10, fontStyle = 'normal', maxWidth = contentWidth, isTitle = false, isListItem = false } = options;
+      const addWrappedText = (text: string, options: { x?: number, y?: number, fontSize?: number, fontStyle?: "normal" | "bold" | "italic" | "bolditalic", maxWidth?: number, isTitle?: boolean, isListItem?: boolean, color?: string }) => {
+        const { x = margin, fontSize = textFontSize, fontStyle = 'normal', maxWidth = contentWidth, isTitle = false, isListItem = false, color = "#000000" } = options;
         let { y = currentY } = options;
 
         doc.setFontSize(fontSize);
-        doc.setFont('helvetica', fontStyle);
+        doc.setFont('Helvetica', fontStyle); // Her metin bloğu için fontu ayarla
+        doc.setTextColor(color);
 
         const lines = doc.splitTextToSize(text, maxWidth);
         
@@ -125,58 +150,58 @@ export default function TopicExplainerPage() {
             y = margin; 
           }
           const lineText = isListItem && index === 0 ? `• ${line}` : line;
-          const xOffset = isTitle ? 0 : (isListItem ? 2 : 0);
+          const xOffset = isTitle ? 0 : (isListItem ? 2 : 0); // Başlıklar ve listeler için girinti
           doc.text(lineText, x + xOffset, y);
           y += lineHeight; 
         });
         currentY = y;
-        if (!isListItem) currentY += (lineHeight / 2); 
+        if (!isListItem) currentY += (lineHeight / 2); // Paragraflar arası boşluk
       };
       
       if (explanationOutput.explanationTitle) {
-        addWrappedText(explanationOutput.explanationTitle, { fontSize: 18, fontStyle: 'bold', isTitle: true, y: currentY });
+        addWrappedText(explanationOutput.explanationTitle, { fontSize: titleFontSize, fontStyle: 'bold', isTitle: true, y: currentY });
         currentY += lineHeight; 
       }
 
       if (explanationOutput.explanation) {
         currentY += lineHeight / 2;
-        addWrappedText("Detaylı Konu Anlatımı:", { fontSize: 14, fontStyle: 'bold', isTitle: true });
-        addWrappedText(explanationOutput.explanation, { fontSize: 10 });
+        addWrappedText("Detaylı Konu Anlatımı:", { fontSize: headingFontSize, fontStyle: 'bold', isTitle: true });
+        addWrappedText(explanationOutput.explanation, { fontSize: textFontSize });
       }
 
       if (explanationOutput.keyConcepts && explanationOutput.keyConcepts.length > 0) {
         currentY += lineHeight;
-        addWrappedText("Anahtar Kavramlar:", { fontSize: 14, fontStyle: 'bold', isTitle: true });
-        explanationOutput.keyConcepts.forEach(concept => addWrappedText(concept, { fontSize: 10, isListItem: true }));
+        addWrappedText("Anahtar Kavramlar:", { fontSize: headingFontSize, fontStyle: 'bold', isTitle: true });
+        explanationOutput.keyConcepts.forEach(concept => addWrappedText(concept, { fontSize: textFontSize, isListItem: true }));
       }
 
       if (explanationOutput.commonMistakes && explanationOutput.commonMistakes.length > 0) {
         currentY += lineHeight;
-        addWrappedText("Sık Yapılan Hatalar:", { fontSize: 14, fontStyle: 'bold', isTitle: true });
-        explanationOutput.commonMistakes.forEach(mistake => addWrappedText(mistake, { fontSize: 10, isListItem: true }));
+        addWrappedText("Sık Yapılan Hatalar:", { fontSize: headingFontSize, fontStyle: 'bold', isTitle: true });
+        explanationOutput.commonMistakes.forEach(mistake => addWrappedText(mistake, { fontSize: textFontSize, isListItem: true }));
       }
       
       if (explanationOutput.yksTips && explanationOutput.yksTips.length > 0) {
         currentY += lineHeight;
-        addWrappedText("YKS İpuçları:", { fontSize: 14, fontStyle: 'bold', isTitle: true });
-        explanationOutput.yksTips.forEach(tip => addWrappedText(tip, { fontSize: 10, isListItem: true }));
+        addWrappedText("YKS İpuçları:", { fontSize: headingFontSize, fontStyle: 'bold', isTitle: true });
+        explanationOutput.yksTips.forEach(tip => addWrappedText(tip, { fontSize: textFontSize, isListItem: true }));
       }
 
       if (explanationOutput.activeRecallQuestions && explanationOutput.activeRecallQuestions.length > 0) {
         currentY += lineHeight;
-        addWrappedText("Aktif Hatırlama Soruları:", { fontSize: 14, fontStyle: 'bold', isTitle: true });
-        explanationOutput.activeRecallQuestions.forEach(question => addWrappedText(question, { fontSize: 10, isListItem: true }));
+        addWrappedText("Aktif Hatırlama Soruları:", { fontSize: headingFontSize, fontStyle: 'bold', isTitle: true });
+        explanationOutput.activeRecallQuestions.forEach(question => addWrappedText(question, { fontSize: textFontSize, isListItem: true }));
       }
       
       const safeFileName = (explanationOutput.explanationTitle || "konu_anlatimi").replace(/[^a-z0-9_]/gi, '_').toLowerCase();
       doc.save(`${safeFileName}.pdf`);
       toast({ title: "PDF Oluşturuldu!", description: "Konu anlatımı başarıyla PDF olarak indirildi." });
 
-    } catch (error) {
-      console.error("PDF oluşturma hatası (jspdf yüklenemedi mi?):", error);
+    } catch (error: any) {
+      console.error("PDF oluşturma hatası:", error);
       toast({
         title: "PDF Oluşturma Hatası",
-        description: "PDF kitaplığı (jspdf) yüklenemedi. Lütfen 'npm install jspdf' veya 'yarn add jspdf' komutunu çalıştırdığınızdan ve paketin kurulu olduğundan emin olun.",
+        description: error.message || "PDF oluşturulurken bir hata oluştu. 'jspdf' paketinin kurulu olduğundan emin olun.",
         variant: "destructive",
       });
     } finally {
@@ -184,8 +209,61 @@ export default function TopicExplainerPage() {
     }
   };
 
+  const formatExplanationForDisplay = (text: string): JSX.Element[] => {
+    if (!text) return [];
+    const lines = text.split('\n');
+    const elements: JSX.Element[] = [];
+    let listItems: string[] = [];
 
-  const isSubmitDisabled = isGenerating || !topicName.trim() || topicName.trim().length < 3 || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <= 0);
+    const flushList = () => {
+      if (listItems.length > 0) {
+        elements.push(
+          <ul key={`ul-${elements.length}`} className="list-disc pl-5 my-2 space-y-1">
+            {listItems.map((item, idx) => <li key={idx}>{parseInlineFormatting(item)}</li>)}
+          </ul>
+        );
+        listItems = [];
+      }
+    };
+    
+    const parseInlineFormatting = (line: string) => {
+        const parts = line.split(/(\S+\^\S+|\S+_\S+)/g); // x^2 or H_2O
+        return parts.map((part, index) => {
+          if (part.includes('^')) {
+            const [base, exponent] = part.split('^');
+            return <Fragment key={index}>{base}<sup>{exponent}</sup></Fragment>;
+          } else if (part.includes('_')) {
+            const [base, sub] = part.split('_');
+            return <Fragment key={index}>{base}<sub>{sub}</sub></Fragment>;
+          }
+          return <Fragment key={index}>{part}</Fragment>;
+        });
+      };
+
+
+    lines.forEach((line, index) => {
+      if (line.trim().startsWith('### ')) {
+        flushList();
+        elements.push(<h4 key={index} className="text-md font-semibold mt-3 mb-1 text-foreground">{parseInlineFormatting(line.substring(4))}</h4>);
+      } else if (line.trim().startsWith('## ')) {
+        flushList();
+        elements.push(<h3 key={index} className="text-lg font-semibold mt-4 mb-2 text-foreground">{parseInlineFormatting(line.substring(3))}</h3>);
+      } else if (line.trim().startsWith('* ') || line.trim().startsWith('- ')) {
+        listItems.push(line.substring(line.indexOf(' ') + 1));
+      } else if (line.trim() === "") {
+        flushList();
+        elements.push(<div key={index} className="h-2"></div>);
+      } else {
+        flushList();
+        elements.push(<p key={index} className="mb-2 last:mb-0 text-muted-foreground">{parseInlineFormatting(line)}</p>);
+      }
+    });
+    flushList(); // Ensure any trailing list items are flushed
+    return elements;
+  };
+
+
+  const isSubmitDisabled = isGenerating || !topicName.trim() || topicName.trim().length < 3 || (teacherPersona === "ozel" && (!customPersonaDescription.trim() || customPersonaDescription.trim().length < 10)) || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <= 0);
 
   if (userProfileLoading) {
     return (
@@ -205,7 +283,7 @@ export default function TopicExplainerPage() {
             <CardTitle className="text-2xl">AI YKS Konu Anlatımı Oluşturucu</CardTitle>
           </div>
           <CardDescription>
-            Öğrenmek istediğiniz YKS konusunu ve anlatım detay seviyesini girin, yapay zeka sizin için konuyu detaylıca anlatsın, anahtar kavramları, YKS ipuçlarını ve aktif hatırlama sorularını versin.
+            Öğrenmek istediğiniz YKS konusunu, anlatım detay seviyesini ve hoca tarzını girin. Yapay zeka sizin için konuyu detaylıca anlatsın, anahtar kavramları, YKS ipuçlarını ve aktif hatırlama sorularını versin.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -223,22 +301,23 @@ export default function TopicExplainerPage() {
       <form onSubmit={handleSubmit}>
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Anlatılacak Konu ve Seviye</CardTitle>
+            <CardTitle className="text-lg">Anlatılacak Konu ve Ayarlar</CardTitle>
           </CardHeader>
           <CardContent className="pt-6 space-y-4">
+            <div>
+              <Label htmlFor="topicName">YKS Konu Başlığı</Label>
+              <Input
+                id="topicName"
+                placeholder="örn: Matematik - Limit ve Süreklilik"
+                value={topicName}
+                onChange={(e) => setTopicName(e.target.value)}
+                className="text-base mt-1"
+                disabled={isGenerating || !canProcess}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Lütfen açıklanmasını istediğiniz konuyu girin (en az 3 karakter).</p>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="topicName">YKS Konu Başlığı</Label>
-                <Input
-                  id="topicName"
-                  placeholder="örn: Matematik - Limit ve Süreklilik"
-                  value={topicName}
-                  onChange={(e) => setTopicName(e.target.value)}
-                  className="text-base mt-1"
-                  disabled={isGenerating || !canProcess}
-                />
-                <p className="text-xs text-muted-foreground mt-1">Lütfen açıklanmasını istediğiniz konuyu girin (en az 3 karakter).</p>
-              </div>
               <div>
                 <Label htmlFor="explanationLevel">Anlatım Seviyesi</Label>
                 <Select
@@ -257,7 +336,43 @@ export default function TopicExplainerPage() {
                 </Select>
                  <p className="text-xs text-muted-foreground mt-1">Konunun ne kadar detaylı anlatılacağını seçin.</p>
               </div>
+              <div>
+                <Label htmlFor="teacherPersona">Hoca Tarzı</Label>
+                <Select
+                  value={teacherPersona}
+                  onValueChange={(value: ExplainTopicInput["teacherPersona"]) => setTeacherPersona(value)}
+                  disabled={isGenerating || !canProcess}
+                >
+                  <SelectTrigger id="teacherPersona" className="mt-1">
+                    <SelectValue placeholder="Hoca tarzı seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="samimi">Samimi ve Destekleyici</SelectItem>
+                    <SelectItem value="eglenceli">Eğlenceli ve Motive Edici</SelectItem>
+                    <SelectItem value="ciddi">Ciddi ve Odaklı</SelectItem>
+                    <SelectItem value="ozel">Kişiliği Sen Tanımla...</SelectItem>
+                  </SelectContent>
+                </Select>
+                 <p className="text-xs text-muted-foreground mt-1">AI hocanızın anlatım tarzını seçin.</p>
+              </div>
             </div>
+
+            {teacherPersona === "ozel" && (
+              <div>
+                <Label htmlFor="customPersonaDescription">Özel Hoca Kişiliği Tanımı</Label>
+                <Textarea
+                  id="customPersonaDescription"
+                  placeholder="İstediğiniz hoca kişiliğini detaylıca anlatın (örn: 'Sanki karşımda bir arkadaşım gibi, esprili ama konunun ciddiyetini de koruyan, bol örnek veren bir hoca...')"
+                  value={customPersonaDescription}
+                  onChange={(e) => setCustomPersonaDescription(e.target.value)}
+                  rows={3}
+                  className="mt-1"
+                  disabled={isGenerating || !canProcess}
+                />
+                <p className="text-xs text-muted-foreground mt-1">AI hocanızın nasıl bir kişiliğe sahip olmasını istediğinizi açıklayın (en az 10 karakter).</p>
+              </div>
+            )}
+
             <Button type="submit" className="w-full" disabled={isSubmitDisabled}>
               {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
               Konu Anlatımı Oluştur
@@ -291,16 +406,16 @@ export default function TopicExplainerPage() {
           </CardHeader>
           <CardContent className="space-y-6">
             <ScrollArea className="h-[600px] w-full rounded-md border p-4 bg-muted/30">
-              <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-line leading-relaxed">
+              <div className="prose prose-sm dark:prose-invert max-w-none leading-relaxed">
                 <h3 className="text-lg font-semibold mt-3 mb-1 text-foreground">Detaylı Konu Anlatımı:</h3>
-                <p>{explanationOutput.explanation}</p>
+                {formatExplanationForDisplay(explanationOutput.explanation)}
 
                 {explanationOutput.keyConcepts && explanationOutput.keyConcepts.length > 0 && (
                   <>
                     <h3 className="text-lg font-semibold mt-4 mb-1 text-foreground">Anahtar Kavramlar:</h3>
                     <ul className="list-disc pl-5 text-muted-foreground">
                       {explanationOutput.keyConcepts.map((concept, index) => (
-                        <li key={index}>{concept}</li>
+                        <li key={index}>{parseInlineFormatting(concept)}</li>
                       ))}
                     </ul>
                   </>
@@ -311,7 +426,7 @@ export default function TopicExplainerPage() {
                     <h3 className="text-lg font-semibold mt-4 mb-1 text-foreground">Sık Yapılan Hatalar:</h3>
                     <ul className="list-disc pl-5 text-muted-foreground">
                       {explanationOutput.commonMistakes.map((mistake, index) => (
-                        <li key={index}>{mistake}</li>
+                        <li key={index}>{parseInlineFormatting(mistake)}</li>
                       ))}
                     </ul>
                   </>
@@ -322,7 +437,7 @@ export default function TopicExplainerPage() {
                     <h3 className="text-lg font-semibold mt-4 mb-1 text-foreground">YKS İpuçları:</h3>
                     <ul className="list-disc pl-5 text-muted-foreground">
                       {explanationOutput.yksTips.map((tip, index) => (
-                        <li key={index}>{tip}</li>
+                        <li key={index}>{parseInlineFormatting(tip)}</li>
                       ))}
                     </ul>
                   </>
@@ -333,7 +448,7 @@ export default function TopicExplainerPage() {
                     <h3 className="text-lg font-semibold mt-4 mb-1 text-foreground">Hadi Pekiştirelim! (Aktif Hatırlama Soruları):</h3>
                     <ul className="list-decimal pl-5 text-muted-foreground space-y-1">
                       {explanationOutput.activeRecallQuestions.map((question, index) => (
-                        <li key={index}>{question}</li>
+                        <li key={index}>{parseInlineFormatting(question)}</li>
                       ))}
                     </ul>
                      <p className="text-xs italic text-muted-foreground mt-2">(Bu soruların cevaplarını anlatımda bulabilirsin.)</p>
@@ -353,12 +468,10 @@ export default function TopicExplainerPage() {
           <Presentation className="h-4 w-4" />
           <AlertTitle>Anlatıma Hazır!</AlertTitle>
           <AlertDescription>
-            Yukarıya bir YKS konu başlığı ve anlatım seviyesi girerek yapay zekanın sizin için detaylı bir konu anlatımı oluşturmasını sağlayın.
+            Yukarıya bir YKS konu başlığı, anlatım seviyesi ve hoca tarzı girerek yapay zekanın sizin için detaylı bir konu anlatımı oluşturmasını sağlayın.
           </AlertDescription>
         </Alert>
       )}
     </div>
   );
 }
-
-    
