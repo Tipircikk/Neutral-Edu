@@ -90,7 +90,12 @@ export default function AdminPage() {
     setTicketsLoading(true);
     try {
       const ticketsCollectionRef = collection(db, "supportTickets");
-      const ticketsQuery = query(ticketsCollectionRef, orderBy("status", "asc"), orderBy("lastMessageAt", "desc"));
+      // Order by status: open first, then answered. Then by last message time.
+      const ticketsQuery = query(
+        ticketsCollectionRef,
+        orderBy("status", "asc"), // 'answered', 'closed_by_admin', 'closed_by_user', 'open'
+        orderBy("lastMessageAt", "desc")
+      );
       const querySnapshot = await getDocs(ticketsQuery);
       const ticketsList = querySnapshot.docs.map(docSnapshot => {
         const data = docSnapshot.data();
@@ -99,8 +104,14 @@ export default function AdminPage() {
           ...data,
           createdAt: data.createdAt instanceof FirestoreTimestamp ? data.createdAt : FirestoreTimestamp.now(),
           updatedAt: data.updatedAt instanceof FirestoreTimestamp ? data.updatedAt : undefined,
-          lastMessageAt: data.lastMessageAt instanceof FirestoreTimestamp ? data.lastMessageAt : data.createdAt,
+          lastMessageAt: data.lastMessageAt instanceof FirestoreTimestamp ? data.lastMessageAt : (data.createdAt instanceof FirestoreTimestamp ? data.createdAt : FirestoreTimestamp.now()),
         } as SupportTicket;
+      }).sort((a,b) => {
+        // Custom sort to ensure 'open' tickets are always first, then 'answered'
+        const statusOrder = { open: 0, answered: 1, closed_by_user: 2, closed_by_admin: 3 };
+        if (statusOrder[a.status] < statusOrder[b.status]) return -1;
+        if (statusOrder[a.status] > statusOrder[b.status]) return 1;
+        return 0; // Keep original sort for same status (by lastMessageAt desc)
       });
       setSupportTickets(ticketsList);
     } catch (error) {
@@ -204,7 +215,6 @@ export default function AdminPage() {
 
   const handleUserUpdateSuccess = (updatedUser: UserProfile) => {
     setAllUsers(prevUsers => prevUsers.map(u => u.uid === updatedUser.uid ? updatedUser : u));
-    // fetchAllUsers(); // Re-fetch can be too much, rely on local update or selective fetch
   };
 
   const handleOpenReplyDialog = (ticket: SupportTicket) => {
@@ -213,10 +223,12 @@ export default function AdminPage() {
   };
 
   const handleTicketReplySuccess = (updatedTicketFromDialog: SupportTicket) => {
+     // Update the local state of supportTickets with the new information
      setSupportTickets(prevTickets =>
       prevTickets.map(t => (t.id === updatedTicketFromDialog.id ? { ...t, ...updatedTicketFromDialog } : t))
     );
-    fetchSupportTickets(); // Refresh the list to get latest overall status
+    // Optionally re-fetch all tickets to ensure full consistency if other admins might be working
+    fetchSupportTickets();
   };
 
   const handleSavePrices = async () => {
@@ -477,7 +489,7 @@ export default function AdminPage() {
           onUserUpdate={handleUserUpdateSuccess}
         />
       )}
-      {selectedTicket && adminProfile && (
+      {selectedTicket && adminUserProfile && (
         <ReplyTicketDialog
           ticket={selectedTicket}
           isOpen={isReplyTicketDialogOpen}
@@ -488,3 +500,5 @@ export default function AdminPage() {
     </div>
   );
 }
+
+    
