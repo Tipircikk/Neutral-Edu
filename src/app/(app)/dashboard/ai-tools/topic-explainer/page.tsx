@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { explainTopic, type ExplainTopicOutput, type ExplainTopicInput } from "@/ai/flows/topic-explainer-flow";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import jsPDF from 'jspdf';
+// Removed static import: import jsPDF from 'jspdf';
 
 export default function TopicExplainerPage() {
   const [topicName, setTopicName] = useState("");
@@ -94,80 +94,76 @@ export default function TopicExplainerPage() {
     }
   };
 
-  const handleExportToPdf = () => {
+  const handleExportToPdf = async () => {
     if (!explanationOutput) return;
     setIsExportingPdf(true);
     toast({ title: "PDF Oluşturuluyor...", description: "Lütfen bekleyin."});
 
     try {
+      const { default: jsPDF } = await import('jspdf'); // Dynamic import
+
       const doc = new jsPDF();
       const pageHeight = doc.internal.pageSize.height;
       const pageWidth = doc.internal.pageSize.width;
       const margin = 15;
       const contentWidth = pageWidth - 2 * margin;
-      let currentY = margin + 5; // Add initial top margin for the title
+      let currentY = margin + 5; 
+      const lineHeight = 6; // Approximate line height for 10pt font
 
-      const addWrappedText = (text: string, options: { x?: number, y?: number, fontSize?: number, fontStyle?: string, maxWidth?: number, isTitle?: boolean, isListItem?: boolean }) => {
+      const addWrappedText = (text: string, options: { x?: number, y?: number, fontSize?: number, fontStyle?: "normal" | "bold" | "italic" | "bolditalic", maxWidth?: number, isTitle?: boolean, isListItem?: boolean }) => {
         const { x = margin, fontSize = 10, fontStyle = 'normal', maxWidth = contentWidth, isTitle = false, isListItem = false } = options;
         let { y = currentY } = options;
 
         doc.setFontSize(fontSize);
-        doc.setFont('helvetica', fontStyle); // Using a standard font
+        doc.setFont('helvetica', fontStyle);
 
         const lines = doc.splitTextToSize(text, maxWidth);
         
         lines.forEach((line: string, index: number) => {
-          if (y + (fontSize / 2.5) > pageHeight - margin) { // Check if new line fits
+          if (y + lineHeight > pageHeight - margin) { 
             doc.addPage();
-            y = margin; // Reset Y to top margin on new page
+            y = margin; 
           }
-          if (isListItem && index === 0) {
-            doc.text(`• ${line}`, x + (isTitle ? 0 : 2), y, { align: 'left' });
-          } else {
-            doc.text(line, x + (isTitle ? 0 : (isListItem ? 2 : 0)), y, { align: 'left' });
-          }
-          y += (fontSize / 2.5); // Approximate line height
+          const lineText = isListItem && index === 0 ? `• ${line}` : line;
+          const xOffset = isTitle ? 0 : (isListItem ? 2 : 0);
+          doc.text(lineText, x + xOffset, y);
+          y += lineHeight; 
         });
         currentY = y;
-        if (!isListItem) currentY += 4; // Add a bit more space after non-list items
+        if (!isListItem) currentY += (lineHeight / 2); 
       };
       
-      // Title
       if (explanationOutput.explanationTitle) {
         addWrappedText(explanationOutput.explanationTitle, { fontSize: 18, fontStyle: 'bold', isTitle: true, y: currentY });
-        currentY += 6; // Space after title
+        currentY += lineHeight; 
       }
 
-      // Main Explanation
       if (explanationOutput.explanation) {
+        currentY += lineHeight / 2;
         addWrappedText("Detaylı Konu Anlatımı:", { fontSize: 14, fontStyle: 'bold', isTitle: true });
         addWrappedText(explanationOutput.explanation, { fontSize: 10 });
       }
 
-      // Key Concepts
       if (explanationOutput.keyConcepts && explanationOutput.keyConcepts.length > 0) {
-        currentY += 5;
+        currentY += lineHeight;
         addWrappedText("Anahtar Kavramlar:", { fontSize: 14, fontStyle: 'bold', isTitle: true });
         explanationOutput.keyConcepts.forEach(concept => addWrappedText(concept, { fontSize: 10, isListItem: true }));
       }
 
-      // Common Mistakes
       if (explanationOutput.commonMistakes && explanationOutput.commonMistakes.length > 0) {
-        currentY += 5;
+        currentY += lineHeight;
         addWrappedText("Sık Yapılan Hatalar:", { fontSize: 14, fontStyle: 'bold', isTitle: true });
         explanationOutput.commonMistakes.forEach(mistake => addWrappedText(mistake, { fontSize: 10, isListItem: true }));
       }
       
-      // YKS Tips
       if (explanationOutput.yksTips && explanationOutput.yksTips.length > 0) {
-        currentY += 5;
+        currentY += lineHeight;
         addWrappedText("YKS İpuçları:", { fontSize: 14, fontStyle: 'bold', isTitle: true });
         explanationOutput.yksTips.forEach(tip => addWrappedText(tip, { fontSize: 10, isListItem: true }));
       }
 
-      // Active Recall Questions
       if (explanationOutput.activeRecallQuestions && explanationOutput.activeRecallQuestions.length > 0) {
-        currentY += 5;
+        currentY += lineHeight;
         addWrappedText("Aktif Hatırlama Soruları:", { fontSize: 14, fontStyle: 'bold', isTitle: true });
         explanationOutput.activeRecallQuestions.forEach(question => addWrappedText(question, { fontSize: 10, isListItem: true }));
       }
@@ -175,9 +171,14 @@ export default function TopicExplainerPage() {
       const safeFileName = (explanationOutput.explanationTitle || "konu_anlatimi").replace(/[^a-z0-9_]/gi, '_').toLowerCase();
       doc.save(`${safeFileName}.pdf`);
       toast({ title: "PDF Oluşturuldu!", description: "Konu anlatımı başarıyla PDF olarak indirildi." });
+
     } catch (error) {
-      console.error("PDF oluşturma hatası:", error);
-      toast({ title: "PDF Oluşturma Hatası", description: "PDF oluşturulurken bir sorun oluştu.", variant: "destructive" });
+      console.error("PDF oluşturma hatası (jspdf yüklenemedi mi?):", error);
+      toast({
+        title: "PDF Oluşturma Hatası",
+        description: "PDF kitaplığı (jspdf) yüklenemedi. Lütfen 'npm install jspdf' veya 'yarn add jspdf' komutunu çalıştırdığınızdan ve paketin kurulu olduğundan emin olun.",
+        variant: "destructive",
+      });
     } finally {
       setIsExportingPdf(false);
     }
@@ -359,6 +360,5 @@ export default function TopicExplainerPage() {
     </div>
   );
 }
-
 
     
