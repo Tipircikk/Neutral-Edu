@@ -7,5 +7,6 @@ import '@/ai/flows/question-solver-flow.ts';
 import '@/ai/flows/test-generator-flow.ts';
 import '@/ai/flows/topic-summarizer-flow.ts';
 import '@/ai/flows/flashcard-generator-flow.ts';
-import '@/ai/flows/exam-report-analyzer-flow.ts'; // Added new flow
+import '@/ai/flows/exam-report-analyzer-flow.ts'; 
+import '@/ai/flows/study-plan-generator-flow.ts'; // Added new flow
     

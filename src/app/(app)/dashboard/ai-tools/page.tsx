@@ -2,7 +2,7 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { FileScan, HelpCircle, FileTextIcon, Lightbulb, ArrowRight, LayoutGrid, ClipboardCheck } from "lucide-react"; 
+import { FileScan, HelpCircle, FileTextIcon, Lightbulb, ArrowRight, LayoutGrid, ClipboardCheck, CalendarDays } from "lucide-react"; 
 
 const aiTools = [
   {
@@ -46,6 +46,13 @@ const aiTools = [
     icon: <ClipboardCheck className="h-10 w-10 text-primary mb-4" />,
     link: "/dashboard/ai-tools/exam-report-analyzer",
     status: "active", 
+  },
+  {
+    name: "AI Çalışma Planı Oluşturucu",
+    description: "Hedeflerinize ve konularınıza özel kişiselleştirilmiş YKS çalışma planı taslakları alın.",
+    icon: <CalendarDays className="h-10 w-10 text-primary mb-4" />,
+    link: "/dashboard/ai-tools/study-plan-generator",
+    status: "soon", // Mark as "soon" for now
   },
 ];
 

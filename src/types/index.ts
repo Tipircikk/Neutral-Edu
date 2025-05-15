@@ -29,7 +29,7 @@ export interface SupportTicket {
   userId: string;
   userEmail: string | null;
   userName?: string | null;
-  userPlan?: UserProfile["plan"]; // Added to prioritize tickets
+  userPlan?: UserProfile["plan"]; 
   subject: SupportTicketSubject;
   status: SupportTicketStatus;
   createdAt: Timestamp;
@@ -52,4 +52,13 @@ export interface PricingConfig {
   premium?: { price: string; originalPrice?: string; };
   pro?: { price: string; originalPrice?: string; };
   updatedAt?: Timestamp;
+}
+
+export interface Notification {
+  id: string;
+  title: string;
+  description: string;
+  createdAt: Timestamp;
+  read: boolean;
+  link?: string; // Optional link to navigate to
 }
