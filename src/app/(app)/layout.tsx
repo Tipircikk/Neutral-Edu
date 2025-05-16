@@ -24,7 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
-import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation } from "lucide-react"; 
+import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation, Timer } from "lucide-react"; 
 import Link from "next/link";
 import QuotaDisplay from "@/components/dashboard/QuotaDisplay";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
@@ -39,6 +39,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [isAiToolsSubmenuOpen, setIsAiToolsSubmenuOpen] = useState(false); 
+  const [isHelperToolsSubmenuOpen, setIsHelperToolsSubmenuOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -47,7 +48,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   }, [user, authLoading, router]);
 
   useEffect(() => {
-    // Automatically open AI tools submenu if the current path is one of the AI tools
     const aiToolPaths = [
       "/dashboard/ai-tools/pdf-summarizer",
       "/dashboard/ai-tools/topic-summarizer",
@@ -61,6 +61,14 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     if (aiToolPaths.some(path => pathname.startsWith(path))) {
       setIsAiToolsSubmenuOpen(true);
     }
+
+    const helperToolPaths = [
+      "/dashboard/tools/pomodoro",
+    ];
+    if (helperToolPaths.some(path => pathname.startsWith(path))) {
+      setIsHelperToolsSubmenuOpen(true);
+    }
+
   }, [pathname]);
 
   const handleSignOut = async () => {
@@ -84,6 +92,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   }
 
   const isAiToolsPathActive = pathname.startsWith('/dashboard/ai-tools');
+  const isHelperToolsPathActive = pathname.startsWith('/dashboard/tools');
   const isSupportPath = pathname === "/dashboard/support";
   const isSubscriptionPath = pathname === "/dashboard/subscription";
   const isAdminPath = pathname.startsWith("/dashboard/admin");
@@ -187,6 +196,29 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                           <Link href="/dashboard/ai-tools/study-plan-generator"><CalendarDays /><span>AI Çalışma Planı</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
+                    </SidebarMenuSub>
+                  )}
+                </SidebarMenuItem>
+
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    className="justify-between"
+                    isActive={isHelperToolsPathActive}
+                    onClick={() => setIsHelperToolsSubmenuOpen(!isHelperToolsSubmenuOpen)}
+                    data-state={isHelperToolsSubmenuOpen ? "open" : "closed"} 
+                    tooltip="Yardımcı Araçlar"
+                  >
+                    <div className="flex items-center gap-2"><Timer /> <span>Yardımcı Araçlar</span></div> {/* Timer icon for generic tools */}
+                    {isHelperToolsSubmenuOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+                  </SidebarMenuButton>
+                  {isHelperToolsSubmenuOpen && (
+                    <SidebarMenuSub>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/tools/pomodoro"}>
+                          <Link href="/dashboard/tools/pomodoro"><Timer /><span>Pomodoro Zamanlayıcı</span></Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      {/* Add more helper tools here in the future */}
                     </SidebarMenuSub>
                   )}
                 </SidebarMenuItem>
