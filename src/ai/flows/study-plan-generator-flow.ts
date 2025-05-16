@@ -39,7 +39,7 @@ const WeeklyPlanSchema = z.object({
 const GenerateStudyPlanOutputSchema = z.object({
   planTitle: z.string().describe("Oluşturulan çalışma planı için bir başlık (örn: 'Kişiselleştirilmiş YKS Çalışma Planı')."),
   introduction: z.string().optional().describe("Plana genel bir giriş ve motivasyon mesajı."),
-  weeklyPlans: z.array(WeeklyPlanSchema).describe("Haftalık olarak düzenlenmiş çalışma planı. Her bir haftalık plan objesi MUTLAKA 'week' (hafta numarası) alanını içermelidir."),
+  weeklyPlans: z.array(WeeklyPlanSchema).describe("Haftalık olarak düzenlenmiş çalışma planı. Her bir haftalık plan objesi MUTLAKA 'week' (hafta numarası) alanını İÇERMELİDİR ve bu bir SAYI olmalıdır."),
   generalTips: z.array(z.string()).optional().describe("Genel çalışma stratejileri, mola önerileri ve YKS için ipuçları."),
   disclaimer: z.string().default("Bu, yapay zeka tarafından oluşturulmuş bir taslak plandır. Kendi öğrenme hızınıza ve ihtiyaçlarınıza göre uyarlamanız önemlidir.").describe("Planın bir taslak olduğuna dair uyarı.")
 });
@@ -69,12 +69,12 @@ Hedef Sınav: {{{targetExam}}}
 Toplam Çalışma Süresi: {{{studyDuration}}}
 Günlük Ortalama Çalışma Saati: {{{hoursPerDay}}}
 
-Lütfen bu bilgilere göre, aşağıdaki formatta bir çalışma planı taslağı oluştur: Çıktı, JSON şemasına HARFİYEN uymalıdır. Özellikle 'weeklyPlans' dizisindeki her bir obje, 'week' (hafta numarası), 'weeklyGoal' (isteğe bağlı) ve 'dailyTasks' (günlük görevler dizisi) alanlarını içermelidir. 'dailyTasks' içindeki her obje de 'day', 'focusTopics' ve isteğe bağlı diğer alanları içermelidir. Şemada 'required' olarak belirtilen tüm alanlar MUTLAKA çıktıda bulunmalıdır.
+Lütfen bu bilgilere göre, aşağıdaki formatta bir çalışma planı taslağı oluştur: Çıktı, JSON şemasına HARFİYEN uymalıdır. Özellikle 'weeklyPlans' dizisindeki her bir obje, 'week' (hafta numarası, SAYI olarak), 'weeklyGoal' (isteğe bağlı) ve 'dailyTasks' (günlük görevler dizisi) alanlarını içermelidir. 'dailyTasks' içindeki her obje de 'day', 'focusTopics' ve isteğe bağlı diğer alanları içermelidir. Şemada 'required' olarak belirtilen tüm alanlar MUTLAKA çıktıda bulunmalıdır. HER BİR HAFTALIK PLAN OBJESİ 'week' ANAHTARINA SAHİP OLMALI VE BU ANAHTARIN DEĞERİ BİR SAYI (NUMBER) OLMALIDIR. Örneğin: { "week": 1, ... }, { "week": 2, ... } gibi.
 
 1.  **Plan Başlığı (planTitle)**: Örneğin, "Kişiye Özel {{{targetExam}}} Hazırlık Planı ({{{studyDuration}}})". Bu alan ZORUNLUDUR.
 2.  **Giriş (introduction) (isteğe bağlı)**: Öğrenciyi motive eden, planın genel mantığını açıklayan kısa bir giriş.
 3.  **Haftalık Planlar (weeklyPlans)**: Çalışma süresine göre haftalara bölünmüş planlar. Her hafta için:
-    *   **Hafta Numarası (week)**: Örneğin, 1, 2, 3... Bu alan HER HAFTALIK PLAN OBJESİNDE ZORUNLUDUR. Bu değerin kesinlikle bir sayı olduğundan ve her haftalık plan için mevcut olduğundan emin ol.
+    *   **Hafta Numarası (week)**: Örneğin, 1, 2, 3... Bu alan HER HAFTALIK PLAN OBJESİNDE ZORUNLUDUR VE MUTLAKA BİR SAYI OLMALIDIR. Bu değerin kesinlikle bir sayı olduğundan ve her haftalık plan için mevcut olduğundan emin ol.
     *   **Haftalık Hedef (weeklyGoal) (isteğe bağlı)**: O haftanın ana odak noktası veya bitirilmesi hedeflenen genel konu başlıkları.
     *   **Günlük Görevler (dailyTasks)**: Haftanın her günü için (Pazartesi-Pazar veya 1. Gün - 7. Gün):
         *   **Gün (day)**: Günün adı. Bu alan ZORUNLUDUR.
@@ -82,7 +82,7 @@ Lütfen bu bilgilere göre, aşağıdaki formatta bir çalışma planı taslağ�
         *   **Tahmini Süre (estimatedTime) (isteğe bağlı)**: Her bir odak konuya ayrılması önerilen süre (örn: "Matematik - Türev: 2 saat").
         *   **Aktiviteler (activities) (isteğe bağlı)**: "Konu anlatımı dinleme/okuma", "{{{hoursPerDay}}} soru çözümü", "Kısa tekrar", "Yanlış analizi" gibi spesifik görevler.
         *   **Notlar (notes) (isteğe bağlı)**: O güne özel motivasyon, mola önerisi veya önemli bir ipucu.
-    Bu 'weeklyPlans' dizisi ZORUNLUDUR. Her bir elemanının yukarıdaki şemaya uyduğundan emin ol.
+    Bu 'weeklyPlans' dizisi ZORUNLUDUR. Her bir elemanının yukarıdaki şemaya uyduğundan emin ol, özellikle 'week' alanının bir sayı olarak varlığından.
 4.  **Genel İpuçları (generalTips) (isteğe bağlı)**: Zaman yönetimi, verimli ders çalışma teknikleri, sınav stresiyle başa çıkma gibi genel YKS hazırlık önerileri.
 5.  **Sorumluluk Reddi (disclaimer)**: "Bu, yapay zeka tarafından oluşturulmuş bir taslak plandır..." şeklinde standart bir uyarı.
 
@@ -93,7 +93,7 @@ Planlama Prensipleri:
 *   Öğrencinin sıkılmaması için çeşitlilik sağlamaya çalış.
 *   Gerçekçi ve uygulanabilir bir plan oluştur.
 *   Eğer verilen süre çok kısaysa veya konu sayısı çok fazlaysa, bu durumu nazikçe belirt ve planı en iyi şekilde optimize etmeye çalış veya daha odaklı bir plan öner.
-*   Şemadaki 'required' olarak işaretlenmiş tüm alanların çıktıda bulunduğundan emin ol. Özellikle 'weeklyPlans' içindeki her bir haftanın 'week' numarası MUTLAKA belirtilmelidir.
+*   Şemadaki 'required' olarak işaretlenmiş tüm alanların çıktıda bulunduğundan emin ol. Özellikle 'weeklyPlans' içindeki her bir haftanın 'week' numarası MUTLAKA BİR SAYI OLARAK belirtilmelidir.
 `,
 });
 
@@ -104,31 +104,27 @@ const studyPlanGeneratorFlow = ai.defineFlow(
     outputSchema: GenerateStudyPlanOutputSchema,
   },
   async (input) => {
-    let modelToUse = 'googleai/gemini-2.0-flash';
-    // Pro kullanıcılar için farklı bir model kullanmak isterseniz, burada ayarlayabilirsiniz.
-    // if (input.userPlan === 'pro') {
-    //   modelToUse = 'googleai/gemini-1.5-flash-latest'; 
-    // }
+    const modelToUse = 'googleai/gemini-2.0-flash'; 
     
     const {output} = await prompt(input, { model: modelToUse });
 
-    // Burada AI'dan gelen çıktının şemaya uygunluğunu kontrol etmek için ek bir doğrulama adımı eklenebilir.
-    // Ancak Zod şeması, Genkit tarafından zaten bu kontrolü bir ölçüde yapıyor olmalı.
-    // Eğer hata devam ederse, burada manuel bir 'week' alanı kontrolü yapılabilir.
-    if (!output || !output.weeklyPlans || output.weeklyPlans.length === 0) {
+    if (!output || !output.weeklyPlans) {
       throw new Error("AI Eğitim Koçu, belirtilen girdilerle bir çalışma planı oluşturamadı. Lütfen bilgilerinizi kontrol edin.");
     }
     
-    // Ekstra bir önlem olarak her bir weeklyPlan'ın 'week' propertysine sahip olup olmadığını kontrol edelim.
-    // Genkit'in Zod entegrasyonu bunu zaten yapmalı ama bazen AI eksik veya hatalı format gönderebiliyor.
-    output.weeklyPlans.forEach((wp, index) => {
-      if (typeof wp.week !== 'number') {
-        console.warn(`Study Plan Generator: AI'dan gelen haftalık plan (index ${index}) 'week' numarasına sahip değil veya tipi yanlış. AI Çıktısı:`, wp);
-        // Bu durumda, akışı bir hata ile sonlandırabilir veya varsayılan bir değer atayabiliriz.
-        // Şimdilik sadece uyarı veriyoruz, çünkü Genkit'in schema validation'ı bunu yakalamalı.
-        // Eğer hata devam ediyorsa burası daha katı hale getirilmeli.
-      }
-    });
+    // AI'nın 'week' alanını eklemeyi unuttuğu veya yanlış formatta eklediği durumlar için ek kontrol ve düzeltme
+    if (Array.isArray(output.weeklyPlans)) {
+      output.weeklyPlans.forEach((plan, index) => {
+        if (typeof plan.week !== 'number' || isNaN(plan.week)) {
+          console.warn(`Study Plan Generator: AI output for weeklyPlans[${index}] is missing or has an invalid 'week' number. Assigning index+1. Original plan:`, JSON.stringify(plan));
+          plan.week = index + 1; // Dizideki sırasına göre bir hafta numarası ata
+        }
+      });
+    } else {
+      // Eğer weeklyPlans bir dizi değilse veya boşsa, bu da bir sorundur.
+      console.error("Study Plan Generator: AI output for weeklyPlans is not an array or is empty. Input:", JSON.stringify(input));
+      throw new Error("AI Eğitim Koçu, haftalık planları doğru formatta oluşturamadı.");
+    }
 
     return output;
   }

@@ -21,7 +21,7 @@ export const useUser = () => {
       setUserProfile(profile);
     } catch (error) {
       console.error("Error fetching user profile:", error);
-      toast({ title: "Error", description: "Failed to load user profile.", variant: "destructive" });
+      toast({ title: "Hata", description: "Kullanıcı profili yüklenemedi.", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -31,75 +31,94 @@ export const useUser = () => {
     if (authUser) {
       fetchUserProfile(authUser.uid);
     } else if (!authLoading) {
-      setUserProfile(null); // Clear profile if no auth user and auth is not loading
+      setUserProfile(null); 
       setLoading(false);
     }
   }, [authUser, authLoading, fetchUserProfile]);
 
   const checkAndResetQuota = useCallback(async (): Promise<UserProfile | null> => {
-    if (!authUser || !userProfile) return userProfile;
+    if (!authUser) {
+      console.warn("checkAndResetQuota called without an authenticated user.");
+      return userProfile; // Return current profile or null if no authUser
+    }
+    
+    // Fetch the latest profile to ensure we have the most up-to-date data from Firestore
+    // This is important if this function is called multiple times in quick succession
+    // or if background updates might have occurred.
+    const freshProfile = await getUserProfile(authUser.uid);
+    if (!freshProfile) {
+        console.warn("checkAndResetQuota: Could not fetch fresh profile for user.", authUser.uid);
+        return userProfile; // Fallback to existing state if fresh fetch fails
+    }
 
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Start of today
+    today.setHours(0, 0, 0, 0); 
 
     let lastSummaryDateObj: Date | null = null;
-    if (userProfile.lastSummaryDate) {
-      if (userProfile.lastSummaryDate instanceof Timestamp) {
-        lastSummaryDateObj = userProfile.lastSummaryDate.toDate();
-      } else if (typeof userProfile.lastSummaryDate === 'string') {
-        lastSummaryDateObj = new Date(userProfile.lastSummaryDate); // Handle potential string date
+    if (freshProfile.lastSummaryDate) {
+      if (freshProfile.lastSummaryDate instanceof Timestamp) {
+        lastSummaryDateObj = freshProfile.lastSummaryDate.toDate();
+      } else if (typeof freshProfile.lastSummaryDate === 'string') {
+        const parsedDate = new Date(freshProfile.lastSummaryDate);
+        if (!isNaN(parsedDate.getTime())) {
+          lastSummaryDateObj = parsedDate;
+        } else {
+          console.warn("Invalid date string in lastSummaryDate:", freshProfile.lastSummaryDate);
+        }
       }
       if (lastSummaryDateObj) {
-        lastSummaryDateObj.setHours(0,0,0,0); // Start of that day
+        lastSummaryDateObj.setHours(0, 0, 0, 0); 
       }
     }
     
     if (!lastSummaryDateObj || lastSummaryDateObj.getTime() < today.getTime()) {
-      const newQuota = getDefaultQuota(userProfile.plan);
+      const newQuota = getDefaultQuota(freshProfile.plan);
       const updatedProfileFields: Partial<UserProfile> = {
         dailyRemainingQuota: newQuota,
         lastSummaryDate: Timestamp.fromDate(today),
       };
       try {
         await updateUserProfile(authUser.uid, updatedProfileFields);
-        const updatedProfile = { ...userProfile, ...updatedProfileFields };
-        setUserProfile(updatedProfile);
-        return updatedProfile;
+        const updatedProfileFromReset = { ...freshProfile, ...updatedProfileFields };
+        setUserProfile(updatedProfileFromReset); // Update local state with the reset profile
+        return updatedProfileFromReset;
       } catch (error) {
         console.error("Error resetting quota:", error);
-        toast({ title: "Hata", description: "Failed to update daily quota.", variant: "destructive" });
-        return userProfile; // Return old profile on error
+        toast({ title: "Hata", description: "Günlük kota güncellenirken bir hata oluştu.", variant: "destructive" });
+        setUserProfile(freshProfile); // Revert to fresh profile on error
+        return freshProfile; 
       }
     }
-    return userProfile;
-  }, [authUser, userProfile, toast, setUserProfile]);
+    setUserProfile(freshProfile); // Ensure local state is synced if no reset was needed
+    return freshProfile;
+  }, [authUser, toast, setUserProfile]); // Removed userProfile from deps to rely on fresh fetch
 
 
   const decrementQuota = useCallback(async (profileData: UserProfile) => {
     if (!authUser) {
-        // console.warn("Decrement quota called without authUser.");
         return false;
     }
     if (!profileData) {
-        // console.warn("Decrement quota called without profileData.");
         return false;
     }
+    // Use the quota from the passed profileData, which should be fresh (e.g., after checkAndResetQuota)
     if (profileData.dailyRemainingQuota <= 0) {
-      // console.warn("Attempted to decrement quota but it's already 0 or less based on provided profileData.");
       return false;
     }
 
     const newQuota = profileData.dailyRemainingQuota - 1;
-    const today = new Date();
+    const today = new Date(); // Use current date for lastSummaryDate on decrement
     try {
       const updatedFields: Partial<UserProfile> = {
         dailyRemainingQuota: newQuota,
-        lastSummaryDate: Timestamp.fromDate(today)
+        lastSummaryDate: Timestamp.fromDate(today) // Always update lastSummaryDate on any quota change
       };
       await updateUserProfile(authUser.uid, updatedFields);
       setUserProfile(prev => {
         if (!prev) return null;
-        return { ...prev, ...updatedFields };
+        // Ensure the update is based on the profileData that was used for decrement logic,
+        // and then apply the new fields.
+        return { ...profileData, ...updatedFields };
       });
       return true;
     } catch (error) {
@@ -111,3 +130,4 @@ export const useUser = () => {
 
   return { userProfile, loading: loading || authLoading, fetchUserProfile, checkAndResetQuota, decrementQuota };
 };
+
