@@ -7,12 +7,22 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input as ShadInput } from "@/components/ui/input"; 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { FileTextIcon, Wand2, Loader2, AlertTriangle } from "lucide-react";
+import { FileTextIcon, Wand2, Loader2, AlertTriangle, ChevronLeft, ChevronRight, CheckCircle, XCircle, Eye } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
-import { generateTest, type GenerateTestOutput, type GenerateTestInput } from "@/ai/flows/test-generator-flow"; 
+import { generateTest, type GenerateTestOutput, type GenerateTestInput, type QuestionSchema as QuestionType } from "@/ai/flows/test-generator-flow"; 
+import { Separator } from "@/components/ui/separator";
+
+type CheckedAnswersState = {
+  [key: number]: {
+    isCorrect: boolean;
+    selectedOption: string;
+    correctAnswer: string;
+  };
+};
 
 export default function TestGeneratorPage() {
   const [topic, setTopic] = useState("");
@@ -23,6 +33,11 @@ export default function TestGeneratorPage() {
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
   const [canProcess, setCanProcess] = useState(false);
+
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [userAnswers, setUserAnswers] = useState<{[key: number]: string}>({});
+  const [checkedAnswers, setCheckedAnswers] = useState<CheckedAnswersState>({});
+  const [showExplanations, setShowExplanations] = useState<{[key: number]: boolean}>({});
 
   const memoizedCheckAndResetQuota = useCallback(async () => {
     if (checkAndResetQuota) return checkAndResetQuota();
@@ -37,6 +52,14 @@ export default function TestGeneratorPage() {
     }
   }, [userProfile, memoizedCheckAndResetQuota]);
 
+  const resetTestState = () => {
+    setCurrentQuestionIndex(0);
+    setUserAnswers({});
+    setCheckedAnswers({});
+    setShowExplanations({});
+    setTestOutput(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!topic.trim()) {
@@ -45,7 +68,7 @@ export default function TestGeneratorPage() {
     }
 
     setIsGenerating(true);
-    setTestOutput(null);
+    resetTestState(); 
 
     const currentProfile = await memoizedCheckAndResetQuota();
     if (!currentProfile || (currentProfile.dailyRemainingQuota ?? 0) <= 0) {
@@ -72,7 +95,7 @@ export default function TestGeneratorPage() {
         setTestOutput(result);
         toast({ title: "Test Hazır!", description: "Belirttiğiniz konu için bir test oluşturuldu." });
         if (decrementQuota) {
-            await decrementQuota(currentProfile); // Pass currentProfile
+            await decrementQuota(currentProfile);
         }
         const updatedProfileAgain = await memoizedCheckAndResetQuota();
         if (updatedProfileAgain) {
@@ -93,6 +116,32 @@ export default function TestGeneratorPage() {
     }
   };
 
+  const handleOptionChange = (value: string) => {
+    setUserAnswers(prev => ({...prev, [currentQuestionIndex]: value}));
+  };
+
+  const handleCheckAnswer = () => {
+    if (!testOutput || userAnswers[currentQuestionIndex] === undefined) return;
+    const currentQuestion = testOutput.questions[currentQuestionIndex];
+    const isCorrect = userAnswers[currentQuestionIndex] === currentQuestion.correctAnswer;
+    setCheckedAnswers(prev => ({
+        ...prev, 
+        [currentQuestionIndex]: {
+            isCorrect, 
+            selectedOption: userAnswers[currentQuestionIndex],
+            correctAnswer: currentQuestion.correctAnswer
+        }
+    }));
+  };
+
+  const handleShowExplanation = () => {
+    setShowExplanations(prev => ({...prev, [currentQuestionIndex]: true}));
+  };
+
+  const currentQuestion: QuestionType | undefined = testOutput?.questions[currentQuestionIndex];
+  const isAnswerChecked = checkedAnswers[currentQuestionIndex] !== undefined;
+  const isExplanationShown = showExplanations[currentQuestionIndex] === true;
+  
   const isSubmitDisabled = isGenerating || !topic.trim() || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
 
   if (userProfileLoading) {
@@ -128,60 +177,66 @@ export default function TestGeneratorPage() {
         </Alert>
       )}
 
-      <form onSubmit={handleSubmit}>
-        <Card>
-          <CardContent className="pt-6 space-y-4">
-            <div>
-              <Label htmlFor="topic" className="block text-sm font-medium text-foreground mb-1">Test Konusu</Label>
-              <Textarea
-                id="topic"
-                placeholder="Örneğin: YKS Matematik - Fonksiyonlar, YKS Türk Dili ve Edebiyatı - Divan Edebiyatı, YKS Coğrafya - Türkiye'nin İklimi..."
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-                rows={3}
-                className="text-base"
-                disabled={isGenerating || !canProcess}
-              />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {!testOutput && (
+        <form onSubmit={handleSubmit}>
+            <Card>
+            <CardContent className="pt-6 space-y-4">
                 <div>
-                    <Label htmlFor="numQuestions" className="block text-sm font-medium text-foreground mb-1">Soru Sayısı</Label>
-                    <ShadInput 
-                        type="number" 
-                        id="numQuestions"
-                        value={numQuestions}
-                        onChange={(e) => setNumQuestions(parseInt(e.target.value,10))}
-                        min="3"
-                        max="20"
-                        className="w-full p-2 border rounded-md bg-input border-border"
-                        disabled={isGenerating || !canProcess}
-                    />
+                <Label htmlFor="topic" className="block text-sm font-medium text-foreground mb-1">Test Konusu</Label>
+                <Textarea
+                    id="topic"
+                    placeholder="Örneğin: YKS Matematik - Fonksiyonlar, YKS Türk Dili ve Edebiyatı - Divan Edebiyatı, YKS Coğrafya - Türkiye'nin İklimi..."
+                    value={topic}
+                    onChange={(e) => setTopic(e.target.value)}
+                    rows={3}
+                    className="text-base"
+                    disabled={isGenerating || !canProcess}
+                />
                 </div>
-                <div>
-                    <Label htmlFor="difficulty" className="block text-sm font-medium text-foreground mb-1">Zorluk Seviyesi</Label>
-                    <Select
-                        value={difficulty}
-                        onValueChange={(value: GenerateTestInput["difficulty"]) => setDifficulty(value)}
-                        disabled={isGenerating || !canProcess}
-                    >
-                        <SelectTrigger id="difficulty">
-                            <SelectValue placeholder="Zorluk seçin" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="easy">Kolay</SelectItem>
-                            <SelectItem value="medium">Orta</SelectItem>
-                            <SelectItem value="hard">Zor</SelectItem>
-                        </SelectContent>
-                    </Select>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <Label htmlFor="numQuestions" className="block text-sm font-medium text-foreground mb-1">Soru Sayısı (3-20)</Label>
+                        <ShadInput 
+                            type="number" 
+                            id="numQuestions"
+                            value={numQuestions}
+                            onChange={(e) => {
+                                const val = parseInt(e.target.value,10);
+                                if (val >= 3 && val <= 20) setNumQuestions(val);
+                                else if (e.target.value === "") setNumQuestions(3); // or some default / allow empty for now
+                            }}
+                            min="3"
+                            max="20"
+                            className="w-full p-2 border rounded-md bg-input border-border"
+                            disabled={isGenerating || !canProcess}
+                        />
+                    </div>
+                    <div>
+                        <Label htmlFor="difficulty" className="block text-sm font-medium text-foreground mb-1">Zorluk Seviyesi</Label>
+                        <Select
+                            value={difficulty}
+                            onValueChange={(value: GenerateTestInput["difficulty"]) => setDifficulty(value)}
+                            disabled={isGenerating || !canProcess}
+                        >
+                            <SelectTrigger id="difficulty">
+                                <SelectValue placeholder="Zorluk seçin" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="easy">Kolay</SelectItem>
+                                <SelectItem value="medium">Orta</SelectItem>
+                                <SelectItem value="hard">Zor</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
-            </div>
-            <Button type="submit" className="w-full" disabled={isSubmitDisabled}>
-              {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-              YKS Testi Oluştur
-            </Button>
-          </CardContent>
-        </Card>
-      </form>
+                <Button type="submit" className="w-full" disabled={isSubmitDisabled}>
+                {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                YKS Testi Oluştur
+                </Button>
+            </CardContent>
+            </Card>
+        </form>
+      )}
       
       {isGenerating && !testOutput && (
         <Card className="mt-6 shadow-lg">
@@ -197,25 +252,110 @@ export default function TestGeneratorPage() {
         </Card>
       )}
 
-      {testOutput && testOutput.questions && testOutput.questions.length > 0 && (
+      {testOutput && currentQuestion && (
         <Card className="mt-6">
           <CardHeader>
-            <CardTitle>{testOutput.testTitle || "Oluşturulan Test"}</CardTitle>
+            <CardTitle>{testOutput.testTitle} - Soru {currentQuestionIndex + 1} / {testOutput.questions.length}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {testOutput.questions.map((q, index) => (
-              <div key={index} className="p-4 border rounded-md bg-muted/50">
-                <p className="font-semibold text-foreground">Soru {index + 1} ({q.questionType === "multiple_choice" ? "Çoktan Seçmeli" : q.questionType === "true_false" ? "Doğru/Yanlış" : "Kısa Cevap"}): {q.questionText}</p>
-                {q.options && q.options.length > 0 && (
-                  <ul className="list-none pl-0 mt-2 space-y-1 text-sm text-muted-foreground">
-                    {q.options.map((opt, i) => <li key={i} className="ml-4">{String.fromCharCode(65 + i)}) {opt}</li>)}
-                  </ul>
+            <div className="p-4 border rounded-md bg-muted/30">
+              <p className="font-semibold text-foreground whitespace-pre-line">{currentQuestion.questionText}</p>
+            </div>
+            
+            {currentQuestion.options && (
+                <RadioGroup 
+                    onValueChange={handleOptionChange} 
+                    value={userAnswers[currentQuestionIndex]}
+                    disabled={isAnswerChecked}
+                >
+                {currentQuestion.options.map((option, index) => {
+                    const optionLetter = String.fromCharCode(65 + index);
+                    const checkedInfo = checkedAnswers[currentQuestionIndex];
+                    let optionStyle = "border-border";
+                    let IconComponent = null;
+
+                    if (checkedInfo) {
+                        if (optionLetter === checkedInfo.correctAnswer) {
+                            optionStyle = "border-green-500 bg-green-500/10 text-green-700 dark:text-green-400";
+                            IconComponent = <CheckCircle className="h-5 w-5 text-green-500" />;
+                        } else if (optionLetter === checkedInfo.selectedOption) {
+                             optionStyle = "border-red-500 bg-red-500/10 text-red-700 dark:text-red-400";
+                             IconComponent = <XCircle className="h-5 w-5 text-red-500" />;
+                        }
+                    }
+
+                    return (
+                        <Label 
+                            key={optionLetter} 
+                            htmlFor={`q${currentQuestionIndex}-opt${optionLetter}`}
+                            className={`flex items-center space-x-3 p-3 rounded-md border-2 ${optionStyle} hover:bg-accent/50 transition-all cursor-pointer ${isAnswerChecked ? 'cursor-not-allowed opacity-70' : ''}`}
+                        >
+                            <RadioGroupItem 
+                                value={optionLetter} 
+                                id={`q${currentQuestionIndex}-opt${optionLetter}`} 
+                                disabled={isAnswerChecked}
+                            />
+                            <span>{optionLetter}) {option}</span>
+                            {IconComponent && <span className="ml-auto">{IconComponent}</span>}
+                        </Label>
+                    );
+                })}
+                </RadioGroup>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-2">
+                {!isAnswerChecked && (
+                    <Button onClick={handleCheckAnswer} disabled={userAnswers[currentQuestionIndex] === undefined} className="flex-1">
+                        Kontrol Et
+                    </Button>
                 )}
-                <p className="mt-2 text-sm"><span className="font-medium text-primary">Doğru Cevap:</span> {q.correctAnswer}</p>
-                {q.explanation && <p className="mt-1 text-xs text-muted-foreground italic"><span className="font-medium">Açıklama:</span> {q.explanation}</p>}
-              </div>
-            ))}
-             <div className="mt-4 p-3 text-xs text-destructive-foreground bg-destructive/80 rounded-md flex items-center gap-2">
+                {isAnswerChecked && !isExplanationShown && (
+                    <Button onClick={handleShowExplanation} variant="outline" className="flex-1">
+                        <Eye className="mr-2 h-4 w-4" /> Çözümü Gör
+                    </Button>
+                )}
+            </div>
+
+            {isAnswerChecked && checkedAnswers[currentQuestionIndex] && (
+                 <Alert variant={checkedAnswers[currentQuestionIndex].isCorrect ? "default" : "destructive"} className={checkedAnswers[currentQuestionIndex].isCorrect ? "bg-green-500/10 border-green-500 text-green-700 dark:text-green-400" : ""}>
+                    {checkedAnswers[currentQuestionIndex].isCorrect ? <CheckCircle className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
+                    <AlertTitle>{checkedAnswers[currentQuestionIndex].isCorrect ? "Doğru!" : "Yanlış!"}</AlertTitle>
+                    <AlertDescription>
+                        {checkedAnswers[currentQuestionIndex].isCorrect ? "Tebrikler, doğru cevap verdiniz." : `Doğru cevap: ${checkedAnswers[currentQuestionIndex].correctAnswer}.`}
+                    </AlertDescription>
+                </Alert>
+            )}
+
+            {isExplanationShown && currentQuestion.explanation && (
+              <Card className="bg-accent/30 p-4 mt-4">
+                <CardHeader className="p-0 mb-2"><CardTitle className="text-md">Açıklama</CardTitle></CardHeader>
+                <CardContent className="p-0">
+                    <p className="text-sm text-muted-foreground whitespace-pre-line">{currentQuestion.explanation}</p>
+                </CardContent>
+              </Card>
+            )}
+            
+            <Separator className="my-6"/>
+
+            <div className="flex justify-between items-center">
+              <Button 
+                onClick={() => setCurrentQuestionIndex(prev => Math.max(0, prev - 1))}
+                disabled={currentQuestionIndex === 0}
+                variant="outline"
+              >
+                <ChevronLeft className="mr-2 h-4 w-4" /> Önceki Soru
+              </Button>
+              <Button onClick={resetTestState} variant="secondary">Yeni Test Oluştur</Button>
+              <Button 
+                onClick={() => setCurrentQuestionIndex(prev => Math.min(testOutput.questions.length - 1, prev + 1))}
+                disabled={currentQuestionIndex === testOutput.questions.length - 1}
+                variant="outline"
+              >
+                Sonraki Soru <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+
+             <div className="mt-6 p-3 text-xs text-destructive-foreground bg-destructive/80 rounded-md flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
               <span>NeutralEdu AI bir yapay zekadır bu nedenle hata yapabilir, bu yüzden verdiği bilgileri doğrulayınız.</span>
             </div>
@@ -225,3 +365,4 @@ export default function TestGeneratorPage() {
     </div>
   );
 }
+
