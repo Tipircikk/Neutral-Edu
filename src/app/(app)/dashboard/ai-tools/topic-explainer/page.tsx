@@ -1,6 +1,7 @@
 
 "use client";
 
+import React, { useState, useEffect, useCallback, Fragment } from "react"; // Added React for Fragment
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -9,14 +10,12 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useState, useEffect, useCallback, Fragment } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { explainTopic, type ExplainTopicOutput, type ExplainTopicInput } from "@/ai/flows/topic-explainer-flow";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 // PDF Dışa Aktarma için jsPDF'i dinamik olarak import edeceğiz.
-// import jsPDF from 'jspdf'; // Statik import kaldırıldı
 
 export default function TopicExplainerPage() {
   const [topicName, setTopicName] = useState("");
@@ -44,6 +43,62 @@ export default function TopicExplainerPage() {
     }
   }, [userProfile, memoizedCheckAndResetQuota]);
 
+  const parseInlineFormatting = (line: string | undefined | null): React.ReactNode[] => {
+    if (!line) return [];
+    // Regex to find patterns like text^number or text_number (digits only for subscript)
+    const parts = line.split(/(\S+\^\S+|\S+_\d+)/g);
+    return parts.map((part, index) => {
+      if (part.includes('^')) {
+        const [base, exponent] = part.split('^');
+        return <Fragment key={index}>{base}<sup>{exponent}</sup></Fragment>;
+      } else if (part.match(/(\S+)_(\d+)/)) { // Match text_digits
+        const match = part.match(/(\S+)_(\d+)(.*)/);
+        if (match) {
+            return <Fragment key={index}>{match[1]}<sub>{match[2]}</sub>{match[3]}</Fragment>;
+        }
+      }
+      return <Fragment key={index}>{part}</Fragment>;
+    });
+  };
+
+  const formatExplanationForDisplay = (text: string): JSX.Element[] => {
+    if (!text) return [];
+    const lines = text.split('\n');
+    const elements: JSX.Element[] = [];
+    let listItems: React.ReactNode[] = [];
+
+    const flushList = () => {
+      if (listItems.length > 0) {
+        elements.push(
+          <ul key={`ul-${elements.length}`} className="list-disc pl-5 my-2 space-y-1 text-muted-foreground">
+            {listItems.map((itemContent, idx) => <li key={idx}>{itemContent}</li>)}
+          </ul>
+        );
+        listItems = [];
+      }
+    };
+
+    lines.forEach((line, index) => {
+      if (line.trim().startsWith('### ')) {
+        flushList();
+        elements.push(<h4 key={index} className="text-md font-semibold mt-3 mb-1 text-foreground">{parseInlineFormatting(line.substring(4))}</h4>);
+      } else if (line.trim().startsWith('## ')) {
+        flushList();
+        elements.push(<h3 key={index} className="text-lg font-semibold mt-4 mb-2 text-foreground">{parseInlineFormatting(line.substring(3))}</h3>);
+      } else if (line.trim().startsWith('* ') || line.trim().startsWith('- ')) {
+        listItems.push(parseInlineFormatting(line.substring(line.indexOf(' ') + 1)));
+      } else if (line.trim() === "") {
+        flushList();
+        elements.push(<div key={index} className="h-2"></div>);
+      } else {
+        flushList();
+        elements.push(<p key={index} className="mb-2 last:mb-0 text-muted-foreground">{parseInlineFormatting(line)}</p>);
+      }
+    });
+    flushList();
+    return elements;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!topicName.trim() || topicName.trim().length < 3) {
@@ -54,7 +109,6 @@ export default function TopicExplainerPage() {
       toast({ title: "Özel Kişilik Açıklaması Yetersiz", description: "Lütfen özel hoca kişiliği için en az 10 karakterlik bir açıklama girin.", variant: "destructive" });
       return;
     }
-
 
     setIsGenerating(true);
     setExplanationOutput(null);
@@ -112,7 +166,7 @@ export default function TopicExplainerPage() {
     toast({ title: "PDF Oluşturuluyor...", description: "Lütfen bekleyin."});
 
     try {
-      const { default: jsPDF } = await import('jspdf'); // Dinamik import
+      const { default: jsPDF } = await import('jspdf');
 
       const doc = new jsPDF({
         orientation: 'p',
@@ -120,7 +174,6 @@ export default function TopicExplainerPage() {
         format: 'a4',
       });
       
-      // Varsayılan fontu ayarla (Türkçe karakterler için limitli olabilir)
       doc.setFont('Helvetica', 'normal');
 
       const pageHeight = doc.internal.pageSize.height;
@@ -128,18 +181,18 @@ export default function TopicExplainerPage() {
       const margin = 15;
       const contentWidth = pageWidth - 2 * margin;
       let currentY = margin + 5; 
-      const lineHeight = 6; // Yaklaşık satır yüksekliği (10pt font için)
+      const lineHeight = 6; 
       const titleFontSize = 16;
       const headingFontSize = 12;
       const textFontSize = 10;
-      const smallTextFontSize = 8;
 
-      const addWrappedText = (text: string, options: { x?: number, y?: number, fontSize?: number, fontStyle?: "normal" | "bold" | "italic" | "bolditalic", maxWidth?: number, isTitle?: boolean, isListItem?: boolean, color?: string }) => {
+      const addWrappedText = (text: string | undefined, options: { x?: number, y?: number, fontSize?: number, fontStyle?: "normal" | "bold" | "italic" | "bolditalic", maxWidth?: number, isTitle?: boolean, isListItem?: boolean, color?: string }) => {
+        if (!text) return;
         const { x = margin, fontSize = textFontSize, fontStyle = 'normal', maxWidth = contentWidth, isTitle = false, isListItem = false, color = "#000000" } = options;
         let { y = currentY } = options;
 
         doc.setFontSize(fontSize);
-        doc.setFont('Helvetica', fontStyle); // Her metin bloğu için fontu ayarla
+        doc.setFont('Helvetica', fontStyle);
         doc.setTextColor(color);
 
         const lines = doc.splitTextToSize(text, maxWidth);
@@ -150,12 +203,12 @@ export default function TopicExplainerPage() {
             y = margin; 
           }
           const lineText = isListItem && index === 0 ? `• ${line}` : line;
-          const xOffset = isTitle ? 0 : (isListItem ? 2 : 0); // Başlıklar ve listeler için girinti
+          const xOffset = isTitle ? (pageWidth - doc.getTextWidth(lineText)) / 2 : (isListItem ? 2 : 0); // Center align titles
           doc.text(lineText, x + xOffset, y);
           y += lineHeight; 
         });
         currentY = y;
-        if (!isListItem) currentY += (lineHeight / 2); // Paragraflar arası boşluk
+        if (!isListItem) currentY += (lineHeight / 2); 
       };
       
       if (explanationOutput.explanationTitle) {
@@ -165,31 +218,31 @@ export default function TopicExplainerPage() {
 
       if (explanationOutput.explanation) {
         currentY += lineHeight / 2;
-        addWrappedText("Detaylı Konu Anlatımı:", { fontSize: headingFontSize, fontStyle: 'bold', isTitle: true });
+        addWrappedText("Detaylı Konu Anlatımı:", { fontSize: headingFontSize, fontStyle: 'bold' });
         addWrappedText(explanationOutput.explanation, { fontSize: textFontSize });
       }
 
       if (explanationOutput.keyConcepts && explanationOutput.keyConcepts.length > 0) {
         currentY += lineHeight;
-        addWrappedText("Anahtar Kavramlar:", { fontSize: headingFontSize, fontStyle: 'bold', isTitle: true });
+        addWrappedText("Anahtar Kavramlar:", { fontSize: headingFontSize, fontStyle: 'bold' });
         explanationOutput.keyConcepts.forEach(concept => addWrappedText(concept, { fontSize: textFontSize, isListItem: true }));
       }
 
       if (explanationOutput.commonMistakes && explanationOutput.commonMistakes.length > 0) {
         currentY += lineHeight;
-        addWrappedText("Sık Yapılan Hatalar:", { fontSize: headingFontSize, fontStyle: 'bold', isTitle: true });
+        addWrappedText("Sık Yapılan Hatalar:", { fontSize: headingFontSize, fontStyle: 'bold' });
         explanationOutput.commonMistakes.forEach(mistake => addWrappedText(mistake, { fontSize: textFontSize, isListItem: true }));
       }
       
       if (explanationOutput.yksTips && explanationOutput.yksTips.length > 0) {
         currentY += lineHeight;
-        addWrappedText("YKS İpuçları:", { fontSize: headingFontSize, fontStyle: 'bold', isTitle: true });
+        addWrappedText("YKS İpuçları:", { fontSize: headingFontSize, fontStyle: 'bold' });
         explanationOutput.yksTips.forEach(tip => addWrappedText(tip, { fontSize: textFontSize, isListItem: true }));
       }
 
       if (explanationOutput.activeRecallQuestions && explanationOutput.activeRecallQuestions.length > 0) {
         currentY += lineHeight;
-        addWrappedText("Aktif Hatırlama Soruları:", { fontSize: headingFontSize, fontStyle: 'bold', isTitle: true });
+        addWrappedText("Aktif Hatırlama Soruları:", { fontSize: headingFontSize, fontStyle: 'bold' });
         explanationOutput.activeRecallQuestions.forEach(question => addWrappedText(question, { fontSize: textFontSize, isListItem: true }));
       }
       
@@ -199,69 +252,19 @@ export default function TopicExplainerPage() {
 
     } catch (error: any) {
       console.error("PDF oluşturma hatası:", error);
+      let descriptionMessage = "PDF oluşturulurken bir hata oluştu.";
+      if (error.message && error.message.includes("jspdf")) {
+        descriptionMessage = "PDF kütüphanesi ('jspdf') yüklenemedi. Lütfen 'npm install jspdf' komutunu çalıştırıp tekrar deneyin veya internet bağlantınızı kontrol edin.";
+      }
       toast({
         title: "PDF Oluşturma Hatası",
-        description: error.message || "PDF oluşturulurken bir hata oluştu. 'jspdf' paketinin kurulu olduğundan emin olun.",
+        description: descriptionMessage,
         variant: "destructive",
       });
     } finally {
       setIsExportingPdf(false);
     }
   };
-
-  const formatExplanationForDisplay = (text: string): JSX.Element[] => {
-    if (!text) return [];
-    const lines = text.split('\n');
-    const elements: JSX.Element[] = [];
-    let listItems: string[] = [];
-
-    const flushList = () => {
-      if (listItems.length > 0) {
-        elements.push(
-          <ul key={`ul-${elements.length}`} className="list-disc pl-5 my-2 space-y-1">
-            {listItems.map((item, idx) => <li key={idx}>{parseInlineFormatting(item)}</li>)}
-          </ul>
-        );
-        listItems = [];
-      }
-    };
-    
-    const parseInlineFormatting = (line: string) => {
-        const parts = line.split(/(\S+\^\S+|\S+_\S+)/g); // x^2 or H_2O
-        return parts.map((part, index) => {
-          if (part.includes('^')) {
-            const [base, exponent] = part.split('^');
-            return <Fragment key={index}>{base}<sup>{exponent}</sup></Fragment>;
-          } else if (part.includes('_')) {
-            const [base, sub] = part.split('_');
-            return <Fragment key={index}>{base}<sub>{sub}</sub></Fragment>;
-          }
-          return <Fragment key={index}>{part}</Fragment>;
-        });
-      };
-
-
-    lines.forEach((line, index) => {
-      if (line.trim().startsWith('### ')) {
-        flushList();
-        elements.push(<h4 key={index} className="text-md font-semibold mt-3 mb-1 text-foreground">{parseInlineFormatting(line.substring(4))}</h4>);
-      } else if (line.trim().startsWith('## ')) {
-        flushList();
-        elements.push(<h3 key={index} className="text-lg font-semibold mt-4 mb-2 text-foreground">{parseInlineFormatting(line.substring(3))}</h3>);
-      } else if (line.trim().startsWith('* ') || line.trim().startsWith('- ')) {
-        listItems.push(line.substring(line.indexOf(' ') + 1));
-      } else if (line.trim() === "") {
-        flushList();
-        elements.push(<div key={index} className="h-2"></div>);
-      } else {
-        flushList();
-        elements.push(<p key={index} className="mb-2 last:mb-0 text-muted-foreground">{parseInlineFormatting(line)}</p>);
-      }
-    });
-    flushList(); // Ensure any trailing list items are flushed
-    return elements;
-  };
-
 
   const isSubmitDisabled = isGenerating || !topicName.trim() || topicName.trim().length < 3 || (teacherPersona === "ozel" && (!customPersonaDescription.trim() || customPersonaDescription.trim().length < 10)) || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <= 0);
 
