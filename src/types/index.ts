@@ -8,7 +8,7 @@ export interface UserProfile {
   displayName?: string | null;
   plan: "free" | "premium" | "pro";
   dailyRemainingQuota: number;
-  lastSummaryDate: Timestamp | string | null; // Can be string from older data, ensure conversion
+  lastSummaryDate: Timestamp | string | null; 
   isAdmin?: boolean;
   planExpiryDate?: Timestamp | null;
   createdAt?: Timestamp;
@@ -25,7 +25,7 @@ export type SupportTicketStatus = "open" | "answered" | "closed_by_user" | "clos
 export type SupportTicketSubject = "premium" | "ai_tools" | "account" | "bug_report" | "other";
 
 export interface SupportTicket {
-  id: string; // Firestore document ID
+  id: string; 
   userId: string;
   userEmail: string | null;
   userName?: string | null;
@@ -40,18 +40,36 @@ export interface SupportTicket {
 }
 
 export interface SupportMessage {
-  id?: string; // Firestore document ID for the message
-  senderId: string; // UID of user or admin
+  id?: string; 
+  senderId: string; 
   senderType: "user" | "admin";
-  senderName: string; // Display name of sender or "Destek Ekibi"
+  senderName: string; 
   text: string;
   timestamp: Timestamp;
 }
 
+export interface PricingPlanDetails {
+  price: string;
+  originalPrice?: string;
+}
+
 export interface PricingConfig {
-  premium?: { price: string; originalPrice?: string; };
-  pro?: { price: string; originalPrice?: string; };
+  premium?: PricingPlanDetails;
+  pro?: PricingPlanDetails;
   updatedAt?: Timestamp;
+}
+
+export interface ExamDatesConfig {
+  tytDate?: string; // Store as YYYY-MM-DD string
+  aytDate?: string; // Store as YYYY-MM-DD string
+  updatedAt?: Timestamp;
+}
+
+export interface Goal {
+  id: string;
+  text: string;
+  completed: boolean;
+  createdAt: number; // Timestamp (Date.now())
 }
 
 export interface Notification {
@@ -60,5 +78,5 @@ export interface Notification {
   description: string;
   createdAt: Timestamp;
   read: boolean;
-  link?: string; // Optional link to navigate to
+  link?: string; 
 }

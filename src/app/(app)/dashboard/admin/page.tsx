@@ -5,7 +5,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/hooks/useUser";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ShieldAlert, Users, BarChart3, Settings, Inbox, Edit3, DollarSign, MessageSquareWarning } from "lucide-react";
+import { Loader2, ShieldAlert, Users, BarChart3, Settings, Inbox, Edit3, DollarSign, MessageSquareWarning, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,11 +18,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import type { UserProfile, SupportTicket, PricingConfig } from "@/types";
+import type { UserProfile, SupportTicket, PricingConfig, ExamDatesConfig } from "@/types";
 import { db } from "@/lib/firebase/config";
 import { collection, getDocs, query, orderBy, Timestamp as FirestoreTimestamp, doc, updateDoc, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import EditUserDialog from "@/components/admin/EditUserDialog";
 import ReplyTicketDialog from "@/components/admin/ReplyTicketDialog";
@@ -48,6 +48,10 @@ export default function AdminPage() {
   const [premiumOriginalPrice, setPremiumOriginalPrice] = useState("");
   const [proOriginalPrice, setProOriginalPrice] = useState("");
   const [isSavingPrices, setIsSavingPrices] = useState(false);
+
+  const [tytDate, setTytDate] = useState("");
+  const [aytDate, setAytDate] = useState("");
+  const [isSavingExamDates, setIsSavingExamDates] = useState(false);
 
   useEffect(() => {
     if (!adminLoading && !adminUserProfile?.isAdmin) {
@@ -92,7 +96,7 @@ export default function AdminPage() {
     setTicketsLoading(true);
     try {
       const ticketsCollectionRef = collection(db, "supportTickets");
-      const ticketsQuery = query(ticketsCollectionRef, orderBy("lastMessageAt", "desc"));
+      const ticketsQuery = query(ticketsCollectionRef, orderBy("lastMessageAt", "desc")); // Will re-sort later
       const querySnapshot = await getDocs(ticketsQuery);
       
       const ticketsListPromises = querySnapshot.docs.map(async (docSnapshot) => {
@@ -113,7 +117,7 @@ export default function AdminPage() {
         return {
           id: docSnapshot.id,
           ...data,
-          userPlan, // Add userPlan to the ticket object
+          userPlan,
           createdAt: data.createdAt instanceof FirestoreTimestamp ? data.createdAt : FirestoreTimestamp.now(),
           updatedAt: data.updatedAt instanceof FirestoreTimestamp ? data.updatedAt : undefined,
           lastMessageAt: data.lastMessageAt instanceof FirestoreTimestamp ? data.lastMessageAt : (data.createdAt instanceof FirestoreTimestamp ? data.createdAt : FirestoreTimestamp.now()),
@@ -123,20 +127,17 @@ export default function AdminPage() {
       let ticketsList = await Promise.all(ticketsListPromises);
 
       const planOrder: Record<UserProfile["plan"], number> = { pro: 0, premium: 1, free: 2 };
-      const statusOrder = { open: 0, answered: 1, closed_by_user: 2, closed_by_admin: 3 };
+      const statusOrder: Record<SupportTicket["status"], number> = { open: 0, answered: 1, closed_by_user: 2, closed_by_admin: 3 };
 
       ticketsList.sort((a, b) => {
         const planAOrder = a.userPlan ? planOrder[a.userPlan] : planOrder.free;
         const planBOrder = b.userPlan ? planOrder[b.userPlan] : planOrder.free;
-        if (planAOrder < planBOrder) return -1;
-        if (planAOrder > planBOrder) return 1;
+        if (planAOrder !== planBOrder) return planAOrder - planBOrder;
 
         const statusAOrder = statusOrder[a.status];
         const statusBOrder = statusOrder[b.status];
-        if (statusAOrder < statusBOrder) return -1;
-        if (statusAOrder > statusBOrder) return 1;
+        if (statusAOrder !== statusBOrder) return statusAOrder - statusBOrder;
         
-        // For same plan and status, sort by lastMessageAt descending
         const timeA = a.lastMessageAt?.toMillis() || 0;
         const timeB = b.lastMessageAt?.toMillis() || 0;
         return timeB - timeA;
@@ -161,8 +162,6 @@ export default function AdminPage() {
         setProPrice(prices.pro?.price || "");
         setPremiumOriginalPrice(prices.premium?.originalPrice || "");
         setProOriginalPrice(prices.pro?.originalPrice || "");
-      } else {
-        console.log("No pricing config found, using defaults or empty fields.");
       }
     } catch (err: any) {
       console.error("Error fetching prices:", err);
@@ -170,12 +169,27 @@ export default function AdminPage() {
     }
   };
 
+  const fetchExamDates = async () => {
+    try {
+      const examDatesDocRef = doc(db, "appConfig", "examDates");
+      const examDatesDoc = await getDoc(examDatesDocRef);
+      if (examDatesDoc.exists()) {
+        const dates = examDatesDoc.data() as ExamDatesConfig;
+        setTytDate(dates.tytDate || "");
+        setAytDate(dates.aytDate || "");
+      }
+    } catch (err: any) {
+      console.error("Error fetching exam dates:", err);
+      toast({ title: "Sınav Tarihleri Yüklenemedi", description: err.message || "Sınav tarihleri çekilirken bir hata oluştu.", variant: "destructive" });
+    }
+  };
 
   useEffect(() => {
     if (adminUserProfile?.isAdmin) {
       fetchAllUsers();
       fetchSupportTickets();
       fetchCurrentPrices();
+      fetchExamDates();
     }
   }, [adminUserProfile]);
 
@@ -205,8 +219,9 @@ export default function AdminPage() {
         lastDate = user.lastSummaryDate.toDate();
     } else if (typeof user.lastSummaryDate === 'string') {
         lastDate = new Date(user.lastSummaryDate);
+        if (isNaN(lastDate.getTime())) return 0; // Invalid date string
     } else {
-        return 0; // Invalid date format
+        return 0;
     }
     lastDate.setHours(0,0,0,0);
 
@@ -257,17 +272,21 @@ export default function AdminPage() {
      setSupportTickets(prevTickets =>
       prevTickets.map(t => (t.id === updatedTicketFromDialog.id ? { ...t, ...updatedTicketFromDialog } : t))
     );
-    fetchSupportTickets(); // Re-fetch for full consistency and resorting
+    // Re-fetch for full consistency and resorting, especially if status changed
+    fetchSupportTickets(); 
   };
 
   const handleSavePrices = async () => {
     setIsSavingPrices(true);
-    const priceData: PricingConfig = {};
+    const priceData: Partial<PricingConfig> = {}; // Use Partial for potentially sparse updates
     
-    priceData.premium = { price: premiumPrice, originalPrice: premiumOriginalPrice || undefined };
-    priceData.pro = { price: proPrice, originalPrice: proOriginalPrice || undefined };
+    if (premiumPrice) priceData.premium = { ...(priceData.premium || {}), price: premiumPrice };
+    if (premiumOriginalPrice) priceData.premium = { ...(priceData.premium || { price: premiumPrice }), originalPrice: premiumOriginalPrice };
     
-    if (!premiumPrice && !proPrice && !premiumOriginalPrice && !proOriginalPrice) {
+    if (proPrice) priceData.pro = { ...(priceData.pro || {}), price: proPrice };
+    if (proOriginalPrice) priceData.pro = { ...(priceData.pro || { price: proPrice }), originalPrice: proOriginalPrice };
+    
+    if (Object.keys(priceData).length === 0) {
         toast({ title: "Değişiklik Yok", description: "Kaydedilecek yeni fiyat bilgisi girilmedi.", variant: "default" });
         setIsSavingPrices(false);
         return;
@@ -286,6 +305,40 @@ export default function AdminPage() {
       setIsSavingPrices(false);
     }
   };
+
+  const handleSaveExamDates = async () => {
+    setIsSavingExamDates(true);
+    if (!tytDate && !aytDate) {
+      toast({ title: "Tarih Girilmedi", description: "Lütfen en az bir sınav tarihi girin.", variant: "default" });
+      setIsSavingExamDates(false);
+      return;
+    }
+
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if ((tytDate && !dateRegex.test(tytDate)) || (aytDate && !dateRegex.test(aytDate))) {
+      toast({ title: "Geçersiz Tarih Formatı", description: "Lütfen tarihleri YYYY-AA-GG formatında girin.", variant: "destructive" });
+      setIsSavingExamDates(false);
+      return;
+    }
+    
+    const examDatesData: ExamDatesConfig = {
+      tytDate: tytDate || undefined,
+      aytDate: aytDate || undefined,
+      updatedAt: serverTimestamp() as FirestoreTimestamp,
+    };
+
+    try {
+      const examDatesRef = doc(db, "appConfig", "examDates");
+      await setDoc(examDatesRef, examDatesData, { merge: true });
+      toast({ title: "Sınav Tarihleri Güncellendi", description: "Yeni sınav tarihleri başarıyla kaydedildi." });
+    } catch (error: any) {
+      console.error("Error saving exam dates:", error);
+      toast({ title: "Tarih Kaydetme Hatası", description: error.message || "Sınav tarihleri güncellenirken bir hata oluştu.", variant: "destructive" });
+    } finally {
+      setIsSavingExamDates(false);
+    }
+  };
+
 
   if (adminLoading || (adminUserProfile?.isAdmin && (usersLoading || ticketsLoading))) {
     return (
@@ -358,7 +411,7 @@ export default function AdminPage() {
                     <TableCell>
                       {user.planExpiryDate instanceof FirestoreTimestamp
                         ? format(user.planExpiryDate.toDate(), 'PP', { locale: tr })
-                        : user.plan !== 'free' ? 'Süresiz' : 'Yok'}
+                        : (user.plan === 'premium' || user.plan === 'pro') ? 'Süresiz' : 'Yok'}
                     </TableCell>
                     <TableCell>{typeof user.dailyRemainingQuota === 'number' ? user.dailyRemainingQuota : getDefaultQuota(user.plan)}</TableCell>
                     <TableCell>{getUsageToday(user)}</TableCell>
@@ -515,6 +568,43 @@ export default function AdminPage() {
           </Button>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><CalendarClock className="h-6 w-6" /> Sınav Tarihi Yönetimi</CardTitle>
+          <CardDescription>YKS (TYT ve AYT) sınav tarihlerini güncelleyin. Bu tarihler YKS Geri Sayım aracında kullanılacaktır.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                    <Label htmlFor="tytDate">TYT Sınav Tarihi</Label>
+                    <Input
+                        id="tytDate"
+                        type="date"
+                        value={tytDate}
+                        onChange={(e) => setTytDate(e.target.value)}
+                        disabled={isSavingExamDates}
+                    />
+                     <p className="text-xs text-muted-foreground">Format: YYYY-AA-GG</p>
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="aytDate">AYT Sınav Tarihi</Label>
+                    <Input
+                        id="aytDate"
+                        type="date"
+                        value={aytDate}
+                        onChange={(e) => setAytDate(e.target.value)}
+                        disabled={isSavingExamDates}
+                    />
+                    <p className="text-xs text-muted-foreground">Format: YYYY-AA-GG</p>
+                </div>
+            </div>
+          <Button onClick={handleSaveExamDates} disabled={isSavingExamDates}>
+            {isSavingExamDates ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Sınav Tarihlerini Kaydet"}
+          </Button>
+        </CardContent>
+      </Card>
+
 
       <Card>
         <CardHeader>
