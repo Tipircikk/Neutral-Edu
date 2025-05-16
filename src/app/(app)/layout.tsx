@@ -2,7 +2,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useState } 
+import { useEffect, useState }
   from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
@@ -24,21 +24,21 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
-import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation, Timer } from "lucide-react"; 
+import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation, Timer, Palette } from "lucide-react";
 import Link from "next/link";
 import QuotaDisplay from "@/components/dashboard/QuotaDisplay";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
 import { signOut as firebaseSignOut } from "@/hooks/useAuth";
 import Footer from "@/components/layout/Footer";
 import { SidebarInset } from "@/components/ui/sidebar";
-import { ThemeToggleSidebar } from "@/components/layout/ThemeToggle"; 
+import { ThemeToggleSidebar } from "@/components/layout/ThemeToggle";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
   const { userProfile, loading: userProfileLoading } = useUser();
   const router = useRouter();
   const pathname = usePathname();
-  const [isAiToolsSubmenuOpen, setIsAiToolsSubmenuOpen] = useState(false); 
+  const [isAiToolsSubmenuOpen, setIsAiToolsSubmenuOpen] = useState(false);
   const [isHelperToolsSubmenuOpen, setIsHelperToolsSubmenuOpen] = useState(false);
 
   useEffect(() => {
@@ -60,13 +60,20 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     ];
     if (aiToolPaths.some(path => pathname.startsWith(path))) {
       setIsAiToolsSubmenuOpen(true);
+    } else {
+      // Optionally close if not on an AI tool path, or keep it as is
+      // setIsAiToolsSubmenuOpen(false);
     }
 
     const helperToolPaths = [
       "/dashboard/tools/pomodoro",
+      "/dashboard/tools/whiteboard",
     ];
     if (helperToolPaths.some(path => pathname.startsWith(path))) {
       setIsHelperToolsSubmenuOpen(true);
+    } else {
+      // Optionally close
+      // setIsHelperToolsSubmenuOpen(false);
     }
 
   }, [pathname]);
@@ -143,7 +150,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                     className="justify-between"
                     isActive={isAiToolsPathActive}
                     onClick={() => setIsAiToolsSubmenuOpen(!isAiToolsSubmenuOpen)}
-                    data-state={isAiToolsSubmenuOpen ? "open" : "closed"} 
+                    data-state={isAiToolsSubmenuOpen ? "open" : "closed"}
                     tooltip="Yapay Zeka Araçları"
                   >
                     <div className="flex items-center gap-2"><Wand2 /> <span>Yapay Zeka Araçları</span></div>
@@ -172,7 +179,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                           <Link href="/dashboard/ai-tools/flashcard-generator"><LayoutGrid /><span>AI Bilgi Kartları</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
-                      
+
                       {/* Soru ve Test Araçları */}
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/question-solver"}>
@@ -205,10 +212,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                     className="justify-between"
                     isActive={isHelperToolsPathActive}
                     onClick={() => setIsHelperToolsSubmenuOpen(!isHelperToolsSubmenuOpen)}
-                    data-state={isHelperToolsSubmenuOpen ? "open" : "closed"} 
+                    data-state={isHelperToolsSubmenuOpen ? "open" : "closed"}
                     tooltip="Yardımcı Araçlar"
                   >
-                    <div className="flex items-center gap-2"><Timer /> <span>Yardımcı Araçlar</span></div> {/* Timer icon for generic tools */}
+                    <div className="flex items-center gap-2"><Timer /> <span>Yardımcı Araçlar</span></div>
                     {isHelperToolsSubmenuOpen ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
                   </SidebarMenuButton>
                   {isHelperToolsSubmenuOpen && (
@@ -218,7 +225,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                           <Link href="/dashboard/tools/pomodoro"><Timer /><span>Pomodoro Zamanlayıcı</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
-                      {/* Add more helper tools here in the future */}
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/tools/whiteboard"}>
+                          <Link href="/dashboard/tools/whiteboard"><Palette /><span>Dijital Karalama Tahtası</span></Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
                     </SidebarMenuSub>
                   )}
                 </SidebarMenuItem>
@@ -287,4 +298,3 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     </SidebarProvider>
   );
 }
-
