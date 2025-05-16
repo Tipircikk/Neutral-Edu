@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Palette, Eraser, Download, Trash2, FileImage, FileText, Loader2 } from "lucide-react";
+import { Palette, Eraser, Download, Trash2, FileImage, FileText, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Ensure pdfjs worker is configured (ideally from CDN)
-if (typeof window !== 'undefined' && pdfjsLib.GlobalWorkerOptions) {
+if (typeof window !== 'undefined' && pdfjsLib.GlobalWorkerOptions && pdfjsLib.version) {
   const pdfJsVersion = pdfjsLib.version;
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfJsVersion}/pdf.worker.min.mjs`;
 }
@@ -28,7 +28,7 @@ const colors = [
   { name: "Kahverengi", value: "#A52A2A" },
   { name: "Açık Mavi", value: "#ADD8E6" },
   { name: "Gri", value: "#808080" },
-  { name: "Silgi (Beyaz)", value: "#FFFFFF" }, // Eraser is white
+  { name: "Silgi (Beyaz)", value: "#FFFFFF" },
 ];
 
 const brushSizes = [
@@ -50,17 +50,17 @@ export default function WhiteboardPage() {
 
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [currentPageNum, setCurrentPageNum] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
   const [isProcessingPdf, setIsProcessingPdf] = useState(false);
 
   const [backgroundImageSrc, setBackgroundImageSrc] = useState<string | null>(null);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [currentFileName, setCurrentFileName] = useState<string | null>(null);
 
-
   const initializeCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    // Set initial canvas size for drawing without background
+
     if (!pdfDoc && !backgroundImageSrc) {
         canvas.width = CANVAS_WIDTH;
         canvas.height = CANVAS_HEIGHT;
@@ -73,16 +73,15 @@ export default function WhiteboardPage() {
     context.lineWidth = currentBrushSize;
     contextRef.current = context;
 
-    // Draw initial white background or current background
     if (backgroundImageSrc) {
-      renderImageOnCanvas(backgroundImageSrc, false); // false to not clear annotations
+      renderImageOnCanvas(backgroundImageSrc, false);
     } else if (pdfDoc) {
-      renderPdfPage(pdfDoc, currentPageNum, false); // false to not clear annotations
+      renderPdfPage(pdfDoc, currentPageNum, false);
     } else {
       context.fillStyle = "white";
       context.fillRect(0, 0, canvas.width, canvas.height);
     }
-  }, [currentColor, currentBrushSize, pdfDoc, currentPageNum, backgroundImageSrc]); // Dependencies for re-initialization
+  }, [currentColor, currentBrushSize, pdfDoc, currentPageNum, backgroundImageSrc]); // Added dependencies
 
   useEffect(() => {
     initializeCanvas();
@@ -118,33 +117,37 @@ export default function WhiteboardPage() {
 
   const renderPdfPage = useCallback(async (pdf: pdfjsLib.PDFDocumentProxy, pageNum: number, clearPreviousAnnotations = true) => {
     if (!canvasRef.current || !contextRef.current) return;
-    setIsProcessingPdf(true);
-    const page = await pdf.getPage(pageNum);
-    const viewport = page.getViewport({ scale: 1.0 }); // Start with scale 1 to get original dimensions
+    setIsProcessingPdf(true); // Moved here to show loading state earlier
+    try {
+      const page = await pdf.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 1.0 }); 
 
-    const canvas = canvasRef.current;
-    const context = contextRef.current;
+      const canvas = canvasRef.current;
+      const context = contextRef.current;
 
-    const scale = Math.min(CANVAS_WIDTH / viewport.width, CANVAS_HEIGHT / viewport.height);
-    const scaledViewport = page.getViewport({ scale });
+      const scale = Math.min(CANVAS_WIDTH / viewport.width, CANVAS_HEIGHT / viewport.height);
+      const scaledViewport = page.getViewport({ scale });
 
-    canvas.width = scaledViewport.width;
-    canvas.height = scaledViewport.height;
-    
-    // Clear canvas (either to white or transparent, then draw PDF)
-    context.clearRect(0, 0, canvas.width, canvas.height); // Clear to transparent first
-    context.fillStyle = "white"; // PDF pages are usually on white
-    context.fillRect(0, 0, canvas.width, canvas.height);
+      canvas.width = scaledViewport.width;
+      canvas.height = scaledViewport.height;
+      
+      context.clearRect(0, 0, canvas.width, canvas.height); 
+      context.fillStyle = "white"; 
+      context.fillRect(0, 0, canvas.width, canvas.height);
 
-
-    const renderContext = {
-      canvasContext: context,
-      viewport: scaledViewport,
-    };
-    await page.render(renderContext).promise;
-    setCurrentPageNum(pageNum);
-    setIsProcessingPdf(false);
-  }, []);
+      const renderContext = {
+        canvasContext: context,
+        viewport: scaledViewport,
+      };
+      await page.render(renderContext).promise;
+      setCurrentPageNum(pageNum); // Update current page number
+    } catch (error) {
+        console.error("Error rendering PDF page:", error);
+        toast({ title: "PDF Sayfa Hatası", description: "PDF sayfası görüntülenirken bir sorun oluştu.", variant: "destructive" });
+    } finally {
+        setIsProcessingPdf(false);
+    }
+  }, [toast]); // Removed currentPageNum from dependencies, it's managed by explicit calls
 
   const renderImageOnCanvas = useCallback((dataUrl: string, clearPreviousAnnotations = true) => {
     if (!canvasRef.current || !contextRef.current) return;
@@ -155,7 +158,7 @@ export default function WhiteboardPage() {
     img.onload = () => {
       const hRatio = CANVAS_WIDTH / img.width;
       const vRatio = CANVAS_HEIGHT / img.height;
-      const ratio = Math.min(hRatio, vRatio);
+      const ratio = Math.min(hRatio, vRatio, 1); // Ensure image is not scaled up beyond its original size if smaller than canvas max dimensions
       const scaledWidth = img.width * ratio;
       const scaledHeight = img.height * ratio;
 
@@ -180,41 +183,57 @@ export default function WhiteboardPage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    const userConfirmed = window.confirm(
+      `${file.type.startsWith("image/") ? "Resim" : "PDF"} dosyası yükleniyor. Bu işlem dosya boyutuna göre biraz zaman alabilir. Devam etmek istiyor musunuz?`
+    );
+
+    if (!userConfirmed) {
+      event.target.value = ""; // Clear the file input
+      return;
+    }
+    
     setCurrentFileName(file.name);
-    setPdfDoc(null); // Clear previous PDF if any
-    setBackgroundImageSrc(null); // Clear previous image if any
+    // Reset states before loading new content
+    setPdfDoc(null);
+    setBackgroundImageSrc(null);
+    setCurrentPageNum(1);
+    setTotalPages(0);
 
     const canvas = canvasRef.current;
     const context = contextRef.current;
-    if (canvas && context) { // Reset canvas to default state before loading new content
+    if (canvas && context) {
         canvas.width = CANVAS_WIDTH;
         canvas.height = CANVAS_HEIGHT;
         context.fillStyle = "white";
         context.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-
     if (file.type === "application/pdf") {
       setIsProcessingPdf(true);
+      setBackgroundImageSrc(null); // Ensure no image background when PDF is loading
       try {
         const arrayBuffer = await file.arrayBuffer();
         const loadedPdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        setPdfDoc(loadedPdf); // Set PDF doc first
-        await renderPdfPage(loadedPdf, 1, true); // Then render
+        setPdfDoc(loadedPdf);
+        setTotalPages(loadedPdf.numPages);
+        await renderPdfPage(loadedPdf, 1); 
       } catch (error) {
         console.error("Error loading PDF:", error);
         toast({ title: "PDF Yükleme Hatası", description: "PDF dosyası yüklenirken bir sorun oluştu.", variant: "destructive" });
         setPdfDoc(null);
+        setTotalPages(0);
       } finally {
-        setIsProcessingPdf(false);
+        // setIsProcessingPdf(false); // renderPdfPage will set this
       }
     } else if (file.type.startsWith("image/")) {
       setIsProcessingImage(true);
+      setPdfDoc(null); // Ensure no PDF background when image is loading
+      setTotalPages(0);
       const reader = new FileReader();
       reader.onload = async (e) => {
         const dataUrl = e.target?.result as string;
-        setBackgroundImageSrc(dataUrl); // Set image src first
-        renderImageOnCanvas(dataUrl, true); // Then render
+        setBackgroundImageSrc(dataUrl);
+        renderImageOnCanvas(dataUrl);
       };
       reader.onerror = () => {
           console.error("Error reading image file:", reader.error);
@@ -230,21 +249,20 @@ export default function WhiteboardPage() {
   };
 
 
-  const clearCanvasAndAnnotations = () => { // Renamed for clarity
+  const clearCanvasAndAnnotations = () => {
     const canvas = canvasRef.current;
     const context = contextRef.current;
     if (!canvas || !context) return;
 
     if (pdfDoc) {
-      renderPdfPage(pdfDoc, currentPageNum, true); // true to also clear annotations
+      renderPdfPage(pdfDoc, currentPageNum, true); 
     } else if (backgroundImageSrc) {
-      renderImageOnCanvas(backgroundImageSrc, true); // true to also clear annotations
+      renderImageOnCanvas(backgroundImageSrc, true);
     } else {
-      // No background, just clear to white
       context.fillStyle = "white";
       context.fillRect(0, 0, canvas.width, canvas.height);
     }
-    toast({ title: "Tuval Temizlendi", description: "Tüm çizimler temizlendi." });
+    toast({ title: "Çizimler Temizlendi", description: "Mevcut sayfadaki çizimler temizlendi." });
   };
 
   const downloadImage = () => {
@@ -253,11 +271,25 @@ export default function WhiteboardPage() {
     const image = canvas.toDataURL("image/png");
     const link = document.createElement("a");
     link.href = image;
-    link.download = currentFileName ? `${currentFileName.split('.')[0]}_karalama.png` : "karalama.png";
+    const baseFileName = currentFileName ? currentFileName.split('.')[0] : "karalama";
+    const pageSuffix = pdfDoc && totalPages > 1 ? `_sayfa_${currentPageNum}` : "";
+    link.download = `${baseFileName}${pageSuffix}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     toast({ title: "İndirildi", description: "Karalama PNG olarak indirildi." });
+  };
+
+  const goToPreviousPage = () => {
+    if (pdfDoc && currentPageNum > 1) {
+      renderPdfPage(pdfDoc, currentPageNum - 1);
+    }
+  };
+
+  const goToNextPage = () => {
+    if (pdfDoc && currentPageNum < totalPages) {
+      renderPdfPage(pdfDoc, currentPageNum + 1);
+    }
   };
   
   const isBusy = isProcessingPdf || isProcessingImage;
@@ -276,7 +308,7 @@ export default function WhiteboardPage() {
         </CardHeader>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-6 items-start">
         {/* Controls Panel */}
         <Card>
           <CardHeader>
@@ -304,25 +336,45 @@ export default function WhiteboardPage() {
               )}
             </div>
 
+            {pdfDoc && totalPages > 0 && (
+              <div className="space-y-2 border-t pt-4">
+                <Label className="text-sm font-medium">PDF Navigasyonu</Label>
+                <div className="flex items-center justify-between">
+                  <Button onClick={goToPreviousPage} disabled={currentPageNum <= 1 || isBusy} variant="outline" size="sm">
+                    <ChevronLeft className="mr-1 h-4 w-4" /> Önceki
+                  </Button>
+                  <span className="text-sm text-muted-foreground">Sayfa {currentPageNum} / {totalPages}</span>
+                  <Button onClick={goToNextPage} disabled={currentPageNum >= totalPages || isBusy} variant="outline" size="sm">
+                    Sonraki <ChevronRight className="ml-1 h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <div>
               <Label className="text-sm font-medium">Renk Seçimi</Label>
-              <div className="grid grid-cols-3 gap-2 mt-1">
+              <div className="grid grid-cols-4 gap-1 mt-1"> {/* Reduced gap for more colors */}
                 {colors.map((color) => (
                   <Button
-                    key={color.name}
+                    key={color.value} // Use color.value for key as it's unique
                     variant={currentColor === color.value ? "default" : "outline"}
                     size="sm"
                     onClick={() => setCurrentColor(color.value)}
                     style={{ 
-                      backgroundColor: currentColor === color.value ? color.value : undefined, 
+                      backgroundColor: currentColor === color.value ? color.value : (color.value === '#FFFFFF' ? '#FFFFFF' : undefined), 
                       color: currentColor === color.value && (color.value === '#FFFFFF' || color.value === '#FFFF00' || color.value === '#ADD8E6' || color.value === '#FFC0CB') ? '#000000' : 
                              currentColor === color.value ? '#FFFFFF' : undefined,
-                      borderColor: color.value === '#FFFFFF' && currentColor !== color.value ? '#000000' : undefined // Make white button border visible
+                      borderColor: color.value === '#FFFFFF' && currentColor !== color.value ? '#AAAAAA' : 
+                                   currentColor === color.value && color.value === '#FFFFFF' ? '#000000' :
+                                   color.value, // Border color matches the button color unless it's white
+                      borderWidth: '2px'
                     }}
                     title={color.name}
-                    className="h-8 w-full flex items-center justify-center"
+                    className="h-8 w-full flex items-center justify-center p-0" 
                   >
-                    {color.name.startsWith("Silgi") ? <Eraser className="h-4 w-4"/> : <span className="h-4 w-4 rounded-full border" style={{backgroundColor: color.value }}/>}
+                    {color.name.startsWith("Silgi") ? <Eraser className="h-4 w-4"/> : 
+                     <span className="h-5 w-5 rounded-sm border border-transparent" style={{backgroundColor: color.value }}/>
+                    }
                   </Button>
                 ))}
               </div>
@@ -358,20 +410,19 @@ export default function WhiteboardPage() {
         </Card>
 
         {/* Canvas Area */}
-        <Card className="overflow-hidden flex justify-center items-center bg-muted/20 p-2">
-          <canvas
-            ref={canvasRef}
-            onMouseDown={startDrawing}
-            onMouseUp={finishDrawing}
-            onMouseMove={draw}
-            onMouseOut={finishDrawing} 
-            className="cursor-crosshair bg-white border border-input shadow-lg"
-            // Style is managed by canvas width/height attributes for intrinsic sizing
-          />
-        </Card>
+        <div className="flex justify-center items-start bg-muted/20 p-2 rounded-md shadow-inner" style={{ width: '100%', maxWidth: `${CANVAS_WIDTH + 4}px`, aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}` }}>
+             <canvas
+                ref={canvasRef}
+                onMouseDown={startDrawing}
+                onMouseUp={finishDrawing}
+                onMouseMove={draw}
+                onMouseOut={finishDrawing} 
+                className="cursor-crosshair bg-white border border-input shadow-lg"
+                style={{ display: 'block', touchAction: 'none' }} // touchAction for better mobile compatibility
+            />
+        </div>
       </div>
     </div>
   );
 }
 
-    
