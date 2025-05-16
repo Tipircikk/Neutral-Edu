@@ -8,7 +8,6 @@ import { db } from "@/lib/firebase/config";
 import { doc, getDoc } from "firebase/firestore";
 import type { ExamDatesConfig } from "@/types";
 import { differenceInMilliseconds, intervalToDuration } from 'date-fns';
-// import { tr } from 'date-fns/locale'; // Not directly used by intervalToDuration for numbers
 
 const CountdownDisplay = ({ targetDate, title }: { targetDate: Date | null, title: string }) => {
   const [timeLeft, setTimeLeft] = useState<Duration | null>(null);
@@ -22,33 +21,43 @@ const CountdownDisplay = ({ targetDate, title }: { targetDate: Date | null, titl
     }
 
     const now = new Date();
+    console.log(`[CountdownDisplay - ${title}] calculateTimeLeft called. TargetDate:`, targetDate, "Now:", now); // LOG 7
+
     if (targetDate.getTime() < now.getTime()) {
+      console.log(`[CountdownDisplay - ${title}] Target date is in the past.`); // LOG 8
       setTimeLeft(null);
       setIsPast(true);
       return;
     }
     setIsPast(false);
     const diff = differenceInMilliseconds(targetDate, now);
-    setTimeLeft(intervalToDuration({ start: 0, end: diff }));
-  }, [targetDate]);
+    console.log(`[CountdownDisplay - ${title}] Millisecond difference:`, diff); // LOG 9
+    const duration = intervalToDuration({ start: 0, end: diff });
+    console.log(`[CountdownDisplay - ${title}] Calculated duration:`, duration); // LOG 10
+    setTimeLeft(duration);
+  }, [targetDate, title]);
 
   useEffect(() => {
+    console.log(`[CountdownDisplay - ${title}] useEffect triggered. targetDate:`, targetDate, "isPast:", isPast); // LOG 6
+
     if (!targetDate) {
       setTimeLeft(null);
       setIsPast(false);
-      const timer = setInterval(calculateTimeLeft, 1000); 
+      // Keep an interval running to check if targetDate becomes available or for debugging
+      // but calculateTimeLeft will handle the null targetDate.
+      const timer = setInterval(calculateTimeLeft, 1000);
       return () => clearInterval(timer);
     }
-    
+
     if (isPast) {
-        setTimeLeft(null); 
-        return;
+        setTimeLeft(null);
+        return; // No timer needed if it's already past
     }
-    
-    calculateTimeLeft(); 
+
+    calculateTimeLeft(); // Initial calculation
     const timer = setInterval(calculateTimeLeft, 1000);
     return () => clearInterval(timer);
-  }, [targetDate, calculateTimeLeft, isPast]);
+  }, [targetDate, calculateTimeLeft, isPast, title]);
 
   if (!targetDate) {
     return (
@@ -69,7 +78,7 @@ const CountdownDisplay = ({ targetDate, title }: { targetDate: Date | null, titl
         </div>
     );
   }
-  
+
   return (
     <div className="text-center space-y-1">
        <div className="flex justify-center items-baseline space-x-2">
@@ -96,6 +105,34 @@ export default function YKSCountdownPage() {
   const [examDates, setExamDates] = useState<ExamDatesConfig | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const parseDateString = (dateString?: string): Date | null => {
+    if (!dateString) {
+      console.log("parseDateString: Received undefined or null dateString.");
+      return null;
+    }
+    const trimmedDateString = dateString.trim();
+    console.log("parseDateString: Attempting to parse trimmed string:", `'${trimmedDateString}'`); // LOG A
+    const parts = trimmedDateString.split('-');
+    if (parts.length !== 3) {
+        console.error("parseDateString: Invalid date string format (not YYYY-MM-DD):", trimmedDateString);
+        return null;
+    }
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    const day = parseInt(parts[2], 10);
+
+    if (isNaN(year) || isNaN(month) || isNaN(day) || month < 1 || month > 12 || day < 1 || day > 31) {
+        console.error("parseDateString: Invalid date components after parsing:", { year, month, day, original: trimmedDateString });
+        return null;
+    }
+    // JavaScript months are 0-indexed (0 for January, 11 for December)
+    // Constructing the date at the beginning of the day in local time
+    const newDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+    console.log("parseDateString: Successfully parsed. Original:", trimmedDateString, "Resulting Date object:", newDate); // LOG B
+    return newDate;
+  };
+
+
   useEffect(() => {
     const fetchDates = async () => {
       setLoading(true);
@@ -103,16 +140,16 @@ export default function YKSCountdownPage() {
         const examDatesDocRef = doc(db, "appConfig", "examDates");
         const docSnap = await getDoc(examDatesDocRef);
         if (docSnap.exists()) {
-          // For debugging, you could log the fetched data:
-          // console.log("Fetched exam dates from Firestore:", docSnap.data());
-          setExamDates(docSnap.data() as ExamDatesConfig);
+          const data = docSnap.data() as ExamDatesConfig;
+          console.log("LOG 1: Fetched exam dates from Firestore:", JSON.stringify(data));
+          setExamDates(data);
         } else {
           console.log("No exam dates document found in Firestore.");
-          setExamDates({}); 
+          setExamDates({});
         }
       } catch (error) {
         console.error("Error fetching exam dates:", error);
-        setExamDates({}); 
+        setExamDates({});
       } finally {
         setLoading(false);
       }
@@ -120,28 +157,17 @@ export default function YKSCountdownPage() {
     fetchDates();
   }, []);
 
-  const parseDateString = (dateString?: string): Date | null => {
-    if (!dateString) return null;
-    const trimmedDateString = dateString.trim(); // Trim whitespace
-    const [year, month, day] = trimmedDateString.split('-').map(Number);
-    if (isNaN(year) || isNaN(month) || isNaN(day) || month < 1 || month > 12 || day < 1 || day > 31) {
-        console.error("Invalid date string format received:", trimmedDateString);
-        return null;
-    }
-    // JavaScript months are 0-indexed (0 for January, 11 for December)
-    return new Date(year, month - 1, day, 0, 0, 0, 0); 
-  };
-
   const tytTargetDate = examDates?.tytDate ? parseDateString(examDates.tytDate) : null;
   const aytTargetDate = examDates?.aytDate ? parseDateString(examDates.aytDate) : null;
 
-  // For debugging, you can log the parsed dates:
-  // useEffect(() => {
-  //   if (!loading) {
-  //     console.log("Parsed TYT Target Date:", tytTargetDate);
-  //     console.log("Parsed AYT Target Date:", aytTargetDate);
-  //   }
-  // }, [loading, tytTargetDate, aytTargetDate]);
+  useEffect(() => {
+    if (!loading) {
+      console.log("LOG 2: Raw TYT Date String from state:", examDates?.tytDate);
+      console.log("LOG 3: Parsed TYT Target Date object:", tytTargetDate);
+      console.log("LOG 4: Raw AYT Date String from state:", examDates?.aytDate);
+      console.log("LOG 5: Parsed AYT Target Date object:", aytTargetDate);
+    }
+  }, [examDates, tytTargetDate, aytTargetDate, loading]);
 
   if (loading) {
     return (
@@ -151,7 +177,7 @@ export default function YKSCountdownPage() {
       </div>
     );
   }
-  
+
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       <Card className="shadow-lg">
@@ -190,9 +216,7 @@ export default function YKSCountdownPage() {
                 <div>
                     <CardTitle className="text-destructive">Sınav Tarihleri Belirlenmemiş</CardTitle>
                     <CardDescription className="text-muted-foreground">
-                        YKS (TYT ve AYT) sınav tarihleri henüz admin panelinden ayarlanmamış. Lütfen bir admin ile iletişime geçin veya daha sonra tekrar kontrol edin. 
-                        {/* You can add a line here for debugging: */}
-                        {/* Admin panelinde kaydedilen TYT: {examDates?.tytDate || 'Yok'}, AYT: {examDates?.aytDate || 'Yok'} */}
+                        YKS (TYT ve AYT) sınav tarihleri henüz admin panelinden ayarlanmamış. Lütfen bir admin ile iletişime geçin veya daha sonra tekrar kontrol edin.
                     </CardDescription>
                 </div>
             </CardContent>
@@ -201,3 +225,5 @@ export default function YKSCountdownPage() {
     </div>
   );
 }
+
+    
