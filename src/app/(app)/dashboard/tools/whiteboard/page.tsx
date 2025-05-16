@@ -52,10 +52,29 @@ export default function WhiteboardPage() {
   const [currentPageNum, setCurrentPageNum] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [isProcessingPdf, setIsProcessingPdf] = useState(false);
+  const [inputPageNum, setInputPageNum] = useState("");
 
   const [backgroundImageSrc, setBackgroundImageSrc] = useState<string | null>(null);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [currentFileName, setCurrentFileName] = useState<string | null>(null);
+
+  const getCoordinates = (event: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { offsetX: 0, offsetY: 0 };
+
+    const rect = canvas.getBoundingClientRect();
+    if ('touches' in event) { // Touch event
+      return {
+        offsetX: event.touches[0].clientX - rect.left,
+        offsetY: event.touches[0].clientY - rect.top
+      };
+    } else { // Mouse event
+      return {
+        offsetX: event.nativeEvent.offsetX,
+        offsetY: event.nativeEvent.offsetY
+      };
+    }
+  };
 
   const initializeCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -81,7 +100,7 @@ export default function WhiteboardPage() {
       context.fillStyle = "white";
       context.fillRect(0, 0, canvas.width, canvas.height);
     }
-  }, [currentColor, currentBrushSize, pdfDoc, currentPageNum, backgroundImageSrc]); // Added dependencies
+  }, [currentColor, currentBrushSize, pdfDoc, currentPageNum, backgroundImageSrc]);
 
   useEffect(() => {
     initializeCanvas();
@@ -96,8 +115,9 @@ export default function WhiteboardPage() {
     }
   }, [currentColor, currentBrushSize]);
 
-  const startDrawing = ({ nativeEvent }: React.MouseEvent<HTMLCanvasElement>) => {
-    const { offsetX, offsetY } = nativeEvent;
+  const startDrawing = (event: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if ('touches' in event) event.preventDefault(); // Prevent scrolling on touch
+    const { offsetX, offsetY } = getCoordinates(event);
     contextRef.current?.beginPath();
     contextRef.current?.moveTo(offsetX, offsetY);
     setIsDrawing(true);
@@ -108,16 +128,17 @@ export default function WhiteboardPage() {
     setIsDrawing(false);
   };
 
-  const draw = ({ nativeEvent }: React.MouseEvent<HTMLCanvasElement>) => {
+  const draw = (event: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return;
-    const { offsetX, offsetY } = nativeEvent;
+    if ('touches' in event) event.preventDefault();
+    const { offsetX, offsetY } = getCoordinates(event);
     contextRef.current?.lineTo(offsetX, offsetY);
     contextRef.current?.stroke();
   };
 
   const renderPdfPage = useCallback(async (pdf: pdfjsLib.PDFDocumentProxy, pageNum: number, clearPreviousAnnotations = true) => {
     if (!canvasRef.current || !contextRef.current) return;
-    setIsProcessingPdf(true); // Moved here to show loading state earlier
+    setIsProcessingPdf(true); 
     try {
       const page = await pdf.getPage(pageNum);
       const viewport = page.getViewport({ scale: 1.0 }); 
@@ -131,7 +152,9 @@ export default function WhiteboardPage() {
       canvas.width = scaledViewport.width;
       canvas.height = scaledViewport.height;
       
-      context.clearRect(0, 0, canvas.width, canvas.height); 
+      if(clearPreviousAnnotations) {
+        context.clearRect(0, 0, canvas.width, canvas.height); 
+      }
       context.fillStyle = "white"; 
       context.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -140,14 +163,15 @@ export default function WhiteboardPage() {
         viewport: scaledViewport,
       };
       await page.render(renderContext).promise;
-      setCurrentPageNum(pageNum); // Update current page number
+      setCurrentPageNum(pageNum);
+      setInputPageNum(pageNum.toString()); 
     } catch (error) {
         console.error("Error rendering PDF page:", error);
         toast({ title: "PDF Sayfa Hatası", description: "PDF sayfası görüntülenirken bir sorun oluştu.", variant: "destructive" });
     } finally {
         setIsProcessingPdf(false);
     }
-  }, [toast]); // Removed currentPageNum from dependencies, it's managed by explicit calls
+  }, [toast]); 
 
   const renderImageOnCanvas = useCallback((dataUrl: string, clearPreviousAnnotations = true) => {
     if (!canvasRef.current || !contextRef.current) return;
@@ -158,14 +182,16 @@ export default function WhiteboardPage() {
     img.onload = () => {
       const hRatio = CANVAS_WIDTH / img.width;
       const vRatio = CANVAS_HEIGHT / img.height;
-      const ratio = Math.min(hRatio, vRatio, 1); // Ensure image is not scaled up beyond its original size if smaller than canvas max dimensions
+      const ratio = Math.min(hRatio, vRatio, 1); 
       const scaledWidth = img.width * ratio;
       const scaledHeight = img.height * ratio;
 
       canvas.width = scaledWidth; 
       canvas.height = scaledHeight;
       
-      context.clearRect(0, 0, canvas.width, canvas.height);
+      if(clearPreviousAnnotations){
+        context.clearRect(0, 0, canvas.width, canvas.height);
+      }
       context.fillStyle = "white";
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.drawImage(img, 0, 0, scaledWidth, scaledHeight);
@@ -184,20 +210,20 @@ export default function WhiteboardPage() {
     if (!file) return;
 
     const userConfirmed = window.confirm(
-      `${file.type.startsWith("image/") ? "Resim" : "PDF"} dosyası yükleniyor. Bu işlem dosya boyutuna göre biraz zaman alabilir. Devam etmek istiyor musunuz?`
+      `${file.type.startsWith("image/") ? "Resim" : "PDF"} dosyası yükleniyor. Bu işlem dosya boyutuna göre biraz zaman alabilir ve mevcut çizimleriniz silinecektir. Devam etmek istiyor musunuz?`
     );
 
     if (!userConfirmed) {
-      event.target.value = ""; // Clear the file input
+      event.target.value = ""; 
       return;
     }
     
     setCurrentFileName(file.name);
-    // Reset states before loading new content
     setPdfDoc(null);
     setBackgroundImageSrc(null);
     setCurrentPageNum(1);
     setTotalPages(0);
+    setInputPageNum("1");
 
     const canvas = canvasRef.current;
     const context = contextRef.current;
@@ -209,8 +235,8 @@ export default function WhiteboardPage() {
     }
 
     if (file.type === "application/pdf") {
+      setBackgroundImageSrc(null); 
       setIsProcessingPdf(true);
-      setBackgroundImageSrc(null); // Ensure no image background when PDF is loading
       try {
         const arrayBuffer = await file.arrayBuffer();
         const loadedPdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -222,13 +248,11 @@ export default function WhiteboardPage() {
         toast({ title: "PDF Yükleme Hatası", description: "PDF dosyası yüklenirken bir sorun oluştu.", variant: "destructive" });
         setPdfDoc(null);
         setTotalPages(0);
-      } finally {
-        // setIsProcessingPdf(false); // renderPdfPage will set this
-      }
+      } 
     } else if (file.type.startsWith("image/")) {
-      setIsProcessingImage(true);
-      setPdfDoc(null); // Ensure no PDF background when image is loading
+      setPdfDoc(null); 
       setTotalPages(0);
+      setIsProcessingImage(true);
       const reader = new FileReader();
       reader.onload = async (e) => {
         const dataUrl = e.target?.result as string;
@@ -291,6 +315,21 @@ export default function WhiteboardPage() {
       renderPdfPage(pdfDoc, currentPageNum + 1);
     }
   };
+
+  const handleGoToPage = () => {
+    if (!pdfDoc) return;
+    const pageNumber = parseInt(inputPageNum, 10);
+    if (isNaN(pageNumber) || pageNumber < 1 || pageNumber > totalPages) {
+      toast({
+        title: "Geçersiz Sayfa Numarası",
+        description: `Lütfen 1 ile ${totalPages} arasında bir sayfa numarası girin.`,
+        variant: "destructive",
+      });
+      setInputPageNum(currentPageNum.toString()); // Reset input to current page
+      return;
+    }
+    renderPdfPage(pdfDoc, pageNumber);
+  };
   
   const isBusy = isProcessingPdf || isProcessingImage;
 
@@ -339,34 +378,48 @@ export default function WhiteboardPage() {
             {pdfDoc && totalPages > 0 && (
               <div className="space-y-2 border-t pt-4">
                 <Label className="text-sm font-medium">PDF Navigasyonu</Label>
-                <div className="flex items-center justify-between">
-                  <Button onClick={goToPreviousPage} disabled={currentPageNum <= 1 || isBusy} variant="outline" size="sm">
-                    <ChevronLeft className="mr-1 h-4 w-4" /> Önceki
+                <div className="flex items-center justify-between gap-2">
+                  <Button onClick={goToPreviousPage} disabled={currentPageNum <= 1 || isBusy} variant="outline" size="sm" className="px-2">
+                    <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <span className="text-sm text-muted-foreground">Sayfa {currentPageNum} / {totalPages}</span>
-                  <Button onClick={goToNextPage} disabled={currentPageNum >= totalPages || isBusy} variant="outline" size="sm">
-                    Sonraki <ChevronRight className="ml-1 h-4 w-4" />
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">Sayfa {currentPageNum} / {totalPages}</span>
+                  <Button onClick={goToNextPage} disabled={currentPageNum >= totalPages || isBusy} variant="outline" size="sm" className="px-2">
+                    <ChevronRight className="h-4 w-4" />
                   </Button>
+                </div>
+                <div className="flex items-center gap-2 mt-2">
+                    <Input 
+                        type="number" 
+                        value={inputPageNum}
+                        onChange={(e) => setInputPageNum(e.target.value)}
+                        min="1"
+                        max={totalPages}
+                        className="h-9 w-20 text-center"
+                        disabled={isBusy}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleGoToPage();}}
+                    />
+                    <Button onClick={handleGoToPage} size="sm" disabled={isBusy}>Git</Button>
                 </div>
               </div>
             )}
 
             <div>
               <Label className="text-sm font-medium">Renk Seçimi</Label>
-              <div className="grid grid-cols-4 gap-1 mt-1"> {/* Reduced gap for more colors */}
+              <div className="grid grid-cols-4 gap-1 mt-1">
                 {colors.map((color) => (
                   <Button
-                    key={color.value} // Use color.value for key as it's unique
+                    key={color.value} 
                     variant={currentColor === color.value ? "default" : "outline"}
                     size="sm"
                     onClick={() => setCurrentColor(color.value)}
                     style={{ 
                       backgroundColor: currentColor === color.value ? color.value : (color.value === '#FFFFFF' ? '#FFFFFF' : undefined), 
                       color: currentColor === color.value && (color.value === '#FFFFFF' || color.value === '#FFFF00' || color.value === '#ADD8E6' || color.value === '#FFC0CB') ? '#000000' : 
-                             currentColor === color.value ? '#FFFFFF' : undefined,
+                             currentColor === color.value ? '#FFFFFF' : 
+                             (color.value === '#FFFFFF' ? '#AAAAAA' : color.value), // Text color for non-selected outline buttons
                       borderColor: color.value === '#FFFFFF' && currentColor !== color.value ? '#AAAAAA' : 
                                    currentColor === color.value && color.value === '#FFFFFF' ? '#000000' :
-                                   color.value, // Border color matches the button color unless it's white
+                                   color.value,
                       borderWidth: '2px'
                     }}
                     title={color.name}
@@ -417,8 +470,11 @@ export default function WhiteboardPage() {
                 onMouseUp={finishDrawing}
                 onMouseMove={draw}
                 onMouseOut={finishDrawing} 
+                onTouchStart={startDrawing}
+                onTouchMove={draw}
+                onTouchEnd={finishDrawing}
                 className="cursor-crosshair bg-white border border-input shadow-lg"
-                style={{ display: 'block', touchAction: 'none' }} // touchAction for better mobile compatibility
+                style={{ display: 'block', touchAction: 'none' }} 
             />
         </div>
       </div>
@@ -426,3 +482,4 @@ export default function WhiteboardPage() {
   );
 }
 
+    
