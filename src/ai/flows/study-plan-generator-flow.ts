@@ -31,7 +31,7 @@ const DailyTaskSchema = z.object({
 });
 
 const WeeklyPlanSchema = z.object({
-    week: z.number().describe("Planın kaçıncı haftası olduğu. Bu alan ZORUNLUDUR ve her haftalık plan objesinde bulunmalıdır."),
+    week: z.number().describe("Planın kaçıncı haftası olduğu. Bu alan HER ZAMAN ZORUNLUDUR ve her haftalık plan objesinde bir SAYI olarak bulunmalıdır."),
     weeklyGoal: z.string().optional().describe("O haftanın genel çalışma hedefi veya odak noktası."),
     dailyTasks: z.array(DailyTaskSchema).describe("Haftanın günlerine yayılmış günlük görevler ve konular.")
 });
@@ -39,7 +39,7 @@ const WeeklyPlanSchema = z.object({
 const GenerateStudyPlanOutputSchema = z.object({
   planTitle: z.string().describe("Oluşturulan çalışma planı için bir başlık (örn: 'Kişiselleştirilmiş YKS Çalışma Planı')."),
   introduction: z.string().optional().describe("Plana genel bir giriş ve motivasyon mesajı."),
-  weeklyPlans: z.array(WeeklyPlanSchema).describe("Haftalık olarak düzenlenmiş çalışma planı. Her bir haftalık plan objesi MUTLAKA 'week' (hafta numarası) alanını İÇERMELİDİR ve bu bir SAYI olmalıdır."),
+  weeklyPlans: z.array(WeeklyPlanSchema).describe("Haftalık olarak düzenlenmiş çalışma planı. Her bir haftalık plan objesi MUTLAKA 'week' (hafta numarası, SAYI olarak) alanını İÇERMELİDİR."),
   generalTips: z.array(z.string()).optional().describe("Genel çalışma stratejileri, mola önerileri ve YKS için ipuçları."),
   disclaimer: z.string().default("Bu, yapay zeka tarafından oluşturulmuş bir taslak plandır. Kendi öğrenme hızınıza ve ihtiyaçlarınıza göre uyarlamanız önemlidir.").describe("Planın bir taslak olduğuna dair uyarı.")
 });
@@ -73,7 +73,7 @@ Lütfen bu bilgilere göre, aşağıdaki formatta bir çalışma planı taslağ�
 
 1.  **Plan Başlığı (planTitle)**: Örneğin, "Kişiye Özel {{{targetExam}}} Hazırlık Planı ({{{studyDuration}}})". Bu alan ZORUNLUDUR.
 2.  **Giriş (introduction) (isteğe bağlı)**: Öğrenciyi motive eden, planın genel mantığını açıklayan kısa bir giriş.
-3.  **Haftalık Planlar (weeklyPlans)**: Çalışma süresine göre haftalara bölünmüş planlar. Her hafta için:
+3.  **Haftalık Planlar (weeklyPlans)**: ÇOK ÖNEMLİ: Bu dizideki HER BİR obje, MUTLAKA 'week' adında bir alana sahip olmalı ve bu alanın değeri bir SAYI (örneğin 1, 2, 3...) olmalıdır. Çalışma süresine göre haftalara bölünmüş planlar. Her hafta için:
     *   **Hafta Numarası (week)**: Örneğin, 1, 2, 3... Bu alan HER HAFTALIK PLAN OBJESİNDE ZORUNLUDUR VE MUTLAKA BİR SAYI OLMALIDIR. Bu değerin kesinlikle bir sayı olduğundan ve her haftalık plan için mevcut olduğundan emin ol.
     *   **Haftalık Hedef (weeklyGoal) (isteğe bağlı)**: O haftanın ana odak noktası veya bitirilmesi hedeflenen genel konu başlıkları.
     *   **Günlük Görevler (dailyTasks)**: Haftanın her günü için (Pazartesi-Pazar veya 1. Gün - 7. Gün):
@@ -93,7 +93,7 @@ Planlama Prensipleri:
 *   Öğrencinin sıkılmaması için çeşitlilik sağlamaya çalış.
 *   Gerçekçi ve uygulanabilir bir plan oluştur.
 *   Eğer verilen süre çok kısaysa veya konu sayısı çok fazlaysa, bu durumu nazikçe belirt ve planı en iyi şekilde optimize etmeye çalış veya daha odaklı bir plan öner.
-*   Şemadaki 'required' olarak işaretlenmiş tüm alanların çıktıda bulunduğundan emin ol. Özellikle 'weeklyPlans' içindeki her bir haftanın 'week' numarası MUTLAKA BİR SAYI OLARAK belirtilmelidir.
+*   Şemadaki 'required' olarak işaretlenmiş tüm alanların çıktıda bulunduğundan emin ol. Özellikle 'weeklyPlans' içindeki her bir haftanın 'week' numarası MUTLAKA BİR SAYI OLARAK belirtilmelidir. Çıktıyı oluşturmadan önce, 'weeklyPlans' dizisindeki her bir objenin 'week' anahtarını ve bunun sayısal bir değer içerdiğini SON KEZ KONTROL ET.
 `,
 });
 
@@ -115,13 +115,14 @@ const studyPlanGeneratorFlow = ai.defineFlow(
     // AI'nın 'week' alanını eklemeyi unuttuğu veya yanlış formatta eklediği durumlar için ek kontrol ve düzeltme
     if (Array.isArray(output.weeklyPlans)) {
       output.weeklyPlans.forEach((plan, index) => {
-        if (typeof plan.week !== 'number' || isNaN(plan.week)) {
+        // typeof plan.week !== 'number' kontrolü, plan.week undefined ise de doğru çalışır.
+        // isNaN(plan.week) kontrolü ise, plan.week bir sayıya çevrilemiyorsa (örn: string ise veya NaN ise) true döner.
+        if (plan.week === undefined || typeof plan.week !== 'number' || isNaN(plan.week)) {
           console.warn(`Study Plan Generator: AI output for weeklyPlans[${index}] is missing or has an invalid 'week' number. Assigning index+1. Original plan:`, JSON.stringify(plan));
           plan.week = index + 1; // Dizideki sırasına göre bir hafta numarası ata
         }
       });
     } else {
-      // Eğer weeklyPlans bir dizi değilse veya boşsa, bu da bir sorundur.
       console.error("Study Plan Generator: AI output for weeklyPlans is not an array or is empty. Input:", JSON.stringify(input));
       throw new Error("AI Eğitim Koçu, haftalık planları doğru formatta oluşturamadı.");
     }
