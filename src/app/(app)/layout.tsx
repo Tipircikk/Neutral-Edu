@@ -24,7 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
-import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation, Timer, Palette } from "lucide-react";
+import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation, Timer } from "lucide-react";
 import Link from "next/link";
 import QuotaDisplay from "@/components/dashboard/QuotaDisplay";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
@@ -60,20 +60,14 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     ];
     if (aiToolPaths.some(path => pathname.startsWith(path))) {
       setIsAiToolsSubmenuOpen(true);
-    } else {
-      // Optionally close if not on an AI tool path, or keep it as is
-      // setIsAiToolsSubmenuOpen(false);
     }
 
     const helperToolPaths = [
       "/dashboard/tools/pomodoro",
-      "/dashboard/tools/whiteboard",
+      // "/dashboard/tools/whiteboard", // Karalama tahtası kaldırıldı
     ];
     if (helperToolPaths.some(path => pathname.startsWith(path))) {
       setIsHelperToolsSubmenuOpen(true);
-    } else {
-      // Optionally close
-      // setIsHelperToolsSubmenuOpen(false);
     }
 
   }, [pathname]);
@@ -225,11 +219,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                           <Link href="/dashboard/tools/pomodoro"><Timer /><span>Pomodoro Zamanlayıcı</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/tools/whiteboard"}>
-                          <Link href="/dashboard/tools/whiteboard"><Palette /><span>Dijital Karalama Tahtası</span></Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
+                      {/* Karalama Tahtası linki kaldırıldı */}
                     </SidebarMenuSub>
                   )}
                 </SidebarMenuItem>
