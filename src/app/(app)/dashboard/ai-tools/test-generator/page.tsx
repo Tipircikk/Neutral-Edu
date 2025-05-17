@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { generateTest, type GenerateTestOutput, type GenerateTestInput, type QuestionSchema as QuestionType } from "@/ai/flows/test-generator-flow"; 
 import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 type CheckedAnswersState = {
   [key: number]: {
@@ -40,9 +41,13 @@ export default function TestGeneratorPage() {
   const [showExplanations, setShowExplanations] = useState<{[key: number]: boolean}>({});
 
   const memoizedCheckAndResetQuota = useCallback(async () => {
+    if (!userProfile && !authLoading) return null; // Add guard for no userProfile
     if (checkAndResetQuota) return checkAndResetQuota();
     return Promise.resolve(userProfile);
   }, [checkAndResetQuota, userProfile]);
+  
+  const { loading: authLoading } = useUser();
+
 
   useEffect(() => {
     if (userProfile) {
@@ -66,6 +71,11 @@ export default function TestGeneratorPage() {
       toast({ title: "Konu Gerekli", description: "Lütfen test oluşturmak istediğiniz konuyu girin.", variant: "destructive" });
       return;
     }
+     if (numQuestions < 3 || numQuestions > 20) {
+      toast({ title: "Geçersiz Soru Sayısı", description: "Soru sayısı 3 ile 20 arasında olmalıdır.", variant: "destructive" });
+      return;
+    }
+
 
     setIsGenerating(true);
     resetTestState(); 
@@ -135,14 +145,14 @@ export default function TestGeneratorPage() {
   };
 
   const handleShowExplanation = () => {
-    setShowExplanations(prev => ({...prev, [currentQuestionIndex]: true}));
+    setShowExplanations(prev => ({...prev, [currentQuestionIndex]: !prev[currentQuestionIndex]}));
   };
 
   const currentQuestion: QuestionType | undefined = testOutput?.questions[currentQuestionIndex];
   const isAnswerChecked = checkedAnswers[currentQuestionIndex] !== undefined;
   const isExplanationShown = showExplanations[currentQuestionIndex] === true;
   
-  const isSubmitDisabled = isGenerating || !topic.trim() || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
+  const isSubmitDisabled = isGenerating || !topic.trim() || (numQuestions < 3 || numQuestions > 20) || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
 
   if (userProfileLoading) {
     return (
@@ -202,8 +212,7 @@ export default function TestGeneratorPage() {
                             value={numQuestions}
                             onChange={(e) => {
                                 const val = parseInt(e.target.value,10);
-                                if (val >= 3 && val <= 20) setNumQuestions(val);
-                                else if (e.target.value === "") setNumQuestions(3); // or some default / allow empty for now
+                                setNumQuestions(isNaN(val) ? 3 : val); 
                             }}
                             min="3"
                             max="20"
@@ -254,19 +263,21 @@ export default function TestGeneratorPage() {
 
       {testOutput && currentQuestion && (
         <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>{testOutput.testTitle} - Soru {currentQuestionIndex + 1} / {testOutput.questions.length}</CardTitle>
+          <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+            <CardTitle className="mb-2 sm:mb-0">{testOutput.testTitle} - Soru {currentQuestionIndex + 1} / {testOutput.questions.length}</CardTitle>
+            <Button onClick={resetTestState} variant="outline" size="sm">Yeni Test Oluştur</Button>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="p-4 border rounded-md bg-muted/30">
-              <p className="font-semibold text-foreground whitespace-pre-line">{currentQuestion.questionText}</p>
-            </div>
+            <ScrollArea className="h-[200px] w-full rounded-md border p-4 bg-muted/30">
+                <p className="font-semibold text-foreground whitespace-pre-line">{currentQuestion.questionText}</p>
+            </ScrollArea>
             
             {currentQuestion.options && (
                 <RadioGroup 
                     onValueChange={handleOptionChange} 
                     value={userAnswers[currentQuestionIndex]}
                     disabled={isAnswerChecked}
+                    className="space-y-2"
                 >
                 {currentQuestion.options.map((option, index) => {
                     const optionLetter = String.fromCharCode(65 + index);
@@ -288,14 +299,14 @@ export default function TestGeneratorPage() {
                         <Label 
                             key={optionLetter} 
                             htmlFor={`q${currentQuestionIndex}-opt${optionLetter}`}
-                            className={`flex items-center space-x-3 p-3 rounded-md border-2 ${optionStyle} hover:bg-accent/50 transition-all cursor-pointer ${isAnswerChecked ? 'cursor-not-allowed opacity-70' : ''}`}
+                            className={`flex items-center space-x-3 p-3 rounded-md border-2 ${optionStyle} hover:bg-accent/50 transition-all ${isAnswerChecked ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}
                         >
                             <RadioGroupItem 
                                 value={optionLetter} 
                                 id={`q${currentQuestionIndex}-opt${optionLetter}`} 
                                 disabled={isAnswerChecked}
                             />
-                            <span>{optionLetter}) {option}</span>
+                            <span className="flex-1">{optionLetter}) {option}</span>
                             {IconComponent && <span className="ml-auto">{IconComponent}</span>}
                         </Label>
                     );
@@ -303,21 +314,21 @@ export default function TestGeneratorPage() {
                 </RadioGroup>
             )}
 
-            <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex flex-col sm:flex-row gap-2 mt-4">
                 {!isAnswerChecked && (
-                    <Button onClick={handleCheckAnswer} disabled={userAnswers[currentQuestionIndex] === undefined} className="flex-1">
+                    <Button onClick={handleCheckAnswer} disabled={userAnswers[currentQuestionIndex] === undefined || isGenerating} className="flex-1">
                         Kontrol Et
                     </Button>
                 )}
-                {isAnswerChecked && !isExplanationShown && (
+                {isAnswerChecked && (
                     <Button onClick={handleShowExplanation} variant="outline" className="flex-1">
-                        <Eye className="mr-2 h-4 w-4" /> Çözümü Gör
+                        <Eye className="mr-2 h-4 w-4" /> {isExplanationShown ? "Çözümü Gizle" : "Çözümü Gör"}
                     </Button>
                 )}
             </div>
 
             {isAnswerChecked && checkedAnswers[currentQuestionIndex] && (
-                 <Alert variant={checkedAnswers[currentQuestionIndex].isCorrect ? "default" : "destructive"} className={checkedAnswers[currentQuestionIndex].isCorrect ? "bg-green-500/10 border-green-500 text-green-700 dark:text-green-400" : ""}>
+                 <Alert variant={checkedAnswers[currentQuestionIndex].isCorrect ? "default" : "destructive"} className={`mt-4 ${checkedAnswers[currentQuestionIndex].isCorrect ? "bg-green-500/10 border-green-500 text-green-700 dark:text-green-400" : ""}`}>
                     {checkedAnswers[currentQuestionIndex].isCorrect ? <CheckCircle className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
                     <AlertTitle>{checkedAnswers[currentQuestionIndex].isCorrect ? "Doğru!" : "Yanlış!"}</AlertTitle>
                     <AlertDescription>
@@ -330,7 +341,9 @@ export default function TestGeneratorPage() {
               <Card className="bg-accent/30 p-4 mt-4">
                 <CardHeader className="p-0 mb-2"><CardTitle className="text-md">Açıklama</CardTitle></CardHeader>
                 <CardContent className="p-0">
-                    <p className="text-sm text-muted-foreground whitespace-pre-line">{currentQuestion.explanation}</p>
+                    <ScrollArea className="h-[200px] w-full">
+                        <p className="text-sm text-muted-foreground whitespace-pre-line">{currentQuestion.explanation}</p>
+                    </ScrollArea>
                 </CardContent>
               </Card>
             )}
@@ -340,15 +353,15 @@ export default function TestGeneratorPage() {
             <div className="flex justify-between items-center">
               <Button 
                 onClick={() => setCurrentQuestionIndex(prev => Math.max(0, prev - 1))}
-                disabled={currentQuestionIndex === 0}
+                disabled={currentQuestionIndex === 0 || isGenerating}
                 variant="outline"
               >
                 <ChevronLeft className="mr-2 h-4 w-4" /> Önceki Soru
               </Button>
-              <Button onClick={resetTestState} variant="secondary">Yeni Test Oluştur</Button>
+              
               <Button 
                 onClick={() => setCurrentQuestionIndex(prev => Math.min(testOutput.questions.length - 1, prev + 1))}
-                disabled={currentQuestionIndex === testOutput.questions.length - 1}
+                disabled={currentQuestionIndex === testOutput.questions.length - 1 || isGenerating}
                 variant="outline"
               >
                 Sonraki Soru <ChevronRight className="ml-2 h-4 w-4" />
@@ -366,3 +379,4 @@ export default function TestGeneratorPage() {
   );
 }
 
+    

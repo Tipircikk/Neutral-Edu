@@ -9,7 +9,7 @@ import { CheckCircle, XCircle, ArrowRight, Sparkles, Loader2 } from "lucide-reac
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase/config";
 import { doc, getDoc, Timestamp } from "firebase/firestore";
-import type { PricingConfig } from "@/types";
+import type { PricingConfig, PricingPlanDetails as FirestorePricingPlanDetails } from "@/types";
 
 interface PlanFeature {
   text: string;
@@ -18,15 +18,15 @@ interface PlanFeature {
 
 interface PricingPlan {
   name: string;
-  price: string; // Firestore'dan string olarak gelecek (örn: "100")
-  originalPrice: string | null; // Firestore'dan string olarak gelebilir (örn: "200")
+  price: string; 
+  originalPrice: string | null;
   frequency: string;
   description: string;
   features: PlanFeature[];
   cta: string;
   ctaLink: string;
   isPrimary: boolean;
-  badge?: string; // Bu, "YENİ" gibi ek etiketler için kullanılabilir. İndirim metni dinamik olacak.
+  badge?: string;
 }
 
 const initialPricingPlans: PricingPlan[] = [
@@ -37,7 +37,7 @@ const initialPricingPlans: PricingPlan[] = [
     frequency: "/ay",
     description: "NeutralEdu AI'ı denemek ve günlük temel kullanım için mükemmel.",
     features: [
-      { text: "Günde 2 İşlem", included: true },
+      { text: "Günde 2 Yapay Zeka İşlemi", included: true },
       { text: "İndirilebilir Özetler (TXT)", included: true },
       { text: "Standart AI Destekli Yanıtlar", included: true },
       { text: "Anahtar Noktalar ve Açıklamalar", included: true },
@@ -58,37 +58,37 @@ const initialPricingPlans: PricingPlan[] = [
     frequency: "/ay",
     description: "Daha fazla güç ve özelliğe ihtiyaç duyan özel akademisyenler için.",
     features: [
-      { text: "Günde 10 İşlem", included: true },
+      { text: "Günde 10 Yapay Zeka İşlemi", included: true },
       { text: "İndirilebilir Özetler (TXT/PDF*)", included: true },
       { text: "Gelişmiş AI Destekli Yanıtlar", included: true },
       { text: "Anahtar Noktalar ve Detaylı Açıklamalar", included: true },
       { text: "Kapsamlı Örnek Sorular", included: true },
-      { text: "Daha Hızlı İşleme", included: true },
+      { text: "Daha Hızlı İşleme (potansiyel)", included: true },
       { text: "Öncelikli Destek", included: true },
-      { text: "Gelişmiş AI Modellerine Erişim", included: true },
+      { text: "Gelişmiş AI Modellerine Erişim (potansiyel)", included: true },
       { text: "En Gelişmiş AI Modelleri", included: false },
     ],
     cta: "Premium'a Yükseltin",
     ctaLink: "#contact-sales", 
     isPrimary: false,
-    badge: "YENİ &", // Bu, indirim oranı metninden önce görünecek.
+    badge: "YENİ &",
   },
   {
     name: "Pro",
-    price: "250",  // Örnek görseldeki gibi
-    originalPrice: "600", // Örnek görseldeki gibi
+    price: "250",
+    originalPrice: "600",
     frequency: "/ay",
     description: "Maksimum potansiyelini açığa çıkarmak isteyen en talepkar kullanıcılar için.",
     features: [
-      { text: "Günde 50 İşlem", included: true },
+      { text: "Günde 25 Yapay Zeka İşlemi", included: true }, // Güncellendi
       { text: "İndirilebilir Özetler (TXT/PDF*)", included: true },
       { text: "En Üst Düzey AI Destekli Yanıtlar", included: true },
       { text: "Derinlemesine Anahtar Noktalar ve Uzman Açıklamaları", included: true },
       { text: "Uzman Seviyesinde Örnek Sorular ve Senaryolar", included: true },
-      { text: "En Hızlı İşleme Önceliği", included: true },
+      { text: "En Hızlı İşleme Önceliği (potansiyel)", included: true },
       { text: "VIP Destek Hattı", included: true },
-      { text: "Gelişmiş AI Modellerine Tam Erişim", included: true },
-      { text: "En Gelişmiş ve Deneysel AI Modellerine Erişim", included: true },
+      { text: "Gelişmiş AI Modellerine Tam Erişim (potansiyel)", included: true },
+      { text: "En Gelişmiş ve Deneysel AI Modellerine Erişim (potansiyel)", included: true },
     ],
     cta: "Pro'ya Geçin",
     ctaLink: "#contact-sales", 
@@ -100,6 +100,7 @@ const initialPricingPlans: PricingPlan[] = [
 export default function PricingPage() {
   const [pricingPlans, setPricingPlans] = useState<PricingPlan[]>(initialPricingPlans);
   const [loading, setLoading] = useState(true);
+  const [fetchedPrices, setFetchedPrices] = useState<PricingConfig | null>(null);
 
   useEffect(() => {
     const fetchPrices = async () => {
@@ -108,32 +109,30 @@ export default function PricingPage() {
         const pricingDocRef = doc(db, "pricingConfig", "currentPrices");
         const docSnap = await getDoc(pricingDocRef);
         if (docSnap.exists()) {
-          const fetchedData = docSnap.data() as PricingConfig;
+          const data = docSnap.data() as PricingConfig;
+          setFetchedPrices(data);
           const updatedPlans = initialPricingPlans.map(plan => {
-            if (plan.name === "Premium" && fetchedData.premium?.price) {
-              return { 
-                ...plan, 
-                price: fetchedData.premium.price,
-                originalPrice: fetchedData.premium.originalPrice || null
-              };
+            let newPrice = plan.price;
+            let newOriginalPrice = plan.originalPrice;
+
+            if (plan.name === "Premium" && data.premium?.price) {
+              newPrice = data.premium.price;
+              newOriginalPrice = data.premium.originalPrice || null;
             }
-            if (plan.name === "Pro" && fetchedData.pro?.price) {
-              return { 
-                ...plan, 
-                price: fetchedData.pro.price,
-                originalPrice: fetchedData.pro.originalPrice || null
-              };
+            if (plan.name === "Pro" && data.pro?.price) {
+              newPrice = data.pro.price;
+              newOriginalPrice = data.pro.originalPrice || null;
             }
-            return plan;
+            return { ...plan, price: newPrice, originalPrice: newOriginalPrice };
           });
           setPricingPlans(updatedPlans);
         } else {
-          console.log("No pricing config found, using defaults.");
+          console.log("No pricing config found, using defaults from initialPricingPlans.");
           setPricingPlans(initialPricingPlans); 
         }
       } catch (error) {
         console.error("Error fetching pricing:", error);
-        setPricingPlans(initialPricingPlans); 
+        setPricingPlans(initialPricingPlans); // Fallback to initial if error
       } finally {
         setLoading(false);
       }
@@ -249,3 +248,5 @@ export default function PricingPage() {
     </div>
   );
 }
+
+    

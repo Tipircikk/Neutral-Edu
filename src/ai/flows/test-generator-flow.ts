@@ -29,6 +29,7 @@ const QuestionSchema = z.object({
     correctAnswer: z.string().describe("Sorunun doğru cevabı (Örn: 'A', 'Doğru', 'Fotosentez'). Çoktan seçmelide sadece seçenek harfi (A, B, C, D, E)."),
     explanation: z.string().optional().describe("Doğru cevabın neden doğru olduğuna ve diğer DÖRT seçeneğin neden yanlış olduğuna dair YKS öğrencisinin anlayacağı dilde, öğretici ve son derece detaylı bir açıklama. Açıklama, her bir adımı ve mantığı içermelidir."),
 });
+export type QuestionSchema = z.infer<typeof QuestionSchema>;
 
 const GenerateTestOutputSchema = z.object({
   testTitle: z.string().describe("Oluşturulan test için konuyla ilgili, YKS'ye uygun başlık (örn: '{{{topic}}} YKS Deneme Sınavı', '{{{topic}}} İleri Seviye Testi')."),
@@ -63,11 +64,11 @@ YKS Zorluk Seviyesi: {{{difficulty}}}
 Lütfen bu bilgilere dayanarak, tamamıyla YKS formatına ve ciddiyetine uygun bir test oluştur. Test, aşağıdaki formatta ve prensiplerde olmalıdır:
 1.  **Test Başlığı**: Konuyla ilgili, öğrenciyi motive eden ve YKS'ye uygun bir başlık (örn: "{{{topic}}} - YKS Prova Sınavı ({{difficulty}} Seviye)", "{{{topic}}} Temel Kavramlar ve Uygulamalar Testi").
 2.  **Sorular**: Her soru için (tamamı YKS standartlarında):
-    *   **Soru Metni**: Açık, net, anlaşılır ve KESİNLİKLE TEK BİR DOĞRU CEVABA işaret edecek şekilde ifade edilmeli. Yoruma açık veya birden fazla doğru cevabı olabilecek, belirsiz sorulardan KESİNLİKLE kaçınılmalı. YKS'de kullanılan soru köklerine (örneğin "hangisidir?", "hangisi söylenemez?", "çıkarılabilir?") benzer ifadeler kullanılmalı.
-    *   **Soru Tipi**: Kullanıcı belirtti ise {{{questionTypes}}} tiplerini dikkate al. Belirtmediyse veya YKS için uygun değilse, tamamı 'multiple_choice' (çoktan seçmeli) olmalı.
-    *   **Seçenekler (çoktan seçmeli ise)**: Mutlaka 5 adet (A, B, C, D, E) seçenek sunulmalı. Seçenekler, konuyla ilgili mantıklı ve güçlü çeldiriciler içermeli; bariz yanlış, konu dışı veya alakasız olmamalıdır. Çeldiriciler, öğrencilerin yaygın yaptığı hataları veya kavram yanılgılarını hedefleyebilir. SADECE BİR SEÇENEK KESİN DOĞRU OLMALIDIR.
+    *   **Soru Metni**: Açık, net, anlaşılır ve KESİNLİKLE TEK BİR DOĞRU CEVABA işaret edecek şekilde ifade edilmeli. Yoruma açık, birden fazla doğru cevabı olabilecek veya cevabı belirsiz sorulardan KESİNLİKLE kaçınılmalı. Soru, öğrencinin {{{topic}}} konusundaki bilgisini ve {{difficulty}} zorluk seviyesine uygun analitik düşünme yeteneğini ölçmelidir. YKS'de kullanılan soru köklerine (örneğin "hangisidir?", "hangisi söylenemez?", "çıkarılabilir?", "hangisi kesinlikle yanlıştır?") benzer ifadeler kullanılmalı.
+    *   **Soru Tipi**: Mutlaka 'multiple_choice' (çoktan seçmeli) olmalı. Diğer tipleri şimdilik dikkate alma.
+    *   **Seçenekler (çoktan seçmeli ise)**: Mutlaka 5 adet (A, B, C, D, E) seçenek sunulmalı. Seçenekler, konuyla ilgili mantıklı ve güçlü çeldiriciler içermeli; bariz yanlış, konu dışı veya alakasız olmamalıdır. Çeldiriciler, öğrencilerin yaygın yaptığı hataları veya kavram yanılgılarını hedefleyebilir. SADECE BİR SEÇENEK KESİN DOĞRU OLMALIDIR. Diğer dört seçenek KESİNLİKLE YANLIŞ olmalıdır. Seçenekler arasında anlam belirsizliği veya çakışma olmamalıdır.
     *   **Doğru Cevap**: Sorunun doğru cevabı net bir şekilde (sadece seçenek harfi, örn: "A", "B", "C", "D", "E") belirtilmeli.
-    *   **Açıklama (zorunlu ve son derece detaylı)**: Her soru için, doğru cevabın neden doğru olduğuna ve diğer DÖRT seçeneğin neden yanlış olduğuna dair adım adım, mantıksal ve öğretici bir açıklama eklenmeli. Bu açıklama, öğrencinin konuyu pekiştirmesine, hatasını anlamasına ve YKS için önemli püf noktalarını öğrenmesine yardımcı olmalıdır. Açıklama, bir öğretmenin konuyu anlatış tarzında olmalı, gerekirse alt adımlara bölünerek her düşünce süreci netleştirilmelidir. Çözüm için izlenen her adım açıkça belirtilmelidir.
+    *   **Açıklama (zorunlu ve son derece detaylı)**: Her soru için, doğru cevabın neden doğru olduğuna ve diğer DÖRT seçeneğin neden yanlış olduğuna dair adım adım, mantıksal ve öğretici bir açıklama eklenmeli. Bu açıklama, öğrencinin konuyu pekiştirmesine, hatasını anlamasına ve YKS için önemli püf noktalarını öğrenmesine yardımcı olmalıdır. Açıklama, bir öğretmenin konuyu anlatış tarzında olmalı, gerekirse alt adımlara bölünerek her düşünce süreci netleştirilmelidir. Çözüm için izlenen her adım açıkça belirtilmelidir. Sadece doğru cevabı açıklamak yeterli değildir; her bir yanlış seçeneğin neden hatalı olduğu da ayrı ayrı ve ikna edici bir şekilde açıklanmalıdır.
 
 Genel Prensipler:
 *   Soruları hazırlarken, sadece ezber bilgiyi değil, aynı zamanda YKS'nin gerektirdiği anlama, yorumlama, analiz, sentez, problem çözme ve eleştirel düşünme becerilerini ölçecek nitelikte olmasına azami özen göster.
@@ -78,7 +79,7 @@ Genel Prensipler:
 *   {{{topic}}} konusunu kapsamlı bir şekilde tara. Sorular, konunun farklı alt başlıklarından dengeli bir şekilde dağılmalı.
 *   Soruların ve cevapların dilbilgisi açısından kusursuz ve YKS terminolojisine uygun olmasına dikkat et.
 *   Çalıntı veya başka kaynaklardan doğrudan kopyalanmış soru kullanma. Tamamen özgün sorular üret.
-*   Kesinlikle yoruma açık, birden fazla doğru cevabı olabilecek veya cevabı belirsiz sorular sorma. Her sorunun tek ve net bir doğru cevabı olmalı.
+*   Kesinlikle yoruma açık, birden fazla doğru cevabı olabilecek veya cevabı belirsiz sorular sorma. Her sorunun tek ve net bir doğru cevabı olmalı. Seçenekler net olmalı.
 `,
 });
 
@@ -89,24 +90,25 @@ const testGeneratorFlow = ai.defineFlow(
     outputSchema: GenerateTestOutputSchema,
   },
   async (input) => {
-    if (!input.questionTypes || input.questionTypes.length === 0) {
-      input.questionTypes = ["multiple_choice"];
-    }
-
-    // Tüm kullanıcılar için standart model kullanılacak.
+    // Force question type to multiple_choice for YKS focus
+    const adjustedInput = { ...input, questionTypes: ["multiple_choice"] as Array<"multiple_choice" | "true_false" | "short_answer"> };
+    
     const modelToUse = 'googleai/gemini-2.0-flash'; 
     
-    const {output} = await prompt(input, { model: modelToUse });
+    const {output} = await prompt(adjustedInput, { model: modelToUse });
     if (!output || !output.questions || output.questions.length === 0) {
       throw new Error("AI YKS Test Uzmanı, belirtilen konu için YKS standartlarında bir test oluşturamadı. Lütfen konu ve ayarları kontrol edin.");
     }
     output.questions.forEach(q => {
-      if (q.questionType === "multiple_choice" && (!q.options || q.options.length !== 5)) {
-        // Allow for slight deviations but log a warning. The AI should ideally produce 5 options.
-        console.warn(`Multiple choice question "${q.questionText.substring(0,50)}..." for topic "${input.topic}" was expected to have 5 options, but received ${q.options?.length || 0}. Check LLM prompt for strictness if this is frequent.`);
+      q.questionType = "multiple_choice"; // Ensure questionType is correctly set post-generation
+      if (!q.options || q.options.length !== 5) {
+        console.warn(`Multiple choice question "${q.questionText.substring(0,50)}..." for topic "${input.topic}" was expected to have 5 options, but received ${q.options?.length || 0}. Ensure prompt forces 5 options.`);
+        // Optionally, attempt to pad/truncate options if necessary, or rely on stricter prompt.
+        // For now, we assume the AI will generally follow the 5-option rule.
       }
     });
     return output;
   }
 );
 
+    
