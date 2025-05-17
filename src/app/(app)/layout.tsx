@@ -24,7 +24,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
-import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation, Timer, CalendarClock, ListChecks } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation, Timer, CalendarClock, ListChecks, Palette } from "lucide-react";
 import Link from "next/link";
 import QuotaDisplay from "@/components/dashboard/QuotaDisplay";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
@@ -60,15 +66,22 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     ];
     if (aiToolPaths.some(path => pathname.startsWith(path))) {
       setIsAiToolsSubmenuOpen(true);
+    } else {
+      // Optional: close submenu if not on an AI tool path
+      // setIsAiToolsSubmenuOpen(false);
     }
 
     const helperToolPaths = [
       "/dashboard/tools/pomodoro",
       "/dashboard/tools/countdown",
-      "/dashboard/tools/goal-tracker", 
+      "/dashboard/tools/goal-tracker",
+      // "/dashboard/tools/whiteboard", // Whiteboard kaldırıldı
     ];
     if (helperToolPaths.some(path => pathname.startsWith(path))) {
       setIsHelperToolsSubmenuOpen(true);
+    } else {
+      // Optional: close submenu if not on a helper tool path
+      // setIsHelperToolsSubmenuOpen(false);
     }
 
   }, [pathname]);
@@ -113,9 +126,24 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 total={totalQuota}
               />
             )}
-            <Button variant="ghost" size="icon" className="relative" title="Bildirimler (Yakında)">
-                <Bell className="h-5 w-5" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="relative" title="Bildirimler">
+                    <Bell className="h-5 w-5" />
+                    {/* Gelecekte okunmamış bildirim sayısı için bir badge eklenebilir */}
+                    {/* <span className="absolute top-0 right-0 flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                    </span> */}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel>Bildirimler</DropdownMenuLabel>
+                <div className="p-2 text-sm text-muted-foreground text-center">
+                  Henüz yeni bildiriminiz yok.
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Avatar className="h-9 w-9">
               <AvatarFallback className="bg-primary text-primary-foreground">
                 {getInitials(user.email)}
@@ -230,6 +258,13 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                           <Link href="/dashboard/tools/goal-tracker"><ListChecks /><span>Hedef Takipçisi</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
+                      {/* Dijital Karalama Tahtası kaldırıldığı için linki de kaldırıldı.
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/tools/whiteboard"}>
+                          <Link href="/dashboard/tools/whiteboard"><Palette /><span>Dijital Karalama Tahtası</span></Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      */}
                     </SidebarMenuSub>
                   )}
                 </SidebarMenuItem>
