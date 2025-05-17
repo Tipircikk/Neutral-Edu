@@ -29,14 +29,14 @@ export type SolveQuestionOutput = z.infer<typeof SolveQuestionOutputSchema>;
 
 // This wrapper function is called by the client (Server Action)
 export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQuestionOutput> {
+  console.log("[SolveQuestion Action] Received input:", {
+      hasQuestionText: !!input.questionText,
+      hasImageDataUri: !!input.imageDataUri && input.imageDataUri.length > 30 ? input.imageDataUri.substring(0,30) + "..." : "No Image",
+      userPlan: input.userPlan,
+      customModelIdentifier: input.customModelIdentifier,
+  });
+
   try {
-    console.log("[SolveQuestion Action] Calling questionSolverFlow with input:", {
-        hasQuestionText: !!input.questionText,
-        hasImageDataUri: !!input.imageDataUri && input.imageDataUri.length > 30 ? input.imageDataUri.substring(0,30) + "..." : "No Image",
-        userPlan: input.userPlan,
-        customModelIdentifier: input.customModelIdentifier,
-    });
-    
     const result = await questionSolverFlow(input);
 
     if (!result || typeof result.solution !== 'string' || !Array.isArray(result.relatedConcepts) || !Array.isArray(result.examStrategyTips)) {
@@ -48,11 +48,11 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
       };
     }
 
-    console.log("[SolveQuestion Action] Received valid result from questionSolverFlow:", JSON.stringify(result).substring(0, 300));
+    console.log("[SolveQuestion Action] Successfully received result from questionSolverFlow.");
     return result;
   } catch (error: any) {
-    console.error("[SolveQuestion Action] Critical error in server action:", error);
-    let errorMessage = 'Bilinmeyen sunucu hatası';
+    console.error("[SolveQuestion Action] Critical error during server action execution:", error);
+    let errorMessage = 'Bilinmeyen sunucu hatası oluştu.';
     if (error instanceof Error) {
         errorMessage = error.message;
     } else if (typeof error === 'string') {
@@ -62,14 +62,14 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
     }
     
     return {
-      solution: `Sunucu tarafında beklenmedik bir genel hata oluştu: ${errorMessage}. Lütfen geliştirici konsolunu kontrol edin veya destek ile iletişime geçin.`,
+      solution: `Sunucu tarafında genel bir hata oluştu: ${errorMessage}. Geliştirici konsolunu kontrol edin.`,
       relatedConcepts: ["Hata"],
       examStrategyTips: ["Tekrar deneyin"],
     };
   }
 }
 
-// prompt definition without default config
+// prompt definition
 const questionSolverPrompt = ai.definePrompt({
   name: 'questionSolverPrompt',
   input: {schema: SolveQuestionInputSchema},
@@ -183,47 +183,61 @@ const questionSolverFlow = ai.defineFlow(
       if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
         callOptions.config = {
           generationConfig: {
-            maxOutputTokens: 4096,
+            maxOutputTokens: 4096, // Apply maxOutputTokens for supported models
           }
         };
       } else {
         // For the preview model, ensure no config is sent.
-        // If callOptions.config was potentially set by another logic path, clear it.
         delete callOptions.config;
       }
 
       console.log(`[QuestionSolver Flow] Calling Google prompt with options:`, callOptions);
-      const {output} = await questionSolverPrompt(input, callOptions);
       
-      if (!output || typeof output.solution !== 'string') {
-        console.error("[QuestionSolver Flow] AI (Google model) did not produce a valid solution matching the schema. Output:", JSON.stringify(output).substring(0,300)+"...");
+      try {
+        const {output} = await questionSolverPrompt(input, callOptions);
+        
+        if (!output || typeof output.solution !== 'string') {
+          console.error("[QuestionSolver Flow] AI (Google model) did not produce a valid solution matching the schema. Output received:", JSON.stringify(output).substring(0,300)+"...");
+          return {
+              solution: `AI YKS Uzmanı (${modelToUse}), bu soru için bir çözüm ve detaylı açıklama üretemedi veya yanıt formatı beklenmedik. Lütfen girdilerinizi kontrol edin veya farklı bir soru deneyin. Model: ${modelToUse}`,
+              relatedConcepts: output?.relatedConcepts || [],
+              examStrategyTips: output?.examStrategyTips || [],
+          };
+        }
+        console.log("[QuestionSolver Flow] Successfully received solution from Google model.");
         return {
-            solution: `AI YKS Uzmanı (${modelToUse}), bu soru için bir çözüm ve detaylı açıklama üretemedi veya yanıt formatı beklenmedik. Lütfen girdilerinizi kontrol edin veya farklı bir soru deneyin. Model: ${modelToUse}`,
-            relatedConcepts: output?.relatedConcepts || [],
-            examStrategyTips: output?.examStrategyTips || [],
+          solution: output.solution,
+          relatedConcepts: output.relatedConcepts || [],
+          examStrategyTips: output.examStrategyTips || [],
         };
+      } catch (promptError: any) {
+          console.error(`[QuestionSolver Flow] Error during prompt execution with model ${modelToUse}:`, promptError);
+          let errorMessage = `AI modeli (${modelToUse}) ile iletişimde bir hata oluştu.`;
+          if (promptError?.message) {
+              errorMessage += ` Detay: ${promptError.message}`;
+              if (promptError.message.includes('SAFETY') || promptError.message.includes('block_reason')) {
+                  errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen sorunuzu gözden geçirin. Model: ${modelToUse}. Detay: ${promptError.message}`;
+              } else if (promptError.message.includes('400 Bad Request') && (promptError.message.includes('generationConfig') || promptError.message.includes('generation_config'))) {
+                  errorMessage = `Seçilen model (${modelToUse}) bazı yapılandırma ayarlarını desteklemiyor olabilir. Geliştiriciye bildirin. Detay: ${promptError.message}`;
+              }
+          }
+          return {
+              solution: errorMessage,
+              relatedConcepts: ["Model Hatası"],
+              examStrategyTips: [],
+          };
       }
-      console.log("[QuestionSolver Flow] Successfully received solution from Google model.");
-      return {
-        solution: output.solution,
-        relatedConcepts: output.relatedConcepts || [],
-        examStrategyTips: output.examStrategyTips || [],
-      };
 
     } catch (flowError: any) {
-      console.error("[QuestionSolver Flow] Unexpected critical error in flow execution:", flowError);
-      let errorMessage = 'Beklenmedik sunucu akış hatası.';
+      // This is the outermost catch block.
+      console.error("[QuestionSolver Flow] Unexpected critical error in flow execution (outer catch):", flowError);
+      let errorMessage = 'Soru çözme akışında beklenmedik genel bir hata oluştu.';
        if (flowError?.message) {
-            errorMessage = flowError.message;
-            if (flowError.message.includes('SAFETY') || flowError.message.includes('block_reason')) {
-                errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen sorunuzu gözden geçirin. Detay: ${flowError.message}`;
-            } else if (flowError.message.includes('400 Bad Request') && (flowError.message.includes('generationConfig') || flowError.message.includes('generation_config'))) {
-                errorMessage = `Seçilen model (${modelToUse}) bazı yapılandırma ayarlarını desteklemiyor olabilir. Geliştiriciye bildirin. Detay: ${flowError.message}`;
-            }
+            errorMessage += ` Detay: ${flowError.message}`;
         }
       return {
-        solution: `Soru çözülürken sunucuda genel bir hata oluştu: ${errorMessage}. Lütfen tekrar deneyin veya destek ile iletişime geçin.`,
-        relatedConcepts: ["Sunucu Akış Hatası"],
+        solution: errorMessage,
+        relatedConcepts: ["Kritik Akış Hatası"],
         examStrategyTips: [],
       };
     }
