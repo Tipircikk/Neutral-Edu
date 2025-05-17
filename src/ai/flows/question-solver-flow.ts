@@ -35,11 +35,6 @@ const questionSolverPrompt = ai.definePrompt({
   name: 'questionSolverPrompt',
   input: {schema: SolveQuestionInputSchema},
   output: {schema: SolveQuestionOutputSchema},
-  // config: { // Bu config, bu prompt tarafından çağrılan tüm modellere varsayılan olarak uygulanır
-  //   generationConfig: {
-  //     maxOutputTokens: 4096, 
-  //   },
-  // },
   prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilere her türlü akademik soruyu (Matematik, Geometri, Fizik, Kimya, Biyoloji, Türkçe, Edebiyat, Tarih, Coğrafya, Felsefe vb.) en karmaşık detaylarına kadar, temel prensiplerine indirgeyerek, adım adım, son derece anlaşılır, pedagojik değeri yüksek ve motive edici bir şekilde çözmede uzmanlaşmış kıdemli bir AI YKS uzman öğretmenisin.
 Amacın sadece doğru cevabı vermek değil, aynı zamanda sorunun çözüm mantığını en ince ayrıntısına kadar, SATIR SATIR ve ADIM ADIM açıklamak, altında yatan temel prensipleri ve YKS'de sıkça sorulan püf noktalarını vurgulamak ve öğrencinin konuyu tam anlamıyla "öğrenmesini" sağlamaktır. Çözümün her bir aşaması, nedenleriyle birlikte, bir öğrenciye ders anlatır gibi sunulmalıdır. Öğrencinin bu soru tipini bir daha gördüğünde kendinden emin bir şekilde çözebilmesi için gereken her türlü bilgiyi ve stratejiyi sun. Çözümün olabildiğince açık ve anlaşılır olmasına, ancak gereksiz yere aşırı uzun olmamasına özen göster.
 Matematiksel ifadeleri ve denklemleri yazarken lütfen Markdown formatlamasına (örneğin, tek backtick \`denklem\` veya üçlü backtick ile kod blokları) dikkat edin ve formatlamayı doğru bir şekilde kapatın.
@@ -126,7 +121,7 @@ const questionSolverFlow = ai.defineFlow(
       let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
       let modelConfig: Record<string, any> = { 
         generationConfig: {
-            maxOutputTokens: 4096, // Default max tokens
+            maxOutputTokens: 4096,
         }
       };
 
@@ -141,52 +136,60 @@ const questionSolverFlow = ai.defineFlow(
             modelToUse = 'googleai/gemini-2.5-flash-preview-04-17'; 
             console.log("[QuestionSolver] Admin selected experimental Google model: gemini-2.5-flash-preview-04-17");
             // Preview modeller için generationConfig desteklenmeyebilir.
-            modelConfig = {}; 
+            modelConfig = {}; // Clear config for preview models
         }
       } else if (input.userPlan === 'pro') {
-        // Pro kullanıcılar için zaten varsayılan 'gemini-1.5-flash-latest' kullanılacak.
-        // İleride pro kullanıcılar için daha gelişmiş bir model (örn: gemini-1.5-pro-latest) 
-        // kullanılacaksa burası güncellenebilir.
-        // modelToUse = 'googleai/gemini-1.5-pro-latest'; // Eğer Pro için farklı bir model olacaksa
+        modelToUse = 'googleai/gemini-1.5-flash-latest'; 
       }
       
       console.log(`[QuestionSolver] Using Google model: ${modelToUse} for user plan: ${input.userPlan} with config:`, modelConfig);
       
-      const {output} = await questionSolverPrompt(input, { model: modelToUse, config: Object.keys(modelConfig).length > 0 ? modelConfig : undefined });
-      
-      if (!output || !output.solution) {
-        console.error("[QuestionSolver] AI (Google model) did not produce a valid solution matching the schema. Input relevant parts:", { 
-          hasQuestionText: !!input.questionText, 
-          hasImageDataUri: !!input.imageDataUri, 
-          userPlan: input.userPlan
-        }, "Output:", JSON.stringify(output).substring(0,200)+"...");
+      try {
+        const {output} = await questionSolverPrompt(input, { model: modelToUse, config: Object.keys(modelConfig).length > 0 ? modelConfig : undefined });
+        
+        if (!output || !output.solution) {
+          console.error("[QuestionSolver] AI (Google model) did not produce a valid solution matching the schema. Input relevant parts:", { 
+            hasQuestionText: !!input.questionText, 
+            hasImageDataUri: !!input.imageDataUri, 
+            userPlan: input.userPlan
+          }, "Output:", JSON.stringify(output).substring(0,200)+"...");
+          return {
+              solution: `AI YKS Uzmanı (${modelToUse}), bu soru için bir çözüm ve detaylı açıklama üretemedi. Lütfen girdilerinizi kontrol edin veya farklı bir soru deneyin. Eğer sorun devam ederse, AI modelinin yanıtı şemaya uymamış olabilir.`,
+              relatedConcepts: [],
+              examStrategyTips: [],
+          };
+        }
+        console.log("[QuestionSolver] Successfully received solution from Google model.");
+        return output;
+      } catch (genError: any) {
+        console.error(`[QuestionSolver] Error during Genkit prompt execution with model ${modelToUse}:`, genError);
+        let errorMessage = `AI modelinden (${modelToUse}) yanıt alınırken bir hata oluştu.`;
+        if (genError.message) {
+            errorMessage += ` Detay: ${genError.message}`;
+        }
+         if (genError.message && genError.message.includes('SAFETY')) {
+            errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen sorunuzu gözden geçirin. Detay: ${genError.message}`;
+        }
         return {
-            solution: `AI YKS Uzmanı (${modelToUse}), bu soru için bir çözüm ve detaylı açıklama üretemedi. Lütfen girdilerinizi kontrol edin veya farklı bir soru deneyin. Eğer sorun devam ederse, AI modelinin yanıtı şemaya uymamış olabilir.`,
-            relatedConcepts: [],
+            solution: errorMessage,
+            relatedConcepts: ["Model Hatası"],
             examStrategyTips: [],
         };
       }
-      console.log("[QuestionSolver] Successfully received solution from Google model.");
-      return output;
 
     } catch (flowError: any) {
       console.error("[QuestionSolver] Unexpected error in questionSolverFlow:", flowError);
-      let errorMessage = `Soru çözülürken beklenmedik bir sunucu hatası oluştu: ${flowError.message || 'Bilinmeyen bir hata.'}`;
-      
-      if (flowError.message && flowError.message.includes('SAFETY')) {
-        errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen sorunuzu gözden geçirin. Detay: ${flowError.message}`;
-      } else if (flowError.message && flowError.message.includes('Invalid JSON payload received. Unknown name "generationConfig"')) {
-        errorMessage = `Seçilen model ('${input.customModelIdentifier || (input.userPlan ? input.userPlan + ' planı modeli' : 'varsayılan model')}') için 'generationConfig' parametresi desteklenmiyor. Lütfen bu model için yapılandırmayı kontrol edin veya farklı bir model deneyin. Detay: ${flowError.message}`;
-      } else if (flowError.message && (flowError.message.includes('is not a function') || flowError.message.includes('prompt is not defined'))) {
-         errorMessage = `Soru çözülürken bir sunucu yapılandırma hatası oluştu. Lütfen daha sonra tekrar deneyin veya yöneticiye başvurun. Detay: ${flowError.message}`;
+      let errorMessage = `Soru çözülürken beklenmedik bir sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.`;
+      if (flowError.message) {
+          errorMessage += ` Detay: ${flowError.message}`;
       }
-
-
       return {
         solution: errorMessage,
-        relatedConcepts: ["Sistem Hatası"],
+        relatedConcepts: ["Sunucu Hatası"],
         examStrategyTips: [],
       };
     }
   }
 );
+
+    
