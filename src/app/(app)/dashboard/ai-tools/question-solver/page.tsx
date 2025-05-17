@@ -6,12 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { HelpCircle, Send, Loader2, AlertTriangle, UploadCloud, Image as ImageIcon, Wand2 } from "lucide-react"; // Wand2 eklendi
+import { HelpCircle, Send, Loader2, AlertTriangle, UploadCloud, Image as ImageIcon, Wand2 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { solveQuestion, type SolveQuestionOutput, type SolveQuestionInput } from "@/ai/flows/question-solver-flow"; 
-import NextImage from "next/image"; 
+import NextImage from "next/image";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function QuestionSolverPage() {
   const [questionText, setQuestionText] = useState("");
@@ -22,6 +24,7 @@ export default function QuestionSolverPage() {
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
   const [canProcess, setCanProcess] = useState(false);
+  const [adminSelectedModel, setAdminSelectedModel] = useState<string>("default_gemini_flash");
 
   const memoizedCheckAndResetQuota = useCallback(async () => {
     if (checkAndResetQuota) return checkAndResetQuota();
@@ -84,7 +87,9 @@ export default function QuestionSolverPage() {
       const input: SolveQuestionInput = { 
         questionText: questionText.trim() || undefined, 
         imageDataUri: imageDataUri || undefined,
-        userPlan: currentProfile.plan 
+        userPlan: currentProfile.plan,
+        // Sadece admin ise ve bir model seçilmişse customModelIdentifier'ı gönder
+        customModelIdentifier: userProfile?.isAdmin && adminSelectedModel !== "default_gemini_flash" ? adminSelectedModel : undefined,
       };
       const result = await solveQuestion(input);
 
@@ -113,9 +118,7 @@ export default function QuestionSolverPage() {
     }
   };
   
-  // Buton her zaman aktif, geliştirme aşamasında uyarısı var.
-  // const isSubmitDisabled = isSolving || (!questionText.trim() && !imageDataUri) || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
-  const isSubmitDisabled = true; // Geliştirme aşamasında olduğu için butonu devre dışı bırakıyoruz.
+  const isSubmitDisabled = isSolving || (!questionText.trim() && !imageDataUri) || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
 
   if (userProfileLoading) {
     return (
@@ -140,14 +143,6 @@ export default function QuestionSolverPage() {
         </CardHeader>
       </Card>
 
-      <Alert variant="default" className="bg-yellow-500/15 border-yellow-500/50 text-yellow-700 dark:text-yellow-400">
-        <Wand2 className="h-5 w-5 text-yellow-600 dark:text-yellow-500" />
-        <AlertTitle className="font-semibold">Geliştirme Aşamasında!</AlertTitle>
-        <AlertDescription>
-          Bu araç şu anda aktif geliştirme altındadır. Özellikle karmaşık matematik sorularında ve bazı YKS tipi sorularda hatalı veya eksik çözümler sunabilir. Anlayışınız için teşekkür ederiz.
-        </AlertDescription>
-      </Alert>
-
       {!canProcess && !isSolving && userProfile && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
          <Alert variant="destructive" className="shadow-md">
           <AlertTriangle className="h-4 w-4" />
@@ -161,8 +156,29 @@ export default function QuestionSolverPage() {
       <form onSubmit={handleSubmit}>
         <Card>
           <CardContent className="pt-6 space-y-4">
+            {userProfile?.isAdmin && (
+              <div className="space-y-2 p-4 border rounded-md bg-muted/50">
+                <Label htmlFor="adminModelSelect" className="font-semibold text-primary">Model Seç (Admin Özel)</Label>
+                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel}>
+                  <SelectTrigger id="adminModelSelect">
+                    <SelectValue placeholder="Model seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_1.5_flash">Deneysel Model (Gemini 1.5 Flash)</SelectItem>
+                    <SelectItem value="openrouter_deepseek_r1_placeholder" disabled>
+                      OpenRouter: Deepseek R1 (Yapılandırma Gerekli)
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Bu seçenek sadece adminlere özeldir. "OpenRouter" seçeneği şu anda aktif değildir, Genkit yapılandırması gerektirir.
+                </p>
+              </div>
+            )}
+
             <div>
-              <label htmlFor="questionText" className="block text-sm font-medium text-foreground mb-1">Soru Metni (isteğe bağlı)</label>
+              <Label htmlFor="questionText" className="block text-sm font-medium text-foreground mb-1">Soru Metni (isteğe bağlı)</Label>
               <Textarea
                 id="questionText"
                 placeholder="Örneğin: Bir dik üçgenin hipotenüsü 10 cm, bir dik kenarı 6 cm ise diğer dik kenarı kaç cm'dir?"
@@ -170,18 +186,18 @@ export default function QuestionSolverPage() {
                 onChange={(e) => setQuestionText(e.target.value)}
                 rows={5}
                 className="text-base"
-                disabled={isSolving || !canProcess || isSubmitDisabled}
+                disabled={isSolving || !canProcess}
               />
             </div>
             <div className="space-y-2">
-                <label htmlFor="imageUpload" className="block text-sm font-medium text-foreground">Soru Görseli Yükle (isteğe bağlı, maks 5MB)</label>
+                <Label htmlFor="imageUpload" className="block text-sm font-medium text-foreground">Soru Görseli Yükle (isteğe bağlı, maks 5MB)</Label>
                  <Input
                     id="imageUpload"
                     type="file"
                     accept="image/*"
                     onChange={handleImageChange}
                     className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-                    disabled={isSolving || !canProcess || isSubmitDisabled}
+                    disabled={isSolving || !canProcess}
                 />
                 {imageDataUri && imageFile && (
                   <div className="mt-2 p-2 border rounded-md bg-muted">
@@ -190,9 +206,9 @@ export default function QuestionSolverPage() {
                   </div>
                 )}
             </div>
-            <Button type="submit" className="w-full" disabled={isSolving || (!questionText.trim() && !imageDataUri) || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0) || isSubmitDisabled}>
+            <Button type="submit" className="w-full" disabled={isSubmitDisabled}>
               {isSolving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-              Çözüm İste (Geliştiriliyor)
+              Çözüm İste
             </Button>
           </CardContent>
         </Card>
@@ -252,3 +268,5 @@ export default function QuestionSolverPage() {
     </div>
   );
 }
+
+    

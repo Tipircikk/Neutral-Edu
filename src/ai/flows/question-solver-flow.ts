@@ -11,12 +11,12 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import type { UserProfile } from '@/types';
 
 const SolveQuestionInputSchema = z.object({
   questionText: z.string().optional().describe('Öğrencinin çözülmesini istediği, YKS kapsamındaki soru metni.'),
   imageDataUri: z.string().optional().describe("Soruyla ilgili bir görselin data URI'si (Base64 formatında). 'data:<mimetype>;base64,<encoded_data>' formatında olmalıdır. Görsel, soru metni yerine veya ona ek olarak sunulabilir."),
-  userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı.")
+  userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
+  customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi (örn: 'experimental_gemini_1.5_flash' veya 'openrouter_deepseek_r1_placeholder').")
 });
 export type SolveQuestionInput = z.infer<typeof SolveQuestionInputSchema>;
 
@@ -45,6 +45,10 @@ Pro kullanıcılar için: Çözümlerini en üst düzeyde akademik titizlikle, b
 Premium kullanıcılar için: Daha derinlemesine açıklamalar, varsa alternatif çözüm yolları ve konunun YKS'deki önemi hakkında daha detaylı bilgiler sunmaya özen göster. Standart kullanıcıya göre daha zengin ve öğretici bir deneyim sağla. Çözüm adımlarını netleştir.
 {{/ifEquals}}
 
+{{#if customModelIdentifier}}
+(Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmeye çalışılmaktadır. Eğer bu model Genkit'te yapılandırılmamışsa, varsayılan model kullanılacaktır.)
+{{/if}}
+
 Kullanıcının girdileri aşağıdadır. Lütfen bu girdilere dayanarak, YKS formatına ve zorluk seviyesine uygun bir çözüm üret:
 
 {{#if imageDataUri}}
@@ -67,7 +71,7 @@ Lütfen bu soruyu/soruları analiz et ve aşağıdaki formatta, son derece detay
     *   Soruyu sanki bir YKS öğrencisine ders anlatır gibi, her adımı mantığıyla birlikte, SATIR SATIR açıklayarak çöz.
     *   Her bir matematiksel işlemi, mantıksal çıkarımı, kullanılan formülü veya kuralı ayrı ayrı ve net bir şekilde belirt ve nasıl uygulandığını göster.
     *   Çözümü olabildiğince parçalara ayırarak her bir adımı sindirilebilir kıl.
-    *   {{{userPlan}}} "pro" ise, varsa alternatif çözüm yollarına da değin ve avantaj/dezavantajlarını kısaca belirt.
+    *   {{{userPlan}}} "pro" ise veya {{{customModelIdentifier}}} daha gelişmiş bir model ise, varsa alternatif çözüm yollarına da değin ve avantaj/dezavantajlarını kısaca belirt.
 3.  **Sonuç ve Kontrol**:
     *   Elde edilen sonucu net bir şekilde belirt.
     *   Mümkünse, sonucun mantıklı olup olmadığını veya nasıl kontrol edilebileceğini kısaca açıkla.
@@ -99,8 +103,28 @@ const questionSolverFlow = ai.defineFlow(
       throw new Error("YKS sorusu çözmek için lütfen bir metin girin veya bir görsel yükleyin.");
     }
     
-    const modelToUse = 'googleai/gemini-2.0-flash'; 
+    let modelToUse = 'googleai/gemini-2.0-flash'; // Varsayılan model
 
+    // Adminler için model seçimi
+    if (input.customModelIdentifier) {
+      if (input.customModelIdentifier === 'experimental_gemini_1.5_flash') {
+        modelToUse = 'googleai/gemini-1.5-flash-latest';
+        console.log("Admin selected experimental model: gemini-1.5-flash-latest");
+      } else if (input.customModelIdentifier === 'openrouter_deepseek_r1_placeholder') {
+        // GERÇEK OPENROUTER ENTEGRASYONU BURADA YAPILMALI
+        // Bu, Genkit'e OpenRouter eklentisinin eklenmesini ve API anahtarının
+        // güvenli bir şekilde yönetilmesini gerektirir.
+        // Şimdilik, bu seçenek seçilirse bir uyarı verip varsayılan modeli kullanabiliriz
+        // veya hata fırlatabiliriz.
+        console.warn("OpenRouter/Deepseek R1 modeli seçildi ancak Genkit entegrasyonu henüz tamamlanmadı. Varsayılan model kullanılacak.");
+        // VEYA: throw new Error("OpenRouter/Deepseek R1 entegrasyonu henüz aktif değil.");
+      } else {
+        console.warn(`Bilinmeyen özel model: ${input.customModelIdentifier}. Varsayılan model kullanılacak.`);
+      }
+    } else if (input.userPlan === 'pro') { // Pro kullanıcılar için (admin seçimi yoksa)
+      // modelToUse = 'googleai/gemini-1.5-flash-latest'; // Pro kullanıcılar için farklı bir model seçilebilir
+    }
+    
     const {output} = await prompt(input, { model: modelToUse });
     if (!output || !output.solution) {
       throw new Error("AI YKS Uzmanı, bu soru için bir çözüm ve detaylı açıklama üretemedi. Lütfen girdilerinizi kontrol edin veya farklı bir soru deneyin.");
@@ -110,4 +134,3 @@ const questionSolverFlow = ai.defineFlow(
 );
 
     
-
