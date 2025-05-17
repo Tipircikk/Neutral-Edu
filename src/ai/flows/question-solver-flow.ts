@@ -16,7 +16,7 @@ const SolveQuestionInputSchema = z.object({
   questionText: z.string().optional().describe('Öğrencinin çözülmesini istediği, YKS kapsamındaki soru metni.'),
   imageDataUri: z.string().optional().describe("Soruyla ilgili bir görselin data URI'si (Base64 formatında). 'data:<mimetype>;base64,<encoded_data>' formatında olmalıdır. Görsel, soru metni yerine veya ona ek olarak sunulabilir."),
   userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
-  customModelIdentifier: z.string().optional().describe("Adminler için özel Google model seçimi (örn: 'default_gemini_flash', 'experimental_gemini_2_5_flash_preview').")
+  customModelIdentifier: z.string().optional().describe("Adminler için özel Google model seçimi (örn: 'default_gemini_flash', 'experimental_gemini_1_5_flash', 'experimental_gemini_2_5_flash_preview').")
 });
 export type SolveQuestionInput = z.infer<typeof SolveQuestionInputSchema>;
 
@@ -31,12 +31,19 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
   return questionSolverFlow(input);
 }
 
-const prompt = ai.definePrompt({
+const questionSolverPrompt = ai.definePrompt({
   name: 'questionSolverPrompt',
   input: {schema: SolveQuestionInputSchema},
   output: {schema: SolveQuestionOutputSchema},
+  config: { // Added config for maxOutputTokens
+    generationConfig: {
+      maxOutputTokens: 4096,
+    },
+  },
   prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilere her türlü akademik soruyu (Matematik, Geometri, Fizik, Kimya, Biyoloji, Türkçe, Edebiyat, Tarih, Coğrafya, Felsefe vb.) en karmaşık detaylarına kadar, temel prensiplerine indirgeyerek, adım adım, son derece anlaşılır, pedagojik değeri yüksek ve motive edici bir şekilde çözmede uzmanlaşmış kıdemli bir AI YKS uzman öğretmenisin.
-Amacın sadece doğru cevabı vermek değil, aynı zamanda sorunun çözüm mantığını en ince ayrıntısına kadar, SATIR SATIR ve ADIM ADIM açıklamak, altında yatan temel prensipleri ve YKS'de sıkça sorulan püf noktalarını vurgulamak ve öğrencinin konuyu tam anlamıyla "öğrenmesini" sağlamaktır. Çözümün her bir aşaması, nedenleriyle birlikte, bir öğrenciye ders anlatır gibi sunulmalıdır. Öğrencinin bu soru tipini bir daha gördüğünde kendinden emin bir şekilde çözebilmesi için gereken her türlü bilgiyi ve stratejiyi sun. Cevapların her zaman Türkçe olmalıdır.
+Amacın sadece doğru cevabı vermek değil, aynı zamanda sorunun çözüm mantığını en ince ayrıntısına kadar, SATIR SATIR ve ADIM ADIM açıklamak, altında yatan temel prensipleri ve YKS'de sıkça sorulan püf noktalarını vurgulamak ve öğrencinin konuyu tam anlamıyla "öğrenmesini" sağlamaktır. Çözümün her bir aşaması, nedenleriyle birlikte, bir öğrenciye ders anlatır gibi sunulmalıdır. Öğrencinin bu soru tipini bir daha gördüğünde kendinden emin bir şekilde çözebilmesi için gereken her türlü bilgiyi ve stratejiyi sun. Çözümün olabildiğince açık ve anlaşılır olmasına, ancak gereksiz yere aşırı uzun olmamasına özen göster.
+Matematiksel ifadeleri ve denklemleri yazarken lütfen Markdown formatlamasına (örneğin, tek backtick \`denklem\` veya üçlü backtick ile kod blokları) dikkat edin ve formatlamayı doğru bir şekilde kapatın.
+Cevapların her zaman Türkçe olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#ifEquals userPlan "pro"}}
@@ -100,7 +107,12 @@ const questionSolverFlow = ai.defineFlow(
   },
   async (input): Promise<SolveQuestionOutput> => {
     try {
-      console.log("[QuestionSolver] Flow started. Input:", JSON.stringify(input).substring(0, 200) + "...");
+      console.log("[QuestionSolver] Flow started. Input relevant parts:", { 
+        hasQuestionText: !!input.questionText, 
+        hasImageDataUri: !!input.imageDataUri, 
+        userPlan: input.userPlan, 
+        customModelIdentifier: input.customModelIdentifier 
+      });
 
       if (!input.questionText && !input.imageDataUri) {
         console.warn("[QuestionSolver] No question text or image data provided.");
@@ -111,16 +123,107 @@ const questionSolverFlow = ai.defineFlow(
         };
       }
       
-      let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Genel varsayılan model
+      let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Genel varsayılan model (genkit.ts'den de gelebilir)
 
       if (input.customModelIdentifier) {
+        // Admin özel model seçimi
         if (input.customModelIdentifier === 'default_gemini_flash') {
           modelToUse = 'googleai/gemini-2.0-flash'; 
           console.log("[QuestionSolver] Admin selected default Google model: gemini-2.0-flash");
-        } else if (input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview') {
-          modelToUse = 'googleai/gemini-2.5-flash-preview-04-17'; 
-          console.log("[QuestionSolver] Admin selected experimental Google model: gemini-2.5-flash-preview-04-17");
+        } else if (input.customModelIdentifier === 'experimental_gemini_1_5_flash') { // Eskiden experimental_gemini_2_5_flash_preview olarak geçiyordu, yeni varsayılanımızla aynı
+          modelToUse = 'googleai/gemini-1.5-flash-latest';
+           console.log("[QuestionSolver] Admin selected experimental Google model: gemini-1.5-flash-latest (now default)");
+        } else if (input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview') { // Bu değer artık kullanılmıyor, 1.5 flash preview olmalı
+             modelToUse = 'googleai/gemini-1.5-flash-latest'; // Güvenli bir değere yönlendir
+             console.warn(`[QuestionSolver] Admin selected deprecated 'experimental_gemini_2_5_flash_preview', defaulting to 'googleai/gemini-1.5-flash-latest'. Please update UI options.`);
         }
+        // OpenRouter/Deepseek R1 Logic
+        else if (input.customModelIdentifier === 'openrouter_deepseek_r1') {
+          console.log("[QuestionSolver] Admin selected OpenRouter: Deepseek R1 (Beta). Attempting direct API call.");
+          if (!process.env.OPENROUTER_API_KEY) {
+            console.error("[QuestionSolver] OpenRouter API Key is not configured in .env.local (OPENROUTER_API_KEY).");
+            return {
+              solution: "OpenRouter API anahtarı yapılandırılmamış. Lütfen .env.local dosyasını kontrol edin.",
+              relatedConcepts: ["API Anahtarı Hatası"],
+              examStrategyTips: [],
+            };
+          }
+
+          if (!input.questionText) {
+            console.warn("[QuestionSolver] Deepseek R1 (Beta) modeli için metin tabanlı bir soru gereklidir. Görsel desteklenmiyor.");
+            return {
+              solution: "OpenRouter/Deepseek R1 (Beta) modeli şu anda sadece metin tabanlı soruları desteklemektedir. Lütfen sorunuzu metin olarak girin veya görseldeki soruyu metinle açıklayın.",
+              relatedConcepts: ["Model Kısıtlaması"],
+              examStrategyTips: [],
+            };
+          }
+
+          const YOUR_SITE_URL_HERE = "https://your-site-url.com"; // TODO: REPLACE THIS WITH YOUR ACTUAL SITE URL
+          const YOUR_SITE_NAME_HERE = "NeutralEdu AI"; // TODO: REPLACE THIS WITH YOUR ACTUAL SITE NAME
+
+          try {
+            const openRouterPayload = {
+              model: "deepseek/deepseek-r1:free",
+              messages: [
+                { role: "system", content: "Sen, YKS (Yükseköğretim Kurumları Sınavı) sorularını adım adım çözen uzman bir AI öğretmenisin. Soruları detaylıca açıkla." },
+                { role: "user", content: input.questionText }
+              ],
+              // max_tokens, temperature gibi parametreler eklenebilir.
+            };
+
+            console.log("[QuestionSolver] Sending request to OpenRouter:", JSON.stringify(openRouterPayload).substring(0, 200) + "...");
+
+            const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                "Content-Type": "application/json",
+                "HTTP-Referer": YOUR_SITE_URL_HERE,
+                "X-Title": YOUR_SITE_NAME_HERE,
+              },
+              body: JSON.stringify(openRouterPayload),
+            });
+
+            if (!response.ok) {
+              const errorBody = await response.text();
+              console.error(`[QuestionSolver] OpenRouter API error: ${response.status} ${response.statusText}`, errorBody);
+              return {
+                solution: `OpenRouter/Deepseek R1 modelinden bir hata alındı: ${response.statusText}. Detay: ${errorBody.substring(0,100)}`,
+                relatedConcepts: ["API Hatası"],
+                examStrategyTips: [],
+              };
+            }
+
+            const data = await response.json();
+            const solutionText = data.choices?.[0]?.message?.content;
+
+            if (solutionText) {
+              console.log("[QuestionSolver] Successfully received solution from OpenRouter/Deepseek R1.");
+              return {
+                solution: solutionText,
+                // Deepseek'ten bu alanlar doğrudan gelmeyebilir, AI'dan istemek veya burada boş bırakmak gerekebilir.
+                relatedConcepts: [], 
+                examStrategyTips: [],
+              };
+            } else {
+              console.warn("[QuestionSolver] OpenRouter/Deepseek R1 modelinden geçerli bir çözüm metni alınamadı. Yanıt:", data);
+              // Varsayılan Google modeline geri dön
+              console.log("[QuestionSolver] Falling back to default Google AI model for OpenRouter/Deepseek R1 no-content case.");
+              // modelToUse = 'googleai/gemini-1.5-flash-latest'; // Zaten bu modelde olmalıydı
+            }
+          } catch (fetchError: any) {
+            console.error("[QuestionSolver] Fetch error calling OpenRouter API:", fetchError);
+             // Varsayılan Google modeline geri dön
+            console.log("[QuestionSolver] Falling back to default Google AI model due to OpenRouter fetch error.");
+            // modelToUse = 'googleai/gemini-1.5-flash-latest'; // Zaten bu modelde olmalıydı
+             return { // Hata durumunda kullanıcıya bilgi verelim
+                solution: `OpenRouter/Deepseek R1 modeline erişirken bir ağ hatası oluştu: ${fetchError.message}. Varsayılan model kullanılıyor... (Bu kısım henüz tam değil)`,
+                relatedConcepts: ["Ağ Hatası"],
+                examStrategyTips: [],
+            };
+          }
+        }
+        // Diğer özel model ID'leri buraya eklenebilir
       } else if (input.userPlan === 'pro') {
         // Pro kullanıcılar için varsayılan olarak en iyi flash modeli (genel varsayılanla aynı olabilir)
         modelToUse = 'googleai/gemini-1.5-flash-latest'; 
@@ -129,9 +232,13 @@ const questionSolverFlow = ai.defineFlow(
       
       try {
         console.log(`[QuestionSolver] Using Google model: ${modelToUse} for user plan: ${input.userPlan}`);
-        const {output} = await prompt(input, { model: modelToUse });
+        const {output} = await prompt(input, { model: modelToUse }); // modelToUse burada Genkit prompt'una iletiliyor.
         if (!output || !output.solution) {
-          console.error("[QuestionSolver] AI (Google model) did not produce a valid solution matching the schema. Input:", input, "Output:", output);
+          console.error("[QuestionSolver] AI (Google model) did not produce a valid solution matching the schema. Input relevant parts:", { 
+            hasQuestionText: !!input.questionText, 
+            hasImageDataUri: !!input.imageDataUri, 
+            userPlan: input.userPlan
+          }, "Output:", JSON.stringify(output).substring(0,200)+"...");
           return {
               solution: `AI YKS Uzmanı (${modelToUse}), bu soru için bir çözüm ve detaylı açıklama üretemedi. Lütfen girdilerinizi kontrol edin veya farklı bir soru deneyin. Eğer sorun devam ederse, AI modelinin yanıtı şemaya uymamış olabilir.`,
               relatedConcepts: [],
@@ -145,6 +252,9 @@ const questionSolverFlow = ai.defineFlow(
           let errorMessage = `Google AI modeliyle (${modelToUse}) çözüm üretilirken bir hata oluştu.`;
           if (genkitError.message) {
               errorMessage += ` Detay: ${genkitError.message}`;
+          }
+           if (genkitError.cause && typeof genkitError.cause === 'string' && genkitError.cause.includes('SAFETY')) {
+            errorMessage += ` İçerik güvenlik filtrelerine takılmış olabilir. Lütfen sorunuzu gözden geçirin.`;
           }
           return {
               solution: errorMessage,
@@ -163,4 +273,6 @@ const questionSolverFlow = ai.defineFlow(
     }
   }
 );
+    
+
     
