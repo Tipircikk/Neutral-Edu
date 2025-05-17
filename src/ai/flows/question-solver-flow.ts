@@ -12,6 +12,11 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
+// IMPORTANT: Replace with your actual site URL and name for OpenRouter HTTP headers
+const YOUR_SITE_URL_HERE = "https://your-site-url.com"; // Example: "https://neutraledu.ai"
+const YOUR_SITE_NAME_HERE = "NeutralEdu AI";           // Example: "My Awesome App"
+// IMPORTANT: Ensure OPENROUTER_API_KEY is set in your .env.local file
+
 const SolveQuestionInputSchema = z.object({
   questionText: z.string().optional().describe('Öğrencinin çözülmesini istediği, YKS kapsamındaki soru metni.'),
   imageDataUri: z.string().optional().describe("Soruyla ilgili bir görselin data URI'si (Base64 formatında). 'data:<mimetype>;base64,<encoded_data>' formatında olmalıdır. Görsel, soru metni yerine veya ona ek olarak sunulabilir."),
@@ -30,11 +35,6 @@ export type SolveQuestionOutput = z.infer<typeof SolveQuestionOutputSchema>;
 export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQuestionOutput> {
   return questionSolverFlow(input);
 }
-
-// ÖNEMLİ: Bu değerleri kendi sitenizin URL'si ve adıyla değiştirin!
-// Bu, OpenRouter API'sine yapılan isteklerde HTTP-Referer ve X-Title başlıkları için kullanılır.
-const YOUR_SITE_URL_HERE = "https://your-site-url.com"; // Lütfen kendi sitenizin URL'si ile değiştirin
-const YOUR_SITE_NAME_HERE = "NeutralEdu AI"; // Lütfen kendi sitenizin adıyla değiştirin
 
 const prompt = ai.definePrompt({
   name: 'questionSolverPrompt',
@@ -103,29 +103,36 @@ const questionSolverFlow = ai.defineFlow(
     inputSchema: SolveQuestionInputSchema,
     outputSchema: SolveQuestionOutputSchema,
   },
-  async (input) => {
+  async (input): Promise<SolveQuestionOutput> => { // Explicitly type the return promise
     if (!input.questionText && !input.imageDataUri) {
-      throw new Error("YKS sorusu çözmek için lütfen bir metin girin veya bir görsel yükleyin.");
+      // This case should ideally be caught by client-side validation, but good to have server-side too.
+      return {
+        solution: "Soru çözmek için lütfen bir metin girin veya bir görsel yükleyin.",
+        relatedConcepts: [],
+        examStrategyTips: [],
+      };
     }
     
-    // Admin seçimi ve OpenRouter/Deepseek R1 entegrasyonu
-    // ÖNEMLİ: OpenRouter API anahtarınızı `.env.local` dosyanıza `OPENROUTER_API_KEY` olarak eklemelisiniz.
-    if (input.customModelIdentifier === 'openrouter_deepseek_r1' && process.env.OPENROUTER_API_KEY) {
-      console.log("Admin OpenRouter/Deepseek R1 modelini seçti. Doğrudan API çağrısı deneniyor.");
-
-      if (!input.questionText) {
-        // Deepseek R1 için sadece görsel varsa, metin girdisi gerektiğini belirt
-        // Bu modelin multimodal yetenekleri sınırlı olabilir veya hiç olmayabilir.
+    if (input.customModelIdentifier === 'openrouter_deepseek_r1') {
+      console.log("Admin OpenRouter/Deepseek R1 modelini seçti. API çağrısı deneniyor.");
+      if (!process.env.OPENROUTER_API_KEY) {
+        console.error("OpenRouter API anahtarı (OPENROUTER_API_KEY) ortam değişkenlerinde bulunamadı.");
         return {
-          solution: "Deepseek R1 modeli şu anda en iyi metin tabanlı sorularla çalışmaktadır. Lütfen sorunuzu metin olarak girin veya görseldeki soruyu metinle açıklayın. Bu model için görsel işleme özelliği bu yolla tam desteklenmeyebilir.",
+          solution: "OpenRouter API anahtarı yapılandırılmamış. Lütfen sistem yöneticisiyle iletişime geçin.",
+          relatedConcepts: ["Yapılandırma Hatası"],
+          examStrategyTips: [],
+        };
+      }
+      if (!input.questionText) {
+        return {
+          solution: "Deepseek R1 modeli için metin tabanlı bir soru gereklidir. Lütfen sorunuzu metin olarak girin veya görseldeki soruyu metinle açıklayın. Bu model için görsel işleme bu yolla tam desteklenmeyebilir.",
           relatedConcepts: [],
           examStrategyTips: [],
         };
       }
 
-      // Deepseek R1 için sadece metin tabanlı bir prompt oluştur
       const openRouterPrompt = `Sen bir YKS uzman öğretmenisin. Aşağıdaki soruyu adım adım, detaylı açıklamalarla ve YKS öğrencisinin anlayacağı bir dilde çöz: \n\nSoru: ${input.questionText}`;
-
+      
       try {
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
@@ -144,7 +151,11 @@ const questionSolverFlow = ai.defineFlow(
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ message: response.statusText }));
           console.error("OpenRouter API hatası:", response.status, errorData);
-          throw new Error(`OpenRouter API hatası: ${response.status} - ${errorData.message || 'Bilinmeyen hata'}`);
+          return { // Return a structured error to the client
+            solution: `OpenRouter API'sinden bir hata alındı: ${response.status} - ${errorData.message || 'Bilinmeyen hata'}. Lütfen daha sonra tekrar deneyin veya varsayılan modeli kullanın.`,
+            relatedConcepts: ["API Hatası"],
+            examStrategyTips: [],
+          };
         }
 
         const data = await response.json();
@@ -153,35 +164,61 @@ const questionSolverFlow = ai.defineFlow(
         if (solutionText) {
           return {
             solution: solutionText,
+            // Deepseek might not provide these structured, so we use placeholders
             relatedConcepts: ["Deepseek R1 ile çözülmüştür."], 
             examStrategyTips: ["Bu çözüm Deepseek R1 modeli kullanılarak üretilmiştir. Çözüm adımlarını ve mantığını dikkatlice inceleyin."]
           };
         } else {
-          throw new Error("OpenRouter/Deepseek R1 modelinden geçerli bir çözüm alınamadı.");
+          console.error("OpenRouter/Deepseek R1 modelinden geçerli bir çözüm alınamadı. Yanıt:", data);
+          return {
+            solution: "OpenRouter/Deepseek R1 modelinden geçerli bir çözüm alınamadı. Lütfen daha sonra tekrar deneyin veya varsayılan modeli kullanın.",
+            relatedConcepts: ["Model Hatası"],
+            examStrategyTips: [],
+          };
         }
       } catch (error: any) {
         console.error("OpenRouter API çağrılırken hata:", error);
-         return { // Hata durumunda Genkit prompt'una geri dönmek yerine kullanıcıya hata mesajı göster
+        return {
           solution: `OpenRouter/Deepseek R1 modeliyle iletişimde bir hata oluştu: ${error.message}. Lütfen daha sonra tekrar deneyin veya varsayılan modeli kullanın.`,
-          relatedConcepts: [],
+          relatedConcepts: ["Bağlantı Hatası"],
           examStrategyTips: [],
         };
       }
     }
 
     // Varsayılan Genkit / Google AI modeli kullanımı
-    let modelToUse = 'googleai/gemini-2.0-flash'; 
+    let modelToUse = input.userPlan === 'pro' ? 'googleai/gemini-1.5-flash-latest' : 'googleai/gemini-2.0-flash';
     if (input.customModelIdentifier === 'experimental_gemini_1.5_flash') {
       modelToUse = 'googleai/gemini-1.5-flash-latest'; 
       console.log("Admin deneysel Google modelini seçti: gemini-1.5-flash-latest");
+    } else if (input.customModelIdentifier === 'default_gemini_flash') { // Ensure admin can select default too
+        modelToUse = 'googleai/gemini-2.0-flash';
+        console.log("Admin varsayılan Google modelini seçti: gemini-2.0-flash");
     }
     
-    const {output} = await prompt(input, { model: modelToUse });
-    if (!output || !output.solution) {
-      throw new Error("AI YKS Uzmanı, bu soru için bir çözüm ve detaylı açıklama üretemedi. Lütfen girdilerinizi kontrol edin veya farklı bir soru deneyin.");
+    try {
+      const {output} = await prompt(input, { model: modelToUse });
+      if (!output || !output.solution) {
+        // This case usually means the AI could not adhere to the output schema or had internal error
+        console.error("AI YKS Uzmanı, Google modeli ile şemaya uygun bir çözüm üretemedi. Girdi:", input, "Çıktı:", output);
+        return {
+            solution: "AI YKS Uzmanı, bu soru için bir çözüm ve detaylı açıklama üretemedi. Lütfen girdilerinizi kontrol edin veya farklı bir soru deneyin. Eğer sorun devam ederse, AI modelinin yanıtı şemaya uymamış olabilir.",
+            relatedConcepts: [],
+            examStrategyTips: [],
+        };
+      }
+      return output;
+    } catch (genkitError: any) {
+        console.error("Genkit prompt çağrılırken hata (Google Modeli):", genkitError);
+        let errorMessage = "Google AI modeliyle çözüm üretilirken bir hata oluştu.";
+        if (genkitError.message) {
+            errorMessage += ` Detay: ${genkitError.message}`;
+        }
+        return {
+            solution: errorMessage,
+            relatedConcepts: ["Genkit Hatası"],
+            examStrategyTips: [],
+        };
     }
-    return output;
   }
 );
-
-    
