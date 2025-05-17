@@ -12,10 +12,6 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-// IMPORTANT: Replace with your actual site URL and name for OpenRouter headers
-const YOUR_SITE_URL_HERE = "https://your-site-url.com"; // TODO: Replace with your actual site URL
-const YOUR_SITE_NAME_HERE = "NeutralEdu AI"; // TODO: Replace with your actual site name
-
 const SolveQuestionInputSchema = z.object({
   questionText: z.string().optional().describe('Öğrencinin çözülmesini istediği, YKS kapsamındaki soru metni.'),
   imageDataUri: z.string().optional().describe("Soruyla ilgili bir görselin data URI'si (Base64 formatında). 'data:<mimetype>;base64,<encoded_data>' formatında olmalıdır. Görsel, soru metni yerine veya ona ek olarak sunulabilir."),
@@ -39,11 +35,11 @@ const questionSolverPrompt = ai.definePrompt({
   name: 'questionSolverPrompt',
   input: {schema: SolveQuestionInputSchema},
   output: {schema: SolveQuestionOutputSchema},
-  config: { 
-    generationConfig: {
-      maxOutputTokens: 4096,
-    },
-  },
+  // config: { // This config applies to all models called by this prompt by default
+  //   generationConfig: {
+  //     maxOutputTokens: 4096, 
+  //   },
+  // },
   prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilere her türlü akademik soruyu (Matematik, Geometri, Fizik, Kimya, Biyoloji, Türkçe, Edebiyat, Tarih, Coğrafya, Felsefe vb.) en karmaşık detaylarına kadar, temel prensiplerine indirgeyerek, adım adım, son derece anlaşılır, pedagojik değeri yüksek ve motive edici bir şekilde çözmede uzmanlaşmış kıdemli bir AI YKS uzman öğretmenisin.
 Amacın sadece doğru cevabı vermek değil, aynı zamanda sorunun çözüm mantığını en ince ayrıntısına kadar, SATIR SATIR ve ADIM ADIM açıklamak, altında yatan temel prensipleri ve YKS'de sıkça sorulan püf noktalarını vurgulamak ve öğrencinin konuyu tam anlamıyla "öğrenmesini" sağlamaktır. Çözümün her bir aşaması, nedenleriyle birlikte, bir öğrenciye ders anlatır gibi sunulmalıdır. Öğrencinin bu soru tipini bir daha gördüğünde kendinden emin bir şekilde çözebilmesi için gereken her türlü bilgiyi ve stratejiyi sun. Çözümün olabildiğince açık ve anlaşılır olmasına, ancak gereksiz yere aşırı uzun olmamasına özen göster.
 Matematiksel ifadeleri ve denklemleri yazarken lütfen Markdown formatlamasına (örneğin, tek backtick \`denklem\` veya üçlü backtick ile kod blokları) dikkat edin ve formatlamayı doğru bir şekilde kapatın.
@@ -51,7 +47,7 @@ Cevapların her zaman Türkçe olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#ifEquals userPlan "pro"}}
-Pro kullanıcılar için: Çözümlerini en üst düzeyde akademik titizlikle, birden fazla çözüm yolunu (varsa) karşılaştırarak, konunun en derin ve karmaşık noktalarına değinerek sun. Sorunun çözümünde kullanılan her bir kavramı, formülü veya teoremine detaylıca açıkla. Sorunun YKS'deki genel stratejik önemini, benzer soru tiplerini ve bu tür sorulara yaklaşım stratejilerini derinlemesine tartış. Öğrencinin ufkunu açacak bağlantılar kur ve ileri düzey düşünme becerilerini tetikle. Her bir işlem adımını, mantıksal çıkarımı ve kullanılan formülü ayrı ayrı ve çok net bir şekilde açıkla.
+Pro kullanıcılar için: Çözümlerini en üst düzeyde akademik titizlikle, birden fazla çözüm yolunu (varsa) karşılaştırarak, konunun en derin ve karmaşık noktalarına değinerek sun. Sorunun çözümünde kullanılan her bir kavramı, formülü veya teoremine detaylıca açıkla. Sorunun YKS'deki genel stratejik önemini, benzer soru tiplerini ve bu tür sorulara yaklaşım stratejilerini derinlemesine tartış. Öğrencinin ufkunu açacak bağlantılar kur ve ileri düzey düşünme becerilerini tetikle. Her bir işlem adımını, mantıksal çıkarımı ve kullanılan formülü ayrı ayrı ve çok net bir şekilde açıkla. En sofistike ve en kapsamlı yanıtı vermek için en gelişmiş AI yeteneklerini kullan.
 {{else ifEquals userPlan "premium"}}
 Premium kullanıcılar için: Daha derinlemesine açıklamalar, varsa alternatif çözüm yolları ve konunun YKS'deki önemi hakkında daha detaylı bilgiler sunmaya özen göster. Standart kullanıcıya göre daha zengin ve öğretici bir deneyim sağla. Çözüm adımlarını netleştir.
 {{/ifEquals}}
@@ -127,29 +123,33 @@ const questionSolverFlow = ai.defineFlow(
         };
       }
       
-      // Varsayılan model olarak gemini-1.5-flash-latest ayarlandı.
       let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
+      let modelConfig: Record<string, any> = { 
+        generationConfig: {
+            maxOutputTokens: 4096,
+        }
+      };
 
       if (input.customModelIdentifier) {
         if (input.customModelIdentifier === 'default_gemini_flash') {
-          modelToUse = 'googleai/gemini-2.0-flash'; 
+          modelToUse = 'googleai/gemini-2.0-flash';
           console.log("[QuestionSolver] Admin selected default Google model: gemini-2.0-flash");
-        } else if (input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview') {
-            modelToUse = 'googleai/gemini-2.5-flash-preview-04-17'; 
-            console.log("[QuestionSolver] Admin selected experimental Google model: gemini-2.5-flash-preview-04-17");
         } else if (input.customModelIdentifier === 'experimental_gemini_1_5_flash') {
              modelToUse = 'googleai/gemini-1.5-flash-latest'; 
              console.log("[QuestionSolver] Admin selected experimental Google model: gemini-1.5-flash-latest");
+        } else if (input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview') {
+            modelToUse = 'googleai/gemini-2.5-flash-preview-04-17'; 
+            console.log("[QuestionSolver] Admin selected experimental Google model: gemini-2.5-flash-preview-04-17");
+            // For preview models, often specific config parameters are not supported or are different.
+            // Remove or adjust config as needed for this specific model.
+            modelConfig = {}; // Remove generationConfig for this preview model
         }
       } else if (input.userPlan === 'pro') {
-        // Pro kullanıcılar için varsayılan olarak gemini-1.5-flash-latest kullanılacak
         modelToUse = 'googleai/gemini-1.5-flash-latest'; 
       }
-      // Ücretsiz ve premium kullanıcılar için de (admin özel bir model seçmediyse)
-      // modelToUse 'googleai/gemini-1.5-flash-latest' olarak kalacak.
       
-      console.log(`[QuestionSolver] Using Google model: ${modelToUse} for user plan: ${input.userPlan}`);
-      const {output} = await questionSolverPrompt(input, { model: modelToUse }); 
+      console.log(`[QuestionSolver] Using Google model: ${modelToUse} for user plan: ${input.userPlan} with config:`, modelConfig);
+      const {output} = await questionSolverPrompt(input, { model: modelToUse, config: Object.keys(modelConfig).length > 0 ? modelConfig : undefined }); 
       
       if (!output || !output.solution) {
         console.error("[QuestionSolver] AI (Google model) did not produce a valid solution matching the schema. Input relevant parts:", { 
@@ -167,13 +167,14 @@ const questionSolverFlow = ai.defineFlow(
       return output;
 
     } catch (flowError: any) {
-      // Top-level catch for any unexpected errors in the flow
       console.error("[QuestionSolver] Unexpected error in questionSolverFlow:", flowError);
       let errorMessage = `Soru çözülürken beklenmedik bir sunucu hatası oluştu: ${flowError.message || 'Bilinmeyen bir hata.'}`;
+      
       if (flowError.message && flowError.message.includes('SAFETY')) {
         errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen sorunuzu gözden geçirin. Detay: ${flowError.message}`;
+      } else if (flowError.message && flowError.message.includes('Invalid JSON payload received. Unknown name "generationConfig"')) {
+        errorMessage = `Seçilen model ('${input.customModelIdentifier || input.userPlan + ' planı modeli'}') için 'generationConfig' parametresi desteklenmiyor. Lütfen bu model için yapılandırmayı kontrol edin veya farklı bir model deneyin. Detay: ${flowError.message}`;
       } else if (flowError.message && flowError.message.includes('is not a function')) {
-        // Bu özel hata mesajını yakala
          errorMessage = `Soru çözülürken bir sunucu yapılandırma hatası oluştu: ${flowError.message}. Lütfen daha sonra tekrar deneyin veya yöneticiye başvurun.`;
       }
 
@@ -185,3 +186,5 @@ const questionSolverFlow = ai.defineFlow(
     }
   }
 );
+
+    
