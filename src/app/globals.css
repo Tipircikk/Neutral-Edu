@@ -33,36 +33,45 @@
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
 
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
+    /* Sidebar specific vars - Light theme */
+    --sidebar-background: 0 0% 98%; /* Light gray */
+    --sidebar-foreground: 240 5.3% 26.1%; /* Dark text */
+    --sidebar-primary: 271 76% 53%; /* Primary color for icons/active elements */
+    --sidebar-primary-foreground: 0 0% 98%; /* Text on primary elements */
+    --sidebar-accent: 271 76% 90%; /* Lighter primary for hover/active backgrounds */
+    --sidebar-accent-foreground: 271 76% 25%; /* Text on accent elements */
     --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-ring: 271 76% 65%;
   }
 
   .dark {
-    --background: 0 0% 7%; /* Very Dark Gray (was 0 0% 0% Black) */
-    --foreground: 0 0% 98%; /* White */
-    --card: 0 0% 11.8%; /* #1e1e1e Dark Gray */
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 11.8%; /* #1e1e1e */
+    --background: 0 0% 7%; /* Main background - Very Dark Gray */
+    --foreground: 0 0% 98%; /* Main text color - White */
+    
+    --card: 0 0% 11.8%; /* Card background - #1e1e1e Dark Gray */
+    --card-foreground: 0 0% 98%; /* Text on cards */
+    
+    --popover: 0 0% 11.8%; 
     --popover-foreground: 0 0% 98%;
-    --primary: 271 76% 53%; /* #8A2BE2 Purple */
-    --primary-foreground: 0 0% 98%; /* White text on primary */
-    --secondary: 0 0% 14.9%; /* Darker gray for secondary elements */
-    --secondary-foreground: 0 0% 98%;
+    
+    --primary: 271 76% 53%; /* Primary color - Purple #8A2BE2 */
+    --primary-foreground: 0 0% 98%; /* Text on primary elements */
+    
+    --secondary: 0 0% 14.9%; /* Secondary elements background */
+    --secondary-foreground: 0 0% 98%; /* Text on secondary elements */
+    
     --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%; /* Lighter gray for muted text */
-    --accent: 240 67% 94%; /* #E6E6FA Lavender */
-    --accent-foreground: 271 76% 20%; /* Darker purple for text on lavender accent */
-    --destructive: 0 62.8% 30.6%; /* Adjusted destructive for dark theme */
+    --muted-foreground: 0 0% 63.9%; /* Muted text */
+    
+    --accent: 271 76% 20%; /* Accent background (e.g. for hovers, active items in content) */
+    --accent-foreground: 0 0% 95%; /* Text on accent backgrounds */
+    
+    --destructive: 0 62.8% 40.6%; /* Destructive color for errors/warnings */
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 20%; /* Slightly lighter border for dark theme */
-    --input: 0 0% 20%;
-    --ring: 271 76% 65%; /* Lighter shade of primary for ring */
+    
+    --border: 0 0% 20%; /* Borders */
+    --input: 0 0% 20%; /* Input backgrounds */
+    --ring: 271 76% 65%; /* Focus rings */
     
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
@@ -70,14 +79,15 @@
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
 
-    --sidebar-background: 0 0% 7%; /* Darker sidebar */
-    --sidebar-foreground: 0 0% 95%;
-    --sidebar-primary: 271 76% 53%; /* Primary color for sidebar active items */
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 0 0% 15%;
-    --sidebar-accent-foreground: 0 0% 95%;
-    --sidebar-border: 0 0% 15%;
-    --sidebar-ring: 271 76% 65%;
+    /* Sidebar specific vars - Dark theme (Doping Hafıza like) */
+    --sidebar-background: 0 0% 10%; /* Slightly lighter than main bg for distinction */
+    --sidebar-foreground: 0 0% 85%; /* Text color for sidebar items */
+    --sidebar-primary: 271 76% 60%; /* Icon and active text color in sidebar */
+    --sidebar-primary-foreground: 0 0% 98%; /* Text on primary-accented sidebar items */
+    --sidebar-accent: 0 0% 15%; /* Background for active/hovered sidebar items - Doping Hafıza active orange-ish, we'll use a lighter dark */
+    --sidebar-accent-foreground: 0 0% 95%; /* Text color for active/hovered sidebar items */
+    --sidebar-border: 0 0% 18%; /* Border color for sidebar elements */
+    --sidebar-ring: 271 76% 65%; /* Focus ring for sidebar items */
   }
 }
 

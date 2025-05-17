@@ -2,8 +2,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useState }
-  from "react";
+import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useUser } from "@/hooks/useUser";
@@ -30,7 +29,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation, Timer, CalendarClock, ListChecks, Palette } from "lucide-react";
+import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation, Timer, CalendarClock, ListChecks, Palette, Brain } from "lucide-react";
 import Link from "next/link";
 import QuotaDisplay from "@/components/dashboard/QuotaDisplay";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
@@ -66,22 +65,15 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     ];
     if (aiToolPaths.some(path => pathname.startsWith(path))) {
       setIsAiToolsSubmenuOpen(true);
-    } else {
-      // Optional: close submenu if not on an AI tool path
-      // setIsAiToolsSubmenuOpen(false);
     }
 
     const helperToolPaths = [
       "/dashboard/tools/pomodoro",
       "/dashboard/tools/countdown",
       "/dashboard/tools/goal-tracker",
-      // "/dashboard/tools/whiteboard", // Whiteboard kaldırıldı
     ];
     if (helperToolPaths.some(path => pathname.startsWith(path))) {
       setIsHelperToolsSubmenuOpen(true);
-    } else {
-      // Optional: close submenu if not on a helper tool path
-      // setIsHelperToolsSubmenuOpen(false);
     }
 
   }, [pathname]);
@@ -115,7 +107,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <SidebarProvider defaultOpen>
       <div className="flex min-h-screen flex-col">
-        <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background px-4 md:px-6 md:justify-end">
+        <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background/80 backdrop-blur-sm px-4 md:px-6 md:justify-end">
           <div className="md:hidden">
             <SidebarTrigger />
           </div>
@@ -130,11 +122,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative" title="Bildirimler">
                     <Bell className="h-5 w-5" />
-                    {/* Gelecekte okunmamış bildirim sayısı için bir badge eklenebilir */}
-                    {/* <span className="absolute top-0 right-0 flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                    </span> */}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64">
@@ -153,24 +140,26 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         </header>
 
         <div className="flex flex-1">
-          <Sidebar collapsible="icon" className="border-r">
-            <SidebarHeader className="p-4">
-              <Link href="/dashboard" className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-                <BookOpenText className="h-7 w-7 text-primary" />
-                <span className="text-xl font-semibold text-foreground group-data-[collapsible=icon]:hidden">NeutralEdu AI</span>
+          <Sidebar collapsible="icon" className="border-r bg-card text-card-foreground">
+            <SidebarHeader className="p-4 mb-2">
+              <Link href="/dashboard" className="flex items-center gap-2.5 group-data-[collapsible=icon]:justify-center">
+                <Brain className="h-8 w-8 text-primary" />
+                <span className="text-xl font-bold text-foreground group-data-[collapsible=icon]:hidden">NeutralEdu AI</span>
               </Link>
             </SidebarHeader>
             <SidebarContent className="p-2">
               <SidebarMenu>
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/dashboard"} tooltip="Ana Sayfa">
+                  <SidebarMenuButton asChild isActive={pathname === "/dashboard"} tooltip="Ana Sayfa"
+                    className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary"
+                  >
                     <Link href="/dashboard"><Home /><span>Ana Sayfa</span></Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    className="justify-between"
+                    className="justify-between hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary"
                     isActive={isAiToolsPathActive}
                     onClick={() => setIsAiToolsSubmenuOpen(!isAiToolsSubmenuOpen)}
                     data-state={isAiToolsSubmenuOpen ? "open" : "closed"}
@@ -181,48 +170,43 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                   </SidebarMenuButton>
                   {isAiToolsSubmenuOpen && (
                     <SidebarMenuSub>
-                      {/* Özetleme ve Anlama Araçları */}
                       <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/pdf-summarizer"}>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/pdf-summarizer"} className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
                           <Link href="/dashboard/ai-tools/pdf-summarizer"><FileScan /><span>AI PDF Özetleyici</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/topic-summarizer"}>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/topic-summarizer"} className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
                           <Link href="/dashboard/ai-tools/topic-summarizer"><Lightbulb /><span>AI Konu Özetleyici</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                        <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/topic-explainer"}>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/topic-explainer"} className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
                           <Link href="/dashboard/ai-tools/topic-explainer"><Presentation /><span>AI Konu Anlatımı</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/flashcard-generator"}>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/flashcard-generator"} className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
                           <Link href="/dashboard/ai-tools/flashcard-generator"><LayoutGrid /><span>AI Bilgi Kartları</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
-
-                      {/* Soru ve Test Araçları */}
                       <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/question-solver"}>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/question-solver"} className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
                           <Link href="/dashboard/ai-tools/question-solver"><HelpCircle /><span>AI Soru Çözücü</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/test-generator"}>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/test-generator"} className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
                           <Link href="/dashboard/ai-tools/test-generator"><FileTextIcon /><span>AI Test Oluşturucu</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
-
-                      {/* Analiz ve Planlama Araçları */}
                        <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/exam-report-analyzer"}>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/exam-report-analyzer"} className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
                           <Link href="/dashboard/ai-tools/exam-report-analyzer"><ClipboardCheck /><span>AI Sınav Analizcisi</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/study-plan-generator"}>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/study-plan-generator"} className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
                           <Link href="/dashboard/ai-tools/study-plan-generator"><CalendarDays /><span>AI Çalışma Planı</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
@@ -232,7 +216,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    className="justify-between"
+                    className="justify-between hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary"
                     isActive={isHelperToolsPathActive}
                     onClick={() => setIsHelperToolsSubmenuOpen(!isHelperToolsSubmenuOpen)}
                     data-state={isHelperToolsSubmenuOpen ? "open" : "closed"}
@@ -244,86 +228,97 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                   {isHelperToolsSubmenuOpen && (
                     <SidebarMenuSub>
                       <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/tools/pomodoro"}>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/tools/pomodoro"} className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
                           <Link href="/dashboard/tools/pomodoro"><Timer /><span>Pomodoro Zamanlayıcı</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                        <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/tools/countdown"}>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/tools/countdown"} className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
                           <Link href="/dashboard/tools/countdown"><CalendarClock /><span>YKS Geri Sayım</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/tools/goal-tracker"}>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/tools/goal-tracker"} className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
                           <Link href="/dashboard/tools/goal-tracker"><ListChecks /><span>Hedef Takipçisi</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
-                      {/* Dijital Karalama Tahtası kaldırıldığı için linki de kaldırıldı.
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/tools/whiteboard"}>
-                          <Link href="/dashboard/tools/whiteboard"><Palette /><span>Dijital Karalama Tahtası</span></Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      */}
                     </SidebarMenuSub>
                   )}
                 </SidebarMenuItem>
 
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isSubscriptionPath} tooltip="Aboneliğim">
+                  <SidebarMenuButton asChild isActive={isSubscriptionPath} tooltip="Aboneliğim" className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
                     <Link href="/dashboard/subscription"><CreditCard /><span>Aboneliğim</span></Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isSupportPath} tooltip="Destek Talebi">
+                  <SidebarMenuButton asChild isActive={isSupportPath} tooltip="Destek Talebi" className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
                     <Link href="/dashboard/support"><LifeBuoy /><span>Destek Talebi</span></Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
                 {userProfile?.isAdmin && (
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isAdminPath} tooltip="Admin Paneli">
+                    <SidebarMenuButton asChild isActive={isAdminPath} tooltip="Admin Paneli" className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
                       <Link href="/dashboard/admin"><ShieldCheck /><span>Admin Paneli</span></Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 )}
               </SidebarMenu>
             </SidebarContent>
-            <SidebarFooter className="p-2 mt-auto">
-               {(userProfile?.plan !== 'premium' && userProfile?.plan !== 'pro') && (
-                <Card className="bg-gradient-to-br from-primary/20 to-accent/20 border-primary/50 my-2 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:border-none">
-                  <CardContent className="p-4 group-data-[collapsible=icon]:p-0">
+            <SidebarFooter className="p-2 mt-auto space-y-2">
+               <Card className="bg-primary/10 border-primary/30 shadow-md group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:border-none">
+                <CardContent className="p-3 group-data-[collapsible=icon]:p-0">
                     <div className="flex flex-col items-center text-center group-data-[collapsible=icon]:hidden">
-                      <Gem className="h-8 w-8 text-primary mb-2" />
-                      <p className="font-semibold text-foreground">Premium'a Yükselt!</p>
-                      <p className="text-xs text-muted-foreground mb-3">Daha fazla özellik ve kota için.</p>
-                      <Button size="sm" className="w-full" asChild>
+                        <HelpCircle className="h-7 w-7 text-primary mb-1.5" />
+                        <p className="text-sm font-semibold text-foreground">AI Soru Çözücü</p>
+                        <p className="text-xs text-muted-foreground mb-2.5 px-1">Çözemediğin soruyu gönder, çözüm cebine gelsin!</p>
+                        <Button size="sm" className="w-full bg-primary/80 hover:bg-primary text-primary-foreground text-xs" asChild>
+                            <Link href="/dashboard/ai-tools/question-solver">Hemen Dene</Link>
+                        </Button>
+                    </div>
+                    <div className="hidden group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center ">
+                       <SidebarMenuButton asChild tooltip="AI Soru Çözücü" className="bg-primary/20 hover:bg-primary/30 text-primary">
+                          <Link href="/dashboard/ai-tools/question-solver"><HelpCircle/></Link>
+                       </SidebarMenuButton>
+                    </div>
+                </CardContent>
+               </Card>
+
+               {(userProfile?.plan !== 'premium' && userProfile?.plan !== 'pro') && (
+                <Card className="bg-gradient-to-br from-primary/20 to-accent/20 border-primary/50 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:border-none">
+                  <CardContent className="p-3 group-data-[collapsible=icon]:p-0">
+                    <div className="flex flex-col items-center text-center group-data-[collapsible=icon]:hidden">
+                      <Gem className="h-7 w-7 text-primary mb-1.5" />
+                      <p className="font-semibold text-foreground text-sm">Pro'ya Yükselt!</p>
+                      <p className="text-xs text-muted-foreground mb-2.5 px-1">Daha fazla özellik ve kota için.</p>
+                      <Button size="sm" className="w-full text-xs" asChild>
                         <Link href="/pricing">Planları Gör</Link>
                       </Button>
                     </div>
                      <div className="hidden group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
-                       <SidebarMenuButton asChild tooltip="Premium'a Yükselt" className="bg-primary/80 hover:bg-primary text-primary-foreground hover:text-primary-foreground">
+                       <SidebarMenuButton asChild tooltip="Pro'ya Yükselt" className="bg-primary/80 hover:bg-primary text-primary-foreground hover:text-primary-foreground">
                           <Link href="/pricing"><Gem/></Link>
                        </SidebarMenuButton>
                     </div>
                   </CardContent>
                 </Card>
                )}
-              <SidebarMenu>
+              <SidebarMenu className="border-t border-border/20 pt-2">
                 <SidebarMenuItem>
                     <ThemeToggleSidebar />
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                  <SidebarMenuButton onClick={handleSignOut} tooltip="Çıkış Yap">
+                  <SidebarMenuButton onClick={handleSignOut} tooltip="Çıkış Yap" className="hover:bg-destructive/20 hover:text-destructive data-[active=true]:bg-destructive/20 data-[active=true]:text-destructive">
                     <LogOut /><span>Çıkış Yap</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
             </SidebarFooter>
           </Sidebar>
-          <SidebarInset className="flex-1 overflow-y-auto">
-            <main className="container mx-auto px-4 py-8">
+          <SidebarInset className="flex-1 overflow-y-auto bg-background"> {/* Main content background */}
+            <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
               {children}
             </main>
             <Footer appName="NeutralEdu AI" />

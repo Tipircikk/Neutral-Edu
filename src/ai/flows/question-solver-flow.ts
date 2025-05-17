@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview YKS'ye hazırlanan öğrencilerin karşılaştığı akademik soruları (metin veya görsel tabanlı)
@@ -27,8 +26,28 @@ const SolveQuestionOutputSchema = z.object({
 });
 export type SolveQuestionOutput = z.infer<typeof SolveQuestionOutputSchema>;
 
+// This wrapper function is called by the client (Server Action)
 export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQuestionOutput> {
-  return questionSolverFlow(input);
+  try {
+    console.log("[SolveQuestion Action] Calling questionSolverFlow with input:", {
+        hasQuestionText: !!input.questionText,
+        hasImageDataUri: !!input.imageDataUri,
+        userPlan: input.userPlan,
+        customModelIdentifier: input.customModelIdentifier,
+    });
+    // Directly call the Genkit flow
+    const result = await questionSolverFlow(input);
+    console.log("[SolveQuestion Action] Received result from questionSolverFlow:", JSON.stringify(result).substring(0, 300));
+    return result;
+  } catch (error: any) {
+    console.error("[SolveQuestion Action] Critical error calling questionSolverFlow or flow itself threw an unhandled error:", error);
+    // This catch is a last resort. The flow itself should handle errors and return a structured response.
+    return {
+      solution: `Sunucu tarafında beklenmedik bir genel hata oluştu: ${error.message || 'Bilinmeyen hata'}. Lütfen geliştirici konsolunu kontrol edin veya destek ile iletişime geçin.`,
+      relatedConcepts: [],
+      examStrategyTips: [],
+    };
+  }
 }
 
 const questionSolverPrompt = ai.definePrompt({
@@ -101,8 +120,9 @@ const questionSolverFlow = ai.defineFlow(
     outputSchema: SolveQuestionOutputSchema,
   },
   async (input): Promise<SolveQuestionOutput> => {
+    // TOP-LEVEL TRY-CATCH FOR THE ENTIRE FLOW LOGIC
     try {
-      console.log("[QuestionSolver] Flow started. Input relevant parts:", { 
+      console.log("[QuestionSolver Flow] Flow started. Input relevant parts:", { 
         hasQuestionText: !!input.questionText, 
         hasImageDataUri: !!input.imageDataUri, 
         userPlan: input.userPlan, 
@@ -110,7 +130,7 @@ const questionSolverFlow = ai.defineFlow(
       });
 
       if (!input.questionText && !input.imageDataUri) {
-        console.warn("[QuestionSolver] No question text or image data provided.");
+        console.warn("[QuestionSolver Flow] No question text or image data provided.");
         return {
           solution: "Soru çözmek için lütfen bir metin girin veya bir görsel yükleyin.",
           relatedConcepts: [],
@@ -125,49 +145,46 @@ const questionSolverFlow = ai.defineFlow(
         }
       };
 
-      if (input.customModelIdentifier) {
+      if (input.customModelIdentifier && input.userPlan === 'pro') { // Assuming admin is always pro
         if (input.customModelIdentifier === 'default_gemini_flash') {
           modelToUse = 'googleai/gemini-2.0-flash';
-          console.log("[QuestionSolver] Admin selected default Google model: gemini-2.0-flash");
+          console.log("[QuestionSolver Flow] Admin selected default Google model: gemini-2.0-flash");
         } else if (input.customModelIdentifier === 'experimental_gemini_1_5_flash') {
              modelToUse = 'googleai/gemini-1.5-flash-latest'; 
-             console.log("[QuestionSolver] Admin selected experimental Google model: gemini-1.5-flash-latest");
+             console.log("[QuestionSolver Flow] Admin selected experimental Google model: gemini-1.5-flash-latest");
         } else if (input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview') {
             modelToUse = 'googleai/gemini-2.5-flash-preview-04-17'; 
-            console.log("[QuestionSolver] Admin selected experimental Google model: gemini-2.5-flash-preview-04-17");
-            // Preview modeller için generationConfig desteklenmeyebilir.
-            modelConfig = {}; // Clear config for preview models
+            console.log("[QuestionSolver Flow] Admin selected experimental Google model: gemini-2.5-flash-preview-04-17");
+            modelConfig = {}; // Preview models might not support generationConfig well
         }
       } else if (input.userPlan === 'pro') {
         modelToUse = 'googleai/gemini-1.5-flash-latest'; 
       }
+      // For 'free' and 'premium' (non-pro) users, modelToUse will remain the default 'googleai/gemini-1.5-flash-latest'
       
-      console.log(`[QuestionSolver] Using Google model: ${modelToUse} for user plan: ${input.userPlan} with config:`, modelConfig);
+      console.log(`[QuestionSolver Flow] Using Google model: ${modelToUse} for user plan: ${input.userPlan} with config:`, modelConfig);
       
       try {
+        // Ensure questionSolverPrompt is correctly referenced
         const {output} = await questionSolverPrompt(input, { model: modelToUse, config: Object.keys(modelConfig).length > 0 ? modelConfig : undefined });
         
         if (!output || !output.solution) {
-          console.error("[QuestionSolver] AI (Google model) did not produce a valid solution matching the schema. Input relevant parts:", { 
-            hasQuestionText: !!input.questionText, 
-            hasImageDataUri: !!input.imageDataUri, 
-            userPlan: input.userPlan
-          }, "Output:", JSON.stringify(output).substring(0,200)+"...");
+          console.error("[QuestionSolver Flow] AI (Google model) did not produce a valid solution matching the schema. Output:", JSON.stringify(output).substring(0,200)+"...");
           return {
               solution: `AI YKS Uzmanı (${modelToUse}), bu soru için bir çözüm ve detaylı açıklama üretemedi. Lütfen girdilerinizi kontrol edin veya farklı bir soru deneyin. Eğer sorun devam ederse, AI modelinin yanıtı şemaya uymamış olabilir.`,
               relatedConcepts: [],
               examStrategyTips: [],
           };
         }
-        console.log("[QuestionSolver] Successfully received solution from Google model.");
+        console.log("[QuestionSolver Flow] Successfully received solution from Google model.");
         return output;
       } catch (genError: any) {
-        console.error(`[QuestionSolver] Error during Genkit prompt execution with model ${modelToUse}:`, genError);
+        console.error(`[QuestionSolver Flow] Error during Genkit prompt execution with model ${modelToUse}:`, genError);
         let errorMessage = `AI modelinden (${modelToUse}) yanıt alınırken bir hata oluştu.`;
         if (genError.message) {
             errorMessage += ` Detay: ${genError.message}`;
         }
-         if (genError.message && genError.message.includes('SAFETY')) {
+         if (genError.message && (genError.message.includes('SAFETY') || genError.message.includes('block_reason'))) {
             errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen sorunuzu gözden geçirin. Detay: ${genError.message}`;
         }
         return {
@@ -178,18 +195,12 @@ const questionSolverFlow = ai.defineFlow(
       }
 
     } catch (flowError: any) {
-      console.error("[QuestionSolver] Unexpected error in questionSolverFlow:", flowError);
-      let errorMessage = `Soru çözülürken beklenmedik bir sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.`;
-      if (flowError.message) {
-          errorMessage += ` Detay: ${flowError.message}`;
-      }
+      console.error("[QuestionSolver Flow] Unexpected error in flow execution:", flowError);
       return {
-        solution: errorMessage,
-        relatedConcepts: ["Sunucu Hatası"],
+        solution: `Soru çözülürken sunucuda beklenmedik bir genel hata oluştu: ${flowError.message || 'Bilinmeyen hata'}. Lütfen tekrar deneyin.`,
+        relatedConcepts: ["Sunucu Akış Hatası"],
         examStrategyTips: [],
       };
     }
   }
 );
-
-    
