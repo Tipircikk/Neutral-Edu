@@ -24,7 +24,6 @@ const SolveQuestionOutputSchema = z.object({
   solution: z.string().describe('Sorunun YKS öğrencisinin anlayacağı dilde, son derece detaylı, her bir adımı mantığıyla açıklanmış, satır satır çözümü ve kavramsal açıklaması.'),
   relatedConcepts: z.array(z.string()).optional().describe('Çözümle ilgili veya sorunun ait olduğu konudaki YKS için önemli 2-3 anahtar akademik kavram veya konu başlığı.'),
   examStrategyTips: z.array(z.string()).optional().describe("Bu tür soruları YKS'de çözerken kullanılabilecek stratejiler veya dikkat edilmesi gereken noktalar."),
-  // confidenceScore alanını kaldırdık.
 });
 export type SolveQuestionOutput = z.infer<typeof SolveQuestionOutputSchema>;
 
@@ -100,7 +99,7 @@ const questionSolverFlow = ai.defineFlow(
       throw new Error("YKS sorusu çözmek için lütfen bir metin girin veya bir görsel yükleyin.");
     }
     
-    const modelToUse = 'googleai/gemini-2.0-flash'; // Tüm planlar için varsayılan model
+    const modelToUse = 'googleai/gemini-2.0-flash'; 
 
     const {output} = await prompt(input, { model: modelToUse });
     if (!output || !output.solution) {
@@ -111,3 +110,4 @@ const questionSolverFlow = ai.defineFlow(
 );
 
     
+
