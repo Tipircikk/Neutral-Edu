@@ -3,5 +3,6 @@ import {googleAI} from '@genkit-ai/googleai';
 
 export const ai = genkit({
   plugins: [googleAI()],
-  model: 'googleai/gemini-2.0-flash',
+  // Varsayılan model tanımı kaldırıldı. Model seçimi her flow içinde yapılacak.
+  // model: 'googleai/gemini-1.5-flash-latest',
 });

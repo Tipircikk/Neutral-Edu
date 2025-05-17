@@ -12,11 +12,15 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
+// IMPORTANT: Replace with your actual site URL and name for OpenRouter headers
+const YOUR_SITE_URL_HERE = "https://your-site-url.com"; // TODO: Replace with your actual site URL
+const YOUR_SITE_NAME_HERE = "NeutralEdu AI"; // TODO: Replace with your actual site name
+
 const SolveQuestionInputSchema = z.object({
   questionText: z.string().optional().describe('Öğrencinin çözülmesini istediği, YKS kapsamındaki soru metni.'),
   imageDataUri: z.string().optional().describe("Soruyla ilgili bir görselin data URI'si (Base64 formatında). 'data:<mimetype>;base64,<encoded_data>' formatında olmalıdır. Görsel, soru metni yerine veya ona ek olarak sunulabilir."),
   userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
-  customModelIdentifier: z.string().optional().describe("Adminler için özel Google model seçimi (örn: 'default_gemini_flash', 'experimental_gemini_1_5_flash', 'experimental_gemini_2_5_flash_preview').")
+  customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi (örn: 'default_gemini_flash', 'experimental_gemini_1_5_flash', 'experimental_gemini_2_5_flash_preview').")
 });
 export type SolveQuestionInput = z.infer<typeof SolveQuestionInputSchema>;
 
@@ -47,13 +51,13 @@ Cevapların her zaman Türkçe olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#ifEquals userPlan "pro"}}
-Pro kullanıcılar için: Çözümlerini en üst düzeyde akademik titizlikle, birden fazla çözüm yolunu (varsa) karşılaştırarak, konunun en derin ve karmaşık noktalarına değinerek sun. Sorunun çözümünde kullanılan her bir kavramı, formülü veya teoremine detaylıca açıkla. Sorunun YKS'deki genel stratejik önemini, benzer soru tiplerini ve bu tür sorulara yaklaşım stratejilerini derinlemesine tartış. Öğrencinin ufkunu açacak bağlantılar kur ve ileri düzey düşünme becerilerini tetikle. En sofistike, en detaylı ve en kapsamlı yanıtı vermek için en gelişmiş AI yeteneklerini kullan. Her bir işlem adımını, mantıksal çıkarımı ve kullanılan formülü ayrı ayrı ve çok net bir şekilde açıkla.
+Pro kullanıcılar için: Çözümlerini en üst düzeyde akademik titizlikle, birden fazla çözüm yolunu (varsa) karşılaştırarak, konunun en derin ve karmaşık noktalarına değinerek sun. Sorunun çözümünde kullanılan her bir kavramı, formülü veya teoremine detaylıca açıkla. Sorunun YKS'deki genel stratejik önemini, benzer soru tiplerini ve bu tür sorulara yaklaşım stratejilerini derinlemesine tartış. Öğrencinin ufkunu açacak bağlantılar kur ve ileri düzey düşünme becerilerini tetikle. Her bir işlem adımını, mantıksal çıkarımı ve kullanılan formülü ayrı ayrı ve çok net bir şekilde açıkla.
 {{else ifEquals userPlan "premium"}}
 Premium kullanıcılar için: Daha derinlemesine açıklamalar, varsa alternatif çözüm yolları ve konunun YKS'deki önemi hakkında daha detaylı bilgiler sunmaya özen göster. Standart kullanıcıya göre daha zengin ve öğretici bir deneyim sağla. Çözüm adımlarını netleştir.
 {{/ifEquals}}
 
 {{#if customModelIdentifier}}
-(Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' Google modeli kullanılarak üretilmektedir.)
+(Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
 {{/if}}
 
 Kullanıcının girdileri aşağıdadır. Lütfen bu girdilere dayanarak, YKS formatına ve zorluk seviyesine uygun bir çözüm üret:
@@ -123,68 +127,61 @@ const questionSolverFlow = ai.defineFlow(
         };
       }
       
-      let modelToUse = ai.getModel(); // Genkit'in varsayılan modelini al (gemini-1.5-flash-latest)
+      // Varsayılan model olarak gemini-1.5-flash-latest ayarlandı.
+      let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
 
       if (input.customModelIdentifier) {
         if (input.customModelIdentifier === 'default_gemini_flash') {
           modelToUse = 'googleai/gemini-2.0-flash'; 
           console.log("[QuestionSolver] Admin selected default Google model: gemini-2.0-flash");
         } else if (input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview') {
-            modelToUse = 'googleai/gemini-2.5-flash-preview-04-17'; // Deneysel 2.5 Flash
+            modelToUse = 'googleai/gemini-2.5-flash-preview-04-17'; 
             console.log("[QuestionSolver] Admin selected experimental Google model: gemini-2.5-flash-preview-04-17");
         } else if (input.customModelIdentifier === 'experimental_gemini_1_5_flash') {
-             modelToUse = 'googleai/gemini-1.5-flash-latest'; // Bu zaten yeni varsayılanımız
-             console.log("[QuestionSolver] Admin selected experimental Google model: gemini-1.5-flash-latest (now default)");
+             modelToUse = 'googleai/gemini-1.5-flash-latest'; 
+             console.log("[QuestionSolver] Admin selected experimental Google model: gemini-1.5-flash-latest");
         }
       } else if (input.userPlan === 'pro') {
-        // Pro kullanıcılar için varsayılan olarak en iyi flash modeli (genel varsayılanla aynı olabilir)
+        // Pro kullanıcılar için varsayılan olarak gemini-1.5-flash-latest kullanılacak
         modelToUse = 'googleai/gemini-1.5-flash-latest'; 
       }
-      // Ücretsiz ve premium kullanıcılar için de (admin özel bir model seçmediyse) genel varsayılan gemini-1.5-flash-latest olacak
+      // Ücretsiz ve premium kullanıcılar için de (admin özel bir model seçmediyse)
+      // modelToUse 'googleai/gemini-1.5-flash-latest' olarak kalacak.
       
-      try {
-        console.log(`[QuestionSolver] Using Google model: ${modelToUse} for user plan: ${input.userPlan}`);
-        const {output} = await questionSolverPrompt(input, { model: modelToUse }); 
-        if (!output || !output.solution) {
-          console.error("[QuestionSolver] AI (Google model) did not produce a valid solution matching the schema. Input relevant parts:", { 
-            hasQuestionText: !!input.questionText, 
-            hasImageDataUri: !!input.imageDataUri, 
-            userPlan: input.userPlan
-          }, "Output:", JSON.stringify(output).substring(0,200)+"...");
-          return {
-              solution: `AI YKS Uzmanı (${modelToUse}), bu soru için bir çözüm ve detaylı açıklama üretemedi. Lütfen girdilerinizi kontrol edin veya farklı bir soru deneyin. Eğer sorun devam ederse, AI modelinin yanıtı şemaya uymamış olabilir.`,
-              relatedConcepts: [],
-              examStrategyTips: [],
-          };
-        }
-        console.log("[QuestionSolver] Successfully received solution from Google model.");
-        return output;
-      } catch (genkitError: any) {
-          console.error(`[QuestionSolver] Genkit prompt call failed (Google Model: ${modelToUse}):`, genkitError);
-          let errorMessage = `Google AI modeliyle (${modelToUse}) çözüm üretilirken bir hata oluştu.`;
-          if (genkitError.message) {
-              errorMessage += ` Detay: ${genkitError.message}`;
-          }
-           if (genkitError.cause && typeof genkitError.cause === 'string' && genkitError.cause.includes('SAFETY')) {
-            errorMessage += ` İçerik güvenlik filtrelerine takılmış olabilir. Lütfen sorunuzu gözden geçirin.`;
-          }
-          return {
-              solution: errorMessage,
-              relatedConcepts: ["Genkit Hatası"],
-              examStrategyTips: [],
-          };
+      console.log(`[QuestionSolver] Using Google model: ${modelToUse} for user plan: ${input.userPlan}`);
+      const {output} = await questionSolverPrompt(input, { model: modelToUse }); 
+      
+      if (!output || !output.solution) {
+        console.error("[QuestionSolver] AI (Google model) did not produce a valid solution matching the schema. Input relevant parts:", { 
+          hasQuestionText: !!input.questionText, 
+          hasImageDataUri: !!input.imageDataUri, 
+          userPlan: input.userPlan
+        }, "Output:", JSON.stringify(output).substring(0,200)+"...");
+        return {
+            solution: `AI YKS Uzmanı (${modelToUse}), bu soru için bir çözüm ve detaylı açıklama üretemedi. Lütfen girdilerinizi kontrol edin veya farklı bir soru deneyin. Eğer sorun devam ederse, AI modelinin yanıtı şemaya uymamış olabilir.`,
+            relatedConcepts: [],
+            examStrategyTips: [],
+        };
       }
+      console.log("[QuestionSolver] Successfully received solution from Google model.");
+      return output;
+
     } catch (flowError: any) {
       // Top-level catch for any unexpected errors in the flow
       console.error("[QuestionSolver] Unexpected error in questionSolverFlow:", flowError);
+      let errorMessage = `Soru çözülürken beklenmedik bir sunucu hatası oluştu: ${flowError.message || 'Bilinmeyen bir hata.'}`;
+      if (flowError.message && flowError.message.includes('SAFETY')) {
+        errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen sorunuzu gözden geçirin. Detay: ${flowError.message}`;
+      } else if (flowError.message && flowError.message.includes('is not a function')) {
+        // Bu özel hata mesajını yakala
+         errorMessage = `Soru çözülürken bir sunucu yapılandırma hatası oluştu: ${flowError.message}. Lütfen daha sonra tekrar deneyin veya yöneticiye başvurun.`;
+      }
+
       return {
-        solution: `Soru çözülürken beklenmedik bir sunucu hatası oluştu: ${flowError.message || 'Bilinmeyen bir hata.'}`,
+        solution: errorMessage,
         relatedConcepts: ["Sistem Hatası"],
         examStrategyTips: [],
       };
     }
   }
 );
-    
-
-    
