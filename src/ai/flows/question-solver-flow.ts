@@ -131,9 +131,9 @@ Davranış Kuralları:
 *   Yanıtını öğrencinin kolayca anlayabileceği, teşvik edici, samimi ama profesyonel ve son derece eğitici bir dille yaz. YKS'de kullanılan terminolojiyi kullanmaktan çekinme ama karmaşık olanları mutlaka açıkla.
 *   Çözümü, öğrencinin benzer YKS sorularını kendi başına çözebilmesi için bir kılavuz ve öğrenme materyali niteliğinde sun. Sadece cevabı verme, "neden" ve "nasıl" sorularını sürekli yanıtla.
 `,
-  config: { // Apply this config to the prompt definition itself
+  config: { 
     generationConfig: {
-        maxOutputTokens: 4096, // Default max output tokens
+        maxOutputTokens: 4096,
     }
   }
 });
@@ -145,7 +145,6 @@ const questionSolverFlow = ai.defineFlow(
     outputSchema: SolveQuestionOutputSchema,
   },
   async (input): Promise<SolveQuestionOutput> => {
-    // TOP-LEVEL TRY-CATCH FOR THE ENTIRE FLOW LOGIC
     try {
       console.log("[QuestionSolver Flow] Flow started. Input relevant parts:", { 
         hasQuestionText: !!input.questionText, 
@@ -163,12 +162,8 @@ const questionSolverFlow = ai.defineFlow(
         };
       }
       
-      let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Default to new flash model
-      let modelConfig: Record<string, any> = { 
-        // Default config can be empty if the prompt definition has its own config
-        // or we can override maxOutputTokens here if needed.
-        // For now, rely on prompt's config for maxOutputTokens if not overridden by specific model.
-      };
+      let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Default to new flash model for all if no admin override
+      let modelSpecificConfig: Record<string, any> = {}; // Specific config for the model call, not the prompt definition
 
       if (input.customModelIdentifier && input.userPlan === 'pro') { 
         if (input.customModelIdentifier === 'default_gemini_flash') {
@@ -180,49 +175,56 @@ const questionSolverFlow = ai.defineFlow(
         } else if (input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview') {
             modelToUse = 'googleai/gemini-2.5-flash-preview-04-17'; 
             console.log("[QuestionSolver Flow] Admin selected experimental Google model: gemini-2.5-flash-preview-04-17");
-            modelConfig = {}; // Preview models might not support generationConfig well, or has its own config in prompt
+            // For this preview model, we must ensure no generationConfig is sent.
+            // We will pass an empty config object to the prompt call to override its default.
+            modelSpecificConfig = {}; 
         }
-         // No OpenRouter/Deepseek logic anymore
       } else if (input.userPlan === 'pro') {
         modelToUse = 'googleai/gemini-1.5-flash-latest'; 
-        // Pro users get the better flash model by default, unless admin overrides for testing
       }
-      // For 'free' and 'premium' (non-pro) users, modelToUse will also be 'googleai/gemini-1.5-flash-latest' (new default).
       
       console.log(`[QuestionSolver Flow] Using Google model: ${modelToUse} for user plan: ${input.userPlan}`);
       
-      // This try-catch is for the Genkit prompt call
       try {
-        console.log(`[QuestionSolver Flow] Calling Google prompt with model: ${modelToUse} and config:`, modelConfig);
-        // Ensure the config is only passed if it has keys, or if the model needs specific overrides not in prompt definition
-        const callConfig = Object.keys(modelConfig).length > 0 ? { model: modelToUse, config: modelConfig } : { model: modelToUse };
-        const {output} = await questionSolverPrompt(input, callConfig);
+        let callOptions: { model: string, config?: Record<string, any> } = { model: modelToUse };
+
+        if (modelToUse === 'googleai/gemini-2.5-flash-preview-04-17') {
+          // For gemini-2.5-flash-preview, explicitly pass an empty config to override prompt's default generationConfig
+          callOptions.config = {};
+        } else if (Object.keys(modelSpecificConfig).length > 0) {
+          // If other model-specific configs were defined (not currently the case here but for future)
+          callOptions.config = modelSpecificConfig;
+        }
+        // If no specific config override is needed (e.g. for gemini-1.5-flash or gemini-2.0-flash),
+        // callOptions will remain { model: modelToUse }, and the prompt's default config will be used.
+
+        console.log(`[QuestionSolver Flow] Calling Google prompt with options:`, callOptions);
+        const {output} = await questionSolverPrompt(input, callOptions);
         
-        if (!output || typeof output.solution !== 'string' || !Array.isArray(output.relatedConcepts) || !Array.isArray(output.examStrategyTips)) {
+        if (!output || typeof output.solution !== 'string') {
           console.error("[QuestionSolver Flow] AI (Google model) did not produce a valid solution matching the schema. Output:", JSON.stringify(output).substring(0,300)+"...");
           return {
               solution: `AI YKS Uzmanı (${modelToUse}), bu soru için bir çözüm ve detaylı açıklama üretemedi veya yanıt formatı beklenmedik. Lütfen girdilerinizi kontrol edin veya farklı bir soru deneyin.`,
-              relatedConcepts: [],
-              examStrategyTips: [],
+              relatedConcepts: output?.relatedConcepts || [],
+              examStrategyTips: output?.examStrategyTips || [],
           };
         }
         console.log("[QuestionSolver Flow] Successfully received solution from Google model.");
-        return output;
+        return {
+          solution: output.solution,
+          relatedConcepts: output.relatedConcepts || [],
+          examStrategyTips: output.examStrategyTips || [],
+        };
       } catch (genError: any) {
         console.error(`[QuestionSolver Flow] Error during Genkit prompt execution with model ${modelToUse}:`, genError);
         let errorMessage = `AI modelinden (${modelToUse}) yanıt alınırken bir hata oluştu.`;
-        if (genError instanceof Error) {
+        if (genError?.message) {
             errorMessage = genError.message;
-        } else if (typeof genError === 'string') {
-            errorMessage = genError;
-        } else if (genError && typeof genError.toString === 'function') {
-            errorMessage = genError.toString();
-        }
-
-         if (errorMessage && (errorMessage.includes('SAFETY') || errorMessage.includes('block_reason'))) {
-            errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen sorunuzu gözden geçirin. Detay: ${errorMessage}`;
-        } else if (errorMessage.includes('400 Bad Request') && errorMessage.includes('generationConfig')) {
-            errorMessage = `Seçilen model (${modelToUse}) bazı yapılandırma ayarlarını desteklemiyor olabilir. Geliştiriciye bildirin. Detay: ${errorMessage}`;
+             if (genError.message.includes('SAFETY') || genError.message.includes('block_reason')) {
+                errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen sorunuzu gözden geçirin. Detay: ${genError.message}`;
+            } else if (genError.message.includes('400 Bad Request') && genError.message.includes('generationConfig')) {
+                errorMessage = `Seçilen model (${modelToUse}) bazı yapılandırma ayarlarını desteklemiyor olabilir. Geliştiriciye bildirin. Detay: ${genError.message}`;
+            }
         }
         
         return {
@@ -235,12 +237,8 @@ const questionSolverFlow = ai.defineFlow(
     } catch (flowError: any) {
       console.error("[QuestionSolver Flow] Unexpected critical error in flow execution:", flowError);
       let errorMessage = 'Beklenmedik sunucu akış hatası.';
-       if (flowError instanceof Error) {
+       if (flowError?.message) {
             errorMessage = flowError.message;
-        } else if (typeof flowError === 'string') {
-            errorMessage = flowError;
-        } else if (flowError && typeof flowError.toString === 'function') {
-            errorMessage = flowError.toString();
         }
       return {
         solution: `Soru çözülürken sunucuda genel bir hata oluştu: ${errorMessage}. Lütfen tekrar deneyin veya destek ile iletişime geçin.`,
@@ -250,5 +248,3 @@ const questionSolverFlow = ai.defineFlow(
     }
   }
 );
-
-    
