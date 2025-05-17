@@ -5,7 +5,7 @@ import type { UserProfile } from "@/types";
 
 const FREE_PLAN_DAILY_QUOTA = 2;
 const PREMIUM_PLAN_DAILY_QUOTA = 10;
-const PRO_PLAN_DAILY_QUOTA = 50; // New Pro Plan Quota
+const PRO_PLAN_DAILY_QUOTA = 25;
 
 export const createUserDocument = async (
   uid: string,
@@ -21,6 +21,7 @@ export const createUserDocument = async (
     dailyRemainingQuota: FREE_PLAN_DAILY_QUOTA,
     lastSummaryDate: null, // Will be set on first summary or quota check
     isAdmin: false, // Default isAdmin to false
+    planExpiryDate: null, // Initialize with null
   };
   await setDoc(userRef, { ...userProfile, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
   return userProfile;
@@ -31,13 +32,40 @@ export const getUserProfile = async (uid:string): Promise<UserProfile | null> =>
   const docSnap = await getDoc(userRef);
   if (docSnap.exists()) {
     const data = docSnap.data() as UserProfile;
-    // Ensure lastSummaryDate is a Firestore Timestamp or null for client-side JS Date compatibility
+    
+    // Ensure lastSummaryDate is a Firestore Timestamp or null
     if (data.lastSummaryDate && !(data.lastSummaryDate instanceof Timestamp) && typeof data.lastSummaryDate === 'object' && 'seconds' in data.lastSummaryDate && 'nanoseconds' in data.lastSummaryDate) {
         data.lastSummaryDate = new Timestamp((data.lastSummaryDate as any).seconds, (data.lastSummaryDate as any).nanoseconds);
+    } else if (typeof data.lastSummaryDate === 'string') {
+        // Attempt to parse if it's a string (though ideally it should be Timestamp from Firestore)
+        const parsedDate = new Date(data.lastSummaryDate);
+        if (!isNaN(parsedDate.getTime())) {
+            data.lastSummaryDate = Timestamp.fromDate(parsedDate);
+        } else {
+            data.lastSummaryDate = null; // Invalid string date
+        }
+    } else if (!(data.lastSummaryDate instanceof Timestamp) && data.lastSummaryDate !== null) {
+        data.lastSummaryDate = null; // Non-timestamp, non-null, non-object with seconds/nanos: treat as invalid
     }
-    // Ensure plan defaults to 'free' if not set or invalid, though it should be set on creation
+
+    // Ensure planExpiryDate is a Firestore Timestamp or null
+    if (data.planExpiryDate && !(data.planExpiryDate instanceof Timestamp) && typeof data.planExpiryDate === 'object' && 'seconds' in data.planExpiryDate && 'nanoseconds' in data.planExpiryDate) {
+      data.planExpiryDate = new Timestamp((data.planExpiryDate as any).seconds, (data.planExpiryDate as any).nanoseconds);
+    } else if (typeof data.planExpiryDate === 'string') {
+        const parsedExpiry = new Date(data.planExpiryDate);
+        if (!isNaN(parsedExpiry.getTime())) {
+            data.planExpiryDate = Timestamp.fromDate(parsedExpiry);
+        } else {
+            data.planExpiryDate = null;
+        }
+    } else if (!(data.planExpiryDate instanceof Timestamp) && data.planExpiryDate !== null) {
+        data.planExpiryDate = null;
+    }
+    
+    // Validate plan type, default to 'free' if invalid
     if (!['free', 'premium', 'pro'].includes(data.plan)) {
       data.plan = 'free';
+      data.dailyRemainingQuota = getDefaultQuota('free'); // Reset quota for safety
     }
     return data;
   }
@@ -47,10 +75,13 @@ export const getUserProfile = async (uid:string): Promise<UserProfile | null> =>
 
 export const updateUserProfile = async (uid: string, data: Partial<UserProfile>): Promise<void> => {
   const userRef = doc(db, "users", uid);
-  // Ensure lastSummaryDate is converted to Firestore Timestamp if it's a Date object
   const dataToUpdate = { ...data };
+  // Ensure dates are Timestamps before updating
   if (dataToUpdate.lastSummaryDate && dataToUpdate.lastSummaryDate instanceof Date) {
     dataToUpdate.lastSummaryDate = Timestamp.fromDate(dataToUpdate.lastSummaryDate);
+  }
+  if (dataToUpdate.planExpiryDate && dataToUpdate.planExpiryDate instanceof Date) {
+    dataToUpdate.planExpiryDate = Timestamp.fromDate(dataToUpdate.planExpiryDate);
   }
   await updateDoc(userRef, { ...dataToUpdate, updatedAt: serverTimestamp() });
 };
@@ -62,8 +93,9 @@ export const getDefaultQuota = (plan: UserProfile["plan"]): number => {
     case "premium":
       return PREMIUM_PLAN_DAILY_QUOTA;
     case "pro":
-      return PRO_PLAN_DAILY_QUOTA; // Added Pro quota
+      return PRO_PLAN_DAILY_QUOTA;
     default:
-      return FREE_PLAN_DAILY_QUOTA; // Fallback to free quota
+      console.warn(`Unknown plan type: ${plan}, defaulting to free quota.`);
+      return FREE_PLAN_DAILY_QUOTA;
   }
 };
