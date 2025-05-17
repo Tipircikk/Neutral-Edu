@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { HelpCircle, Send, Loader2, AlertTriangle, UploadCloud, Image as ImageIcon } from "lucide-react";
+import { HelpCircle, Send, Loader2, AlertTriangle, UploadCloud, Image as ImageIcon, Wand2 } from "lucide-react"; // Wand2 eklendi
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
@@ -113,8 +113,9 @@ export default function QuestionSolverPage() {
     }
   };
   
-  const isSubmitDisabled = isSolving || (!questionText.trim() && !imageDataUri) || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
-
+  // Buton her zaman aktif, geliştirme aşamasında uyarısı var.
+  // const isSubmitDisabled = isSolving || (!questionText.trim() && !imageDataUri) || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
+  const isSubmitDisabled = true; // Geliştirme aşamasında olduğu için butonu devre dışı bırakıyoruz.
 
   if (userProfileLoading) {
     return (
@@ -139,6 +140,14 @@ export default function QuestionSolverPage() {
         </CardHeader>
       </Card>
 
+      <Alert variant="default" className="bg-yellow-500/15 border-yellow-500/50 text-yellow-700 dark:text-yellow-400">
+        <Wand2 className="h-5 w-5 text-yellow-600 dark:text-yellow-500" />
+        <AlertTitle className="font-semibold">Geliştirme Aşamasında!</AlertTitle>
+        <AlertDescription>
+          Bu araç şu anda aktif geliştirme altındadır. Özellikle karmaşık matematik sorularında ve bazı YKS tipi sorularda hatalı veya eksik çözümler sunabilir. Anlayışınız için teşekkür ederiz.
+        </AlertDescription>
+      </Alert>
+
       {!canProcess && !isSolving && userProfile && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
          <Alert variant="destructive" className="shadow-md">
           <AlertTriangle className="h-4 w-4" />
@@ -161,7 +170,7 @@ export default function QuestionSolverPage() {
                 onChange={(e) => setQuestionText(e.target.value)}
                 rows={5}
                 className="text-base"
-                disabled={isSolving || !canProcess}
+                disabled={isSolving || !canProcess || isSubmitDisabled}
               />
             </div>
             <div className="space-y-2">
@@ -172,7 +181,7 @@ export default function QuestionSolverPage() {
                     accept="image/*"
                     onChange={handleImageChange}
                     className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-                    disabled={isSolving || !canProcess}
+                    disabled={isSolving || !canProcess || isSubmitDisabled}
                 />
                 {imageDataUri && imageFile && (
                   <div className="mt-2 p-2 border rounded-md bg-muted">
@@ -181,9 +190,9 @@ export default function QuestionSolverPage() {
                   </div>
                 )}
             </div>
-            <Button type="submit" className="w-full" disabled={isSubmitDisabled}>
+            <Button type="submit" className="w-full" disabled={isSolving || (!questionText.trim() && !imageDataUri) || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0) || isSubmitDisabled}>
               {isSolving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-              Çözüm İste
+              Çözüm İste (Geliştiriliyor)
             </Button>
           </CardContent>
         </Card>
@@ -243,5 +252,3 @@ export default function QuestionSolverPage() {
     </div>
   );
 }
-
-    

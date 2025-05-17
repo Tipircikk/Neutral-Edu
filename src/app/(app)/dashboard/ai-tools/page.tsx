@@ -21,7 +21,7 @@ const allAiTools = [
     description: "Karmaşık sorularınıza adım adım çözümler ve açıklamalar alın. İsterseniz soru içeren bir görsel de yükleyebilirsiniz.",
     icon: <HelpCircle className="h-10 w-10 text-primary mb-4" />,
     link: "/dashboard/ai-tools/question-solver",
-    status: "active",
+    status: "soon", // Değiştirildi
     category: "soru",
   },
   {
@@ -101,7 +101,7 @@ export default function AiToolsPage() {
 
   return (
     <Tabs defaultValue="ozetleme" className="w-full">
-      <TabsList className="grid w-full grid-cols-3 mb-6">
+      <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 mb-6">
         <TabsTrigger value="ozetleme">Konu Anlama ve Özetleme</TabsTrigger>
         <TabsTrigger value="soru">Sınav ve Soru Hazırlığı</TabsTrigger>
         <TabsTrigger value="analiz">Analiz ve Planlama</TabsTrigger>
