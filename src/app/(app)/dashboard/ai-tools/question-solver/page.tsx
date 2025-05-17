@@ -88,7 +88,6 @@ export default function QuestionSolverPage() {
         questionText: questionText.trim() || undefined, 
         imageDataUri: imageDataUri || undefined,
         userPlan: currentProfile.plan,
-        // Sadece admin ise ve bir model seçilmişse customModelIdentifier'ı gönder
         customModelIdentifier: userProfile?.isAdmin && adminSelectedModel !== "default_gemini_flash" ? adminSelectedModel : undefined,
       };
       const result = await solveQuestion(input);
@@ -166,13 +165,13 @@ export default function QuestionSolverPage() {
                   <SelectContent>
                     <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
                     <SelectItem value="experimental_gemini_1.5_flash">Deneysel Model (Gemini 1.5 Flash)</SelectItem>
-                    <SelectItem value="openrouter_deepseek_r1_placeholder" disabled>
-                      OpenRouter: Deepseek R1 (Yapılandırma Gerekli)
+                    <SelectItem value="openrouter_deepseek_r1">
+                      OpenRouter: Deepseek R1 (Beta)
                     </SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Bu seçenek sadece adminlere özeldir. "OpenRouter" seçeneği şu anda aktif değildir, Genkit yapılandırması gerektirir.
+                  Bu seçenek sadece adminlere özeldir. OpenRouter kullanmak için `.env.local` dosyanızda `OPENROUTER_API_KEY` ve flow dosyasında site bilgileri ayarlanmalıdır.
                 </p>
               </div>
             )}
