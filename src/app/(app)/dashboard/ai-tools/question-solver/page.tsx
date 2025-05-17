@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { HelpCircle, Send, Loader2, AlertTriangle, UploadCloud, ImageIcon, Wand2 } from "lucide-react";
+import { HelpCircle, Send, Loader2, AlertTriangle, UploadCloud, ImageIcon } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
@@ -14,7 +14,7 @@ import { solveQuestion, type SolveQuestionOutput, type SolveQuestionInput } from
 import NextImage from "next/image";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea } from "@/components/ui/scroll-area"; // ScrollArea import edildi
 
 export default function QuestionSolverPage() {
   const [questionText, setQuestionText] = useState("");
@@ -25,7 +25,7 @@ export default function QuestionSolverPage() {
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
   const [canProcess, setCanProcess] = useState(false);
-  const [adminSelectedModel, setAdminSelectedModel] = useState<string>("experimental_gemini_2_5_flash_preview"); // Default to new experimental
+  const [adminSelectedModel, setAdminSelectedModel] = useState<string>("experimental_gemini_2_5_flash_preview");
 
   const memoizedCheckAndResetQuota = useCallback(async () => {
     if (checkAndResetQuota) return checkAndResetQuota();
@@ -113,7 +113,12 @@ export default function QuestionSolverPage() {
         description: error.message || "Soru çözülürken beklenmedik bir hata oluştu.",
         variant: "destructive",
       });
-      setAnswer({ solution: error.message || "Beklenmedik bir hata oluştu." });
+      // Ensure a structured response for error display
+      setAnswer({ 
+        solution: error.message || "Beklenmedik bir hata oluştu.",
+        relatedConcepts: [],
+        examStrategyTips: []
+      });
     } finally {
       setIsSolving(false);
     }
@@ -166,7 +171,8 @@ export default function QuestionSolverPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
-                    <SelectItem value="default_gemini_flash">Eski Model (Gemini 2.0 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
+                    <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">

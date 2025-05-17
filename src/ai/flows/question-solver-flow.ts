@@ -35,7 +35,7 @@ const questionSolverPrompt = ai.definePrompt({
   name: 'questionSolverPrompt',
   input: {schema: SolveQuestionInputSchema},
   output: {schema: SolveQuestionOutputSchema},
-  // config: { // This config applies to all models called by this prompt by default
+  // config: { // Bu config, bu prompt tarafından çağrılan tüm modellere varsayılan olarak uygulanır
   //   generationConfig: {
   //     maxOutputTokens: 4096, 
   //   },
@@ -61,7 +61,7 @@ Kullanıcının girdileri aşağıdadır. Lütfen bu girdilere dayanarak, YKS fo
 {{#if imageDataUri}}
 Görsel Soru Kaynağı:
 {{media url=imageDataUri}}
-(Görseldeki metinleri, şekilleri, grafikleri veya tabloları dikkatlice analiz et. Eğer görselde birden fazla soru varsa, ana soruyu veya en belirgin olanı önceliklendir. Görsel, {{{questionText}}} ile birlikte bir bütün oluşturabilir.)
+(Görseldeki metinleri, şekilleri, grafikleri veya tabloları dikkatlice analiz et. Eğer görselde birden fazla soru varsa, ana soruyu veya en belirgin olanı önceliklendir. Görsel, {{{questionText}}} ile birlikte bir bütün oluşturabilir. Görseldeki soruyu tanımla ve metinle birleştirerek kapsamlı bir yanıt oluştur.)
 {{/if}}
 
 {{#if questionText}}
@@ -90,7 +90,7 @@ Lütfen bu soruyu/soruları analiz et ve aşağıdaki formatta, son derece detay
     *   Sorunun zorluk seviyesi hakkında kısa bir değerlendirme yap.
 
 Davranış Kuralları:
-*   Eğer hem görsel hem de metin girdisi varsa, bunları birbiriyle %100 ilişkili kabul et. Metin, görseldeki soruyu tamamlayıcı veya açıklayıcı olabilir. Görseldeki soruyu tanımla ve metinle birleştirerek kapsamlı bir yanıt oluştur.
+*   Eğer hem görsel hem de metin girdisi varsa, bunları birbiriyle %100 ilişkili kabul et. Görseldeki soruyu tanımla ve metinle birleştirerek kapsamlı bir yanıt oluştur.
 *   Eğer sadece görsel varsa, görseldeki soruyu (veya soruları) dikkatlice tanımla, YKS seviyesine uygun olanı seç ve çöz. Görseldeki tüm metinleri, diagramları, sayıları anlamaya çalış.
 *   Eğer sadece metin varsa, metindeki soruyu YKS ciddiyetiyle çöz.
 *   **Eğer girdi yetersizse, anlamsızsa, YKS kapsamı dışındaysa veya mevcut bilgilerle YKS standartlarında kaliteli, doğru ve adım adım bir çözüm üretemeyecek kadar belirsiz veya karmaşıksa, nazikçe ve gerekçesiyle bunu belirt. Örneğin, "Bu soruyu çözebilmek için ... bilgisine/görseline ihtiyacım var." veya "Verilen bilgilerle YKS kapsamında adım adım, güvenilir bir çözüm üretmek mümkün görünmüyor. Lütfen soruyu daha net ifade edin veya ek bilgi sağlayın." gibi bir ifade kullan. Kesin olmayan, zayıf veya yanlış olabilecek çözümler sunmaktan kaçın.**
@@ -126,7 +126,7 @@ const questionSolverFlow = ai.defineFlow(
       let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
       let modelConfig: Record<string, any> = { 
         generationConfig: {
-            maxOutputTokens: 4096,
+            maxOutputTokens: 4096, // Default max tokens
         }
       };
 
@@ -140,16 +140,19 @@ const questionSolverFlow = ai.defineFlow(
         } else if (input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview') {
             modelToUse = 'googleai/gemini-2.5-flash-preview-04-17'; 
             console.log("[QuestionSolver] Admin selected experimental Google model: gemini-2.5-flash-preview-04-17");
-            // For preview models, often specific config parameters are not supported or are different.
-            // Remove or adjust config as needed for this specific model.
-            modelConfig = {}; // Remove generationConfig for this preview model
+            // Preview modeller için generationConfig desteklenmeyebilir.
+            modelConfig = {}; 
         }
       } else if (input.userPlan === 'pro') {
-        modelToUse = 'googleai/gemini-1.5-flash-latest'; 
+        // Pro kullanıcılar için zaten varsayılan 'gemini-1.5-flash-latest' kullanılacak.
+        // İleride pro kullanıcılar için daha gelişmiş bir model (örn: gemini-1.5-pro-latest) 
+        // kullanılacaksa burası güncellenebilir.
+        // modelToUse = 'googleai/gemini-1.5-pro-latest'; // Eğer Pro için farklı bir model olacaksa
       }
       
       console.log(`[QuestionSolver] Using Google model: ${modelToUse} for user plan: ${input.userPlan} with config:`, modelConfig);
-      const {output} = await questionSolverPrompt(input, { model: modelToUse, config: Object.keys(modelConfig).length > 0 ? modelConfig : undefined }); 
+      
+      const {output} = await questionSolverPrompt(input, { model: modelToUse, config: Object.keys(modelConfig).length > 0 ? modelConfig : undefined });
       
       if (!output || !output.solution) {
         console.error("[QuestionSolver] AI (Google model) did not produce a valid solution matching the schema. Input relevant parts:", { 
@@ -173,10 +176,11 @@ const questionSolverFlow = ai.defineFlow(
       if (flowError.message && flowError.message.includes('SAFETY')) {
         errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen sorunuzu gözden geçirin. Detay: ${flowError.message}`;
       } else if (flowError.message && flowError.message.includes('Invalid JSON payload received. Unknown name "generationConfig"')) {
-        errorMessage = `Seçilen model ('${input.customModelIdentifier || input.userPlan + ' planı modeli'}') için 'generationConfig' parametresi desteklenmiyor. Lütfen bu model için yapılandırmayı kontrol edin veya farklı bir model deneyin. Detay: ${flowError.message}`;
-      } else if (flowError.message && flowError.message.includes('is not a function')) {
-         errorMessage = `Soru çözülürken bir sunucu yapılandırma hatası oluştu: ${flowError.message}. Lütfen daha sonra tekrar deneyin veya yöneticiye başvurun.`;
+        errorMessage = `Seçilen model ('${input.customModelIdentifier || (input.userPlan ? input.userPlan + ' planı modeli' : 'varsayılan model')}') için 'generationConfig' parametresi desteklenmiyor. Lütfen bu model için yapılandırmayı kontrol edin veya farklı bir model deneyin. Detay: ${flowError.message}`;
+      } else if (flowError.message && (flowError.message.includes('is not a function') || flowError.message.includes('prompt is not defined'))) {
+         errorMessage = `Soru çözülürken bir sunucu yapılandırma hatası oluştu. Lütfen daha sonra tekrar deneyin veya yöneticiye başvurun. Detay: ${flowError.message}`;
       }
+
 
       return {
         solution: errorMessage,
@@ -186,5 +190,3 @@ const questionSolverFlow = ai.defineFlow(
     }
   }
 );
-
-    
