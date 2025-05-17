@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from "react";
 import PdfUploadForm from "@/components/dashboard/PdfUploadForm";
 import SummaryDisplay from "@/components/dashboard/SummaryDisplay";
 import { extractTextFromPdf } from "@/lib/pdfUtils";
-import { summarizePdfForStudent, type SummarizePdfForStudentOutput, type SummarizePdfForStudentInput } from "@/ai/flows/summarize-pdf";
+import { summarizePdfForStudent, type SummarizePdfForStudentOutput, type SummarizePdfForStudentInput } from "@/ai/flows/summarize-pdf-flow"; // Flow adı güncellendi
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -77,7 +77,7 @@ export default function PdfSummarizerPage() {
       toast({ title: "PDF İşleniyor...", description: "PDF'inizden metin içeriği çıkarılıyor." });
       const text = await extractTextFromPdf(file);
       setPdfTextContent(text);
-      toast({ title: "Metin Çıkarıldı", description: "Şimdi özetiniz oluşturuluyor..." });
+      toast({ title: "Metin Çıkarıldı", description: "Şimdi konu anlatımınız oluşturuluyor..." });
 
       if (!currentProfile?.plan) {
         throw new Error("Kullanıcı planı bulunamadı.");
@@ -91,13 +91,13 @@ export default function PdfSummarizerPage() {
         outputDetail,
         userPlan: currentProfile.plan 
       };
-      const result = await summarizePdfForStudent(input);
+      const result = await summarizePdfForStudent(input); // Flow adı güncellendi
       
       if (result && result.formattedStudyOutput) { 
         setSummaryOutput(result); 
-        toast({ title: "Özet Oluşturuldu!", description: "PDF özetiniz hazır." });
+        toast({ title: "Konu Anlatımı Oluşturuldu!", description: "PDF içeriğiniz için detaylı anlatım hazır." }); // Mesaj güncellendi
         if (decrementQuota) {
-            await decrementQuota(currentProfile); // Pass currentProfile
+            await decrementQuota(currentProfile); 
         }
         const updatedProfileAgain = await memoizedCheckAndResetQuota(); 
          if (updatedProfileAgain) {
@@ -105,13 +105,13 @@ export default function PdfSummarizerPage() {
         }
 
       } else {
-        throw new Error("Yapay zeka bir özet oluşturamadı veya format hatalı.");
+        throw new Error("Yapay zeka bir anlatım oluşturamadı veya format hatalı."); // Mesaj güncellendi
       }
     } catch (error: any) {
-      console.error("Özetleme hatası:", error);
+      console.error("Detaylı anlatım oluşturma hatası:", error); // Mesaj güncellendi
       toast({
-        title: "Özetleme Hatası",
-        description: error.message || "Özet oluşturulurken beklenmedik bir hata oluştu.",
+        title: "Anlatım Oluşturma Hatası", // Mesaj güncellendi
+        description: error.message || "Anlatım oluşturulurken beklenmedik bir hata oluştu.", // Mesaj güncellendi
         variant: "destructive",
       });
       setSummaryOutput(null); 
@@ -127,44 +127,44 @@ export default function PdfSummarizerPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-20rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground">PDF Özetleyici yükleniyor...</p>
+        <p className="mt-4 text-muted-foreground">PDF Detaylı Anlatıcı yükleniyor...</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 md:space-y-8">
        <Card className="shadow-sm">
         <CardHeader>
             <div className="flex items-center gap-3">
-                <FileScan className="h-7 w-7 text-primary"/>
-                <CardTitle className="text-2xl">AI PDF Özetleyici</CardTitle>
+                <FileScan className="h-6 w-6 md:h-7 md:w-7 text-primary"/>
+                <CardTitle className="text-xl md:text-2xl">AI PDF Detaylı Konu Anlatıcısı</CardTitle>
             </div>
           <CardDescription>
-            PDF belgenizi yükleyin, özetleme seçeneklerini ayarlayın ve yapay zekanın sizin için kapsamlı bir özet oluşturmasına izin verin.
+            PDF belgenizi yükleyin, seçenekleri ayarlayın ve yapay zekanın sizin için konuyu derinlemesine anlatmasına izin verin.
           </CardDescription>
         </CardHeader>
-         <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+         <CardContent className="space-y-4 md:space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <Label htmlFor="summaryLength" className="mb-1 block">Özet Uzunluğu</Label>
+                    <Label htmlFor="summaryLength" className="mb-1 block text-sm">Anlatım Uzunluğu</Label>
                     <Select
                     value={summaryLength}
                     onValueChange={(value: SummarizePdfForStudentInput["summaryLength"]) => setSummaryLength(value)}
                     disabled={isProcessingDisabled}
                     >
                     <SelectTrigger id="summaryLength">
-                        <SelectValue placeholder="Özet uzunluğunu seçin" />
+                        <SelectValue placeholder="Uzunluk seçin" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="short">Kısa (Ana Fikir)</SelectItem>
+                        <SelectItem value="short">Kısa (Ana Hatlar)</SelectItem>
                         <SelectItem value="medium">Orta (Dengeli)</SelectItem>
                         <SelectItem value="detailed">Detaylı (Kapsamlı)</SelectItem>
                     </SelectContent>
                     </Select>
                 </div>
                  <div>
-                    <Label htmlFor="outputDetail" className="mb-1 block">Çıktı Detayı</Label>
+                    <Label htmlFor="outputDetail" className="mb-1 block text-sm">İstenen Çıktı Detayı</Label>
                     <Select
                     value={outputDetail}
                     onValueChange={(value: SummarizePdfForStudentInput["outputDetail"]) => setOutputDetail(value)}
@@ -174,7 +174,7 @@ export default function PdfSummarizerPage() {
                         <SelectValue placeholder="Çıktı detayını seçin" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="full">Tam Özet (Varsayılan)</SelectItem>
+                        <SelectItem value="full">Tam Anlatım (Varsayılan)</SelectItem>
                         <SelectItem value="key_points_only">Sadece Anahtar Noktalar</SelectItem>
                         <SelectItem value="exam_tips_only">Sadece Sınav İpuçları</SelectItem>
                         <SelectItem value="questions_only">Sadece Örnek Sorular</SelectItem>
@@ -183,9 +183,9 @@ export default function PdfSummarizerPage() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                  <div>
-                    <Label htmlFor="keywords" className="mb-1 block">Anahtar Kelimeler (isteğe bağlı)</Label>
+                    <Label htmlFor="keywords" className="mb-1 block text-sm">Anahtar Kelimeler (isteğe bağlı)</Label>
                     <Input 
                         id="keywords" 
                         placeholder="örn: fotosentez, hücre zarı, enerji"
@@ -196,7 +196,7 @@ export default function PdfSummarizerPage() {
                     <p className="text-xs text-muted-foreground mt-1">Virgülle ayırarak birden fazla anahtar kelime girebilirsiniz.</p>
                 </div>
                 <div>
-                    <Label htmlFor="pageRange" className="mb-1 block">Sayfa Aralığı (isteğe bağlı)</Label>
+                    <Label htmlFor="pageRange" className="mb-1 block text-sm">Sayfa Aralığı (isteğe bağlı)</Label>
                     <Input 
                         id="pageRange" 
                         placeholder="örn: 5-10, 12, 15-20"
@@ -215,7 +215,7 @@ export default function PdfSummarizerPage() {
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Günlük Kota Doldu</AlertTitle>
           <AlertDescription>
-            Bugünlük ücretsiz özet hakkınızı kullandınız. Daha fazlası için lütfen yarın tekrar kontrol edin veya Premium/Pro'ya yükseltin!
+            Bugünlük ücretsiz anlatım hakkınızı kullandınız. Daha fazlası için lütfen yarın tekrar kontrol edin veya Premium/Pro'ya yükseltin!
           </AlertDescription>
         </Alert>
       )}
@@ -223,11 +223,11 @@ export default function PdfSummarizerPage() {
       <PdfUploadForm onSubmit={handlePdfSubmit} isSummarizing={isSummarizing} isDisabled={isProcessingDisabled} />
 
       {isSummarizing && !summaryOutput && (
-        <Card className="mt-8 shadow-lg">
+        <Card className="mt-6 md:mt-8 shadow-lg">
           <CardContent className="p-6">
             <div className="flex flex-col items-center justify-center text-center">
               <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
-              <p className="text-lg font-medium text-foreground">Özet Oluşturuluyor...</p>
+              <p className="text-lg font-medium text-foreground">Anlatım Oluşturuluyor...</p>
               <p className="text-sm text-muted-foreground">
                 {pdfTextContent ? "Yapay zeka sihrini yapıyor..." : "PDF işleniyor..."}
               </p>
@@ -240,14 +240,16 @@ export default function PdfSummarizerPage() {
       {summaryOutput && <SummaryDisplay summaryOutput={summaryOutput} originalFileName={currentFileName} />}
 
       {!isSummarizing && !summaryOutput && (
-         <Alert className="mt-8 shadow-md">
+         <Alert className="mt-6 md:mt-8 shadow-md">
           <Terminal className="h-4 w-4" />
-          <AlertTitle>Özetlemeye Hazır!</AlertTitle>
+          <AlertTitle>Anlatıma Hazır!</AlertTitle>
           <AlertDescription>
-            Başlamak için yukarıdaki formu kullanarak bir PDF belgesi yükleyin ve seçenekleri ayarlayın. Yapay zeka tarafından oluşturulan özetiniz burada görünecektir.
+            Başlamak için yukarıdaki formu kullanarak bir PDF belgesi yükleyin ve seçenekleri ayarlayın. Yapay zeka tarafından oluşturulan detaylı anlatımınız burada görünecektir.
           </AlertDescription>
         </Alert>
       )}
     </div>
   );
 }
+
+    

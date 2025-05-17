@@ -50,7 +50,7 @@ export default function SubscriptionPage() {
       "Daha Hızlı İşleme (potansiyel)",
     ],
     pro: [
-      "Günde 50 Yapay Zeka İşlemi",
+      "Günde 25 Yapay Zeka İşlemi",
       "En Gelişmiş AI Yanıtları ve Modelleri (potansiyel)",
       "VIP Destek",
       "En Hızlı İşleme Önceliği (potansiyel)",
@@ -81,30 +81,30 @@ export default function SubscriptionPage() {
   }
 
   return (
-    <div className="space-y-8 max-w-5xl mx-auto"> 
+    <div className="space-y-6 md:space-y-8 max-w-5xl mx-auto"> 
       <Card className="shadow-lg">
         <CardHeader>
           <div className="flex items-center gap-3">
-            <Gem className="h-8 w-8 text-primary" />
-            <CardTitle className="text-3xl">Abonelik Detaylarım</CardTitle>
+            <Gem className="h-7 w-7 md:h-8 md:w-8 text-primary" />
+            <CardTitle className="text-2xl md:text-3xl">Abonelik Detaylarım</CardTitle>
           </div>
           <CardDescription>
             Mevcut plan bilgilerinizi ve kullanım haklarınızı görüntüleyin.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-4 md:space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-xl">Mevcut Planınız</CardTitle>
+              <CardTitle className="text-lg sm:text-xl">Mevcut Planınız</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-3 text-sm sm:text-base">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Plan Adı:</span>
                 <Badge 
                     variant={userProfile.plan === 'pro' ? 'default' : userProfile.plan === 'premium' ? 'secondary' : 'outline'}
                     className={
-                        userProfile.plan === 'pro' ? 'bg-purple-600 hover:bg-purple-700 text-white text-lg px-3 py-1' : 
-                        userProfile.plan === 'premium' ? 'bg-blue-500 hover:bg-blue-600 text-white text-lg px-3 py-1' : 'text-lg px-3 py-1'
+                        userProfile.plan === 'pro' ? 'bg-purple-600 hover:bg-purple-700 text-white text-base sm:text-lg px-3 py-1' : 
+                        userProfile.plan === 'premium' ? 'bg-blue-500 hover:bg-blue-600 text-white text-base sm:text-lg px-3 py-1' : 'text-base sm:text-lg px-3 py-1'
                     }
                 >
                     {planName}
@@ -146,10 +146,10 @@ export default function SubscriptionPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-xl">{planName} Plan Avantajları</CardTitle>
+              <CardTitle className="text-lg sm:text-xl">{planName} Plan Avantajları</CardTitle>
             </CardHeader>
             <CardContent>
-              <ul className="space-y-2">
+              <ul className="space-y-2 text-sm sm:text-base">
                 {planFeatures[userProfile.plan].map((feature, index) => (
                   <li key={index} className="flex items-center">
                     <CheckCircle className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" />
@@ -163,7 +163,7 @@ export default function SubscriptionPage() {
           {userProfile.plan !== "pro" && (
             <Card className="bg-gradient-to-r from-primary/10 via-purple-500/10 to-pink-500/10 border-primary/30">
               <CardHeader>
-                <CardTitle className="text-xl">
+                <CardTitle className="text-lg sm:text-xl">
                   {userProfile.plan === "free" ? "Premium veya Pro'ya Yükseltin!" : "Pro'ya Yükseltin!"}
                 </CardTitle>
                 <CardDescription>
@@ -171,7 +171,7 @@ export default function SubscriptionPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button asChild className="w-full">
+                <Button asChild className="w-full text-sm sm:text-base">
                   <Link href="/pricing">
                     Planları İncele <ExternalLink className="ml-2 h-4 w-4" />
                   </Link>
@@ -189,3 +189,5 @@ export default function SubscriptionPage() {
     </div>
   );
 }
+
+    

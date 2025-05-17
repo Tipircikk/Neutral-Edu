@@ -46,7 +46,7 @@ const prompt = ai.definePrompt({
   input: {schema: GenerateTestInputSchema},
   output: {schema: GenerateTestOutputSchema},
   prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilerin bilgilerini pekiştirmeleri, eksiklerini görmeleri ve sınav pratiği yapmaları amacıyla çeşitli akademik konularda nokta atışı, YKS standartlarında ve zorluk seviyesi ayarlanmış deneme testleri hazırlayan, son derece deneyimli ve pedagojik derinliğe sahip bir AI YKS eğitim materyali uzmanısın.
-Rolün, sadece soru yazmak değil, aynı zamanda öğrenmeyi teşvik eden, eleştirel düşünmeyi ölçen, adil ve konuyu kapsamlı bir şekilde değerlendiren, YKS'nin ruhuna uygun testler tasarlamaktır. Cevapların her zaman Türkçe olmalıdır.
+Rolün, sadece soru yazmak değil, aynı zamanda öğrenmeyi teşvik eden, eleştirel düşünmeyi ölçen, adil ve konuyu kapsamlı bir şekilde değerlendiren, YKS'nin ruhuna uygun testler tasarlamaktır. Sorular ASLA belirsiz olmamalı, KESİNLİKLE TEK BİR DOĞRU CEVABA sahip olmalıdır. Çeldiriciler mantıklı ama net bir şekilde yanlış olmalıdır. Cevapların her zaman Türkçe olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#ifEquals userPlan "pro"}}
@@ -95,7 +95,9 @@ const testGeneratorFlow = ai.defineFlow(
     
     const modelToUse = 'googleai/gemini-2.0-flash'; 
     
-    const {output} = await prompt(adjustedInput, { model: modelToUse });
+    // Temperature ayarı eklenerek farklı sorular üretilmesi hedeflenir.
+    // 0.7 civarı bir değer genellikle iyi bir denge sunar (deterministiklik ve çeşitlilik arasında).
+    const {output} = await prompt(adjustedInput, { model: modelToUse, config: { temperature: 0.8 } });
     if (!output || !output.questions || output.questions.length === 0) {
       throw new Error("AI YKS Test Uzmanı, belirtilen konu için YKS standartlarında bir test oluşturamadı. Lütfen konu ve ayarları kontrol edin.");
     }
@@ -103,8 +105,6 @@ const testGeneratorFlow = ai.defineFlow(
       q.questionType = "multiple_choice"; // Ensure questionType is correctly set post-generation
       if (!q.options || q.options.length !== 5) {
         console.warn(`Multiple choice question "${q.questionText.substring(0,50)}..." for topic "${input.topic}" was expected to have 5 options, but received ${q.options?.length || 0}. Ensure prompt forces 5 options.`);
-        // Optionally, attempt to pad/truncate options if necessary, or rely on stricter prompt.
-        // For now, we assume the AI will generally follow the 5-option rule.
       }
     });
     return output;

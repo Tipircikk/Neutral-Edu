@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input as ShadInput } from "@/components/ui/input"; 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { FileTextIcon, Wand2, Loader2, AlertTriangle, ChevronLeft, ChevronRight, CheckCircle, XCircle, Eye } from "lucide-react";
+import { FileTextIcon, Wand2, Loader2, AlertTriangle, ChevronLeft, ChevronRight, CheckCircle, XCircle, Eye, RotateCcw, History } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect, useCallback } from "react";
@@ -16,6 +16,7 @@ import { useUser } from "@/hooks/useUser";
 import { generateTest, type GenerateTestOutput, type GenerateTestInput, type QuestionSchema as QuestionType } from "@/ai/flows/test-generator-flow"; 
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 type CheckedAnswersState = {
   [key: number]: {
@@ -39,12 +40,15 @@ export default function TestGeneratorPage() {
   const [userAnswers, setUserAnswers] = useState<{[key: number]: string}>({});
   const [checkedAnswers, setCheckedAnswers] = useState<CheckedAnswersState>({});
   const [showExplanations, setShowExplanations] = useState<{[key: number]: boolean}>({});
+  const [isTestFinished, setIsTestFinished] = useState(false);
+
 
   const memoizedCheckAndResetQuota = useCallback(async () => {
-    if (!userProfile && !authLoading) return null; // Add guard for no userProfile
+    // Ensure userProfile is accessed correctly after authLoading check
+    if (!authLoading && !userProfile) return null; 
     if (checkAndResetQuota) return checkAndResetQuota();
     return Promise.resolve(userProfile);
-  }, [checkAndResetQuota, userProfile]);
+  }, [checkAndResetQuota, userProfile, userProfileLoading]); // Added userProfileLoading to dependencies
   
   const { loading: authLoading } = useUser();
 
@@ -63,6 +67,11 @@ export default function TestGeneratorPage() {
     setCheckedAnswers({});
     setShowExplanations({});
     setTestOutput(null);
+    setIsTestFinished(false);
+    // Optionally, clear form fields if desired
+    // setTopic("");
+    // setNumQuestions(5);
+    // setDifficulty("medium");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -75,7 +84,6 @@ export default function TestGeneratorPage() {
       toast({ title: "Geçersiz Soru Sayısı", description: "Soru sayısı 3 ile 20 arasında olmalıdır.", variant: "destructive" });
       return;
     }
-
 
     setIsGenerating(true);
     resetTestState(); 
@@ -142,15 +150,27 @@ export default function TestGeneratorPage() {
             correctAnswer: currentQuestion.correctAnswer
         }
     }));
+    // Automatically show explanation after checking if the answer is wrong
+    if (!isCorrect) {
+        setShowExplanations(prev => ({...prev, [currentQuestionIndex]: true}));
+    }
+  };
+  
+  const handleToggleExplanation = (index: number) => {
+    setShowExplanations(prev => ({...prev, [index]: !prev[index]}));
   };
 
-  const handleShowExplanation = () => {
-    setShowExplanations(prev => ({...prev, [currentQuestionIndex]: !prev[currentQuestionIndex]}));
+  const handleNextQuestion = () => {
+    if (testOutput && currentQuestionIndex < testOutput.questions.length - 1) {
+        setCurrentQuestionIndex(prev => prev + 1);
+    } else {
+        setIsTestFinished(true);
+    }
   };
 
   const currentQuestion: QuestionType | undefined = testOutput?.questions[currentQuestionIndex];
-  const isAnswerChecked = checkedAnswers[currentQuestionIndex] !== undefined;
-  const isExplanationShown = showExplanations[currentQuestionIndex] === true;
+  const isAnswerCheckedForCurrentQuestion = checkedAnswers[currentQuestionIndex] !== undefined;
+  const isExplanationShownForCurrentQuestion = showExplanations[currentQuestionIndex] === true;
   
   const isSubmitDisabled = isGenerating || !topic.trim() || (numQuestions < 3 || numQuestions > 20) || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
 
@@ -162,6 +182,80 @@ export default function TestGeneratorPage() {
       </div>
     );
   }
+
+  if (isGenerating && !testOutput) {
+    return (
+        <Card className="mt-6 shadow-lg">
+            <CardContent className="p-6">
+            <div className="flex flex-col items-center justify-center text-center">
+                <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
+                <p className="text-lg font-medium text-foreground">Test Oluşturuluyor...</p>
+                <p className="text-sm text-muted-foreground">
+                YKS odaklı yapay zeka, sorularınızı hazırlıyor... Bu işlem biraz zaman alabilir.
+                </p>
+            </div>
+            </CardContent>
+        </Card>
+    );
+  }
+  
+  if (isTestFinished && testOutput) {
+    let correctCount = 0;
+    testOutput.questions.forEach((_, index) => {
+        if (checkedAnswers[index]?.isCorrect) {
+            correctCount++;
+        }
+    });
+    const scorePercentage = (correctCount / testOutput.questions.length) * 100;
+
+    return (
+        <Card className="mt-6">
+            <CardHeader className="text-center">
+                <CardTitle className="text-2xl md:text-3xl">{testOutput.testTitle} - Sonuçlar</CardTitle>
+                <CardDescription>
+                    Toplam {testOutput.questions.length} sorudan {correctCount} tanesini doğru cevapladınız. (%{scorePercentage.toFixed(0)})
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                <Accordion type="multiple" className="w-full">
+                    {testOutput.questions.map((q, index) => {
+                        const userAnswer = userAnswers[index];
+                        const checkedInfo = checkedAnswers[index] || {isCorrect: userAnswer === q.correctAnswer, selectedOption: userAnswer, correctAnswer: q.correctAnswer};
+                        return (
+                            <AccordionItem value={`item-${index}`} key={`review-${index}`}>
+                                <AccordionTrigger className={`text-left ${checkedInfo.isCorrect ? 'text-green-600' : 'text-red-600'} hover:no-underline`}>
+                                    <div className="flex items-center gap-2">
+                                        {checkedInfo.isCorrect ? <CheckCircle className="h-5 w-5"/> : <XCircle className="h-5 w-5"/>}
+                                        <span>Soru {index + 1}: {q.questionText.substring(0, 50)}...</span>
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="space-y-3 p-4 bg-muted/30 rounded-b-md">
+                                    <p className="font-semibold whitespace-pre-line">{q.questionText}</p>
+                                    <p className="text-sm">Verdiğiniz Cevap: <span className={`font-semibold ${checkedInfo.selectedOption === checkedInfo.correctAnswer ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>{userAnswers[index] || "Cevaplanmadı"}</span></p>
+                                    <p className="text-sm">Doğru Cevap: <span className="font-semibold text-green-700 dark:text-green-400">{q.correctAnswer}</span></p>
+                                    {q.explanation && (
+                                        <div className="prose prose-sm dark:prose-invert max-w-none mt-2 border-t pt-2">
+                                            <h4 className="font-semibold">Açıklama:</h4>
+                                            <p className="whitespace-pre-line text-muted-foreground">{q.explanation}</p>
+                                        </div>
+                                    )}
+                                </AccordionContent>
+                            </AccordionItem>
+                        );
+                    })}
+                </Accordion>
+                <Button onClick={resetTestState} className="w-full mt-6">
+                    <RotateCcw className="mr-2 h-4 w-4" /> Yeni Test Oluştur
+                </Button>
+                 <div className="mt-4 p-3 text-xs text-destructive-foreground bg-destructive/80 rounded-md flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span>NeutralEdu AI bir yapay zekadır bu nedenle hata yapabilir, bu yüzden verdiği bilgileri doğrulayınız.</span>
+                </div>
+            </CardContent>
+        </Card>
+    );
+  }
+
 
   return (
     <div className="space-y-6">
@@ -247,28 +341,19 @@ export default function TestGeneratorPage() {
         </form>
       )}
       
-      {isGenerating && !testOutput && (
-        <Card className="mt-6 shadow-lg">
-          <CardContent className="p-6">
-            <div className="flex flex-col items-center justify-center text-center">
-              <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
-              <p className="text-lg font-medium text-foreground">Test Oluşturuluyor...</p>
-              <p className="text-sm text-muted-foreground">
-                YKS odaklı yapay zeka, sorularınızı hazırlıyor... Bu işlem biraz zaman alabilir.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {testOutput && currentQuestion && (
+      {testOutput && currentQuestion && !isTestFinished && (
         <Card className="mt-6">
           <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-            <CardTitle className="mb-2 sm:mb-0">{testOutput.testTitle} - Soru {currentQuestionIndex + 1} / {testOutput.questions.length}</CardTitle>
-            <Button onClick={resetTestState} variant="outline" size="sm">Yeni Test Oluştur</Button>
+            <div className="mb-2 sm:mb-0">
+                <CardTitle className="text-lg md:text-xl">{testOutput.testTitle}</CardTitle>
+                <CardDescription>Soru {currentQuestionIndex + 1} / {testOutput.questions.length}</CardDescription>
+            </div>
+            <Button onClick={resetTestState} variant="outline" size="sm">
+                <RotateCcw className="mr-2 h-4 w-4" /> Yeni Test Oluştur
+            </Button>
           </CardHeader>
           <CardContent className="space-y-4">
-            <ScrollArea className="h-[200px] w-full rounded-md border p-4 bg-muted/30">
+            <ScrollArea className="h-auto max-h-[200px] w-full rounded-md border p-4 bg-muted/30">
                 <p className="font-semibold text-foreground whitespace-pre-line">{currentQuestion.questionText}</p>
             </ScrollArea>
             
@@ -276,7 +361,7 @@ export default function TestGeneratorPage() {
                 <RadioGroup 
                     onValueChange={handleOptionChange} 
                     value={userAnswers[currentQuestionIndex]}
-                    disabled={isAnswerChecked}
+                    disabled={isAnswerCheckedForCurrentQuestion}
                     className="space-y-2"
                 >
                 {currentQuestion.options.map((option, index) => {
@@ -299,12 +384,12 @@ export default function TestGeneratorPage() {
                         <Label 
                             key={optionLetter} 
                             htmlFor={`q${currentQuestionIndex}-opt${optionLetter}`}
-                            className={`flex items-center space-x-3 p-3 rounded-md border-2 ${optionStyle} hover:bg-accent/50 transition-all ${isAnswerChecked ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}
+                            className={`flex items-center space-x-3 p-3 rounded-md border-2 ${optionStyle} hover:bg-accent/50 transition-all ${isAnswerCheckedForCurrentQuestion ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}
                         >
                             <RadioGroupItem 
                                 value={optionLetter} 
                                 id={`q${currentQuestionIndex}-opt${optionLetter}`} 
-                                disabled={isAnswerChecked}
+                                disabled={isAnswerCheckedForCurrentQuestion}
                             />
                             <span className="flex-1">{optionLetter}) {option}</span>
                             {IconComponent && <span className="ml-auto">{IconComponent}</span>}
@@ -315,19 +400,19 @@ export default function TestGeneratorPage() {
             )}
 
             <div className="flex flex-col sm:flex-row gap-2 mt-4">
-                {!isAnswerChecked && (
+                {!isAnswerCheckedForCurrentQuestion && (
                     <Button onClick={handleCheckAnswer} disabled={userAnswers[currentQuestionIndex] === undefined || isGenerating} className="flex-1">
                         Kontrol Et
                     </Button>
                 )}
-                {isAnswerChecked && (
-                    <Button onClick={handleShowExplanation} variant="outline" className="flex-1">
-                        <Eye className="mr-2 h-4 w-4" /> {isExplanationShown ? "Çözümü Gizle" : "Çözümü Gör"}
+                {isAnswerCheckedForCurrentQuestion && (
+                    <Button onClick={() => handleToggleExplanation(currentQuestionIndex)} variant="outline" className="flex-1">
+                        <Eye className="mr-2 h-4 w-4" /> {isExplanationShownForCurrentQuestion ? "Çözümü Gizle" : "Çözümü Gör"}
                     </Button>
                 )}
             </div>
 
-            {isAnswerChecked && checkedAnswers[currentQuestionIndex] && (
+            {isAnswerCheckedForCurrentQuestion && checkedAnswers[currentQuestionIndex] && (
                  <Alert variant={checkedAnswers[currentQuestionIndex].isCorrect ? "default" : "destructive"} className={`mt-4 ${checkedAnswers[currentQuestionIndex].isCorrect ? "bg-green-500/10 border-green-500 text-green-700 dark:text-green-400" : ""}`}>
                     {checkedAnswers[currentQuestionIndex].isCorrect ? <CheckCircle className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
                     <AlertTitle>{checkedAnswers[currentQuestionIndex].isCorrect ? "Doğru!" : "Yanlış!"}</AlertTitle>
@@ -337,11 +422,11 @@ export default function TestGeneratorPage() {
                 </Alert>
             )}
 
-            {isExplanationShown && currentQuestion.explanation && (
+            {isExplanationShownForCurrentQuestion && currentQuestion.explanation && (
               <Card className="bg-accent/30 p-4 mt-4">
                 <CardHeader className="p-0 mb-2"><CardTitle className="text-md">Açıklama</CardTitle></CardHeader>
                 <CardContent className="p-0">
-                    <ScrollArea className="h-[200px] w-full">
+                    <ScrollArea className="h-auto max-h-[200px] w-full">
                         <p className="text-sm text-muted-foreground whitespace-pre-line">{currentQuestion.explanation}</p>
                     </ScrollArea>
                 </CardContent>
@@ -350,21 +435,24 @@ export default function TestGeneratorPage() {
             
             <Separator className="my-6"/>
 
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-4">
               <Button 
                 onClick={() => setCurrentQuestionIndex(prev => Math.max(0, prev - 1))}
                 disabled={currentQuestionIndex === 0 || isGenerating}
                 variant="outline"
+                className="w-full sm:w-auto"
               >
                 <ChevronLeft className="mr-2 h-4 w-4" /> Önceki Soru
               </Button>
               
               <Button 
-                onClick={() => setCurrentQuestionIndex(prev => Math.min(testOutput.questions.length - 1, prev + 1))}
-                disabled={currentQuestionIndex === testOutput.questions.length - 1 || isGenerating}
-                variant="outline"
+                onClick={handleNextQuestion}
+                disabled={isGenerating}
+                className="w-full sm:w-auto"
               >
-                Sonraki Soru <ChevronRight className="ml-2 h-4 w-4" />
+                {currentQuestionIndex === testOutput.questions.length - 1 ? "Testi Bitir ve Sonucu Gör" : "Sonraki Soru"}
+                {currentQuestionIndex !== testOutput.questions.length - 1 && <ChevronRight className="ml-2 h-4 w-4" />}
+                 {currentQuestionIndex === testOutput.questions.length - 1 && <History className="ml-2 h-4 w-4" />}
               </Button>
             </div>
 
