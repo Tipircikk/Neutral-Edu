@@ -16,7 +16,7 @@ const SolveQuestionInputSchema = z.object({
   questionText: z.string().optional().describe('Öğrencinin çözülmesini istediği, YKS kapsamındaki soru metni.'),
   imageDataUri: z.string().optional().describe("Soruyla ilgili bir görselin data URI'si (Base64 formatında). 'data:<mimetype>;base64,<encoded_data>' formatında olmalıdır. Görsel, soru metni yerine veya ona ek olarak sunulabilir."),
   userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
-  customModelIdentifier: z.string().optional().describe("Adminler için özel Google model seçimi (örn: 'default_gemini_flash', 'experimental_gemini_1.5_flash').")
+  customModelIdentifier: z.string().optional().describe("Adminler için özel Google model seçimi (örn: 'default_gemini_flash', 'experimental_gemini_2_5_flash_preview').")
 });
 export type SolveQuestionInput = z.infer<typeof SolveQuestionInputSchema>;
 
@@ -111,21 +111,21 @@ const questionSolverFlow = ai.defineFlow(
         };
       }
       
-      let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Varsayılan olarak yeni Flash modeli
+      let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Genel varsayılan model
 
       if (input.customModelIdentifier) {
         if (input.customModelIdentifier === 'default_gemini_flash') {
-          modelToUse = 'googleai/gemini-2.0-flash'; // Admin eski Flash modelini seçti
+          modelToUse = 'googleai/gemini-2.0-flash'; 
           console.log("[QuestionSolver] Admin selected default Google model: gemini-2.0-flash");
-        } else if (input.customModelIdentifier === 'experimental_gemini_1.5_flash') {
-          modelToUse = 'googleai/gemini-1.5-flash-latest'; // Admin yeni Flash modelini seçti
-          console.log("[QuestionSolver] Admin selected experimental Google model: gemini-1.5-flash-latest");
+        } else if (input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview') {
+          modelToUse = 'googleai/gemini-2.5-flash-preview-04-17'; 
+          console.log("[QuestionSolver] Admin selected experimental Google model: gemini-2.5-flash-preview-04-17");
         }
       } else if (input.userPlan === 'pro') {
-        // Pro kullanıcılar için varsayılan olarak en iyi flash modeli
+        // Pro kullanıcılar için varsayılan olarak en iyi flash modeli (genel varsayılanla aynı olabilir)
         modelToUse = 'googleai/gemini-1.5-flash-latest'; 
       }
-      // Ücretsiz ve premium kullanıcılar için de (admin özel bir model seçmediyse) varsayılan gemini-1.5-flash-latest olacak
+      // Ücretsiz ve premium kullanıcılar için de (admin özel bir model seçmediyse) genel varsayılan gemini-1.5-flash-latest olacak
       
       try {
         console.log(`[QuestionSolver] Using Google model: ${modelToUse} for user plan: ${input.userPlan}`);
@@ -133,7 +133,7 @@ const questionSolverFlow = ai.defineFlow(
         if (!output || !output.solution) {
           console.error("[QuestionSolver] AI (Google model) did not produce a valid solution matching the schema. Input:", input, "Output:", output);
           return {
-              solution: "AI YKS Uzmanı, bu soru için bir çözüm ve detaylı açıklama üretemedi. Lütfen girdilerinizi kontrol edin veya farklı bir soru deneyin. Eğer sorun devam ederse, AI modelinin yanıtı şemaya uymamış olabilir.",
+              solution: `AI YKS Uzmanı (${modelToUse}), bu soru için bir çözüm ve detaylı açıklama üretemedi. Lütfen girdilerinizi kontrol edin veya farklı bir soru deneyin. Eğer sorun devam ederse, AI modelinin yanıtı şemaya uymamış olabilir.`,
               relatedConcepts: [],
               examStrategyTips: [],
           };
@@ -141,12 +141,11 @@ const questionSolverFlow = ai.defineFlow(
         console.log("[QuestionSolver] Successfully received solution from Google model.");
         return output;
       } catch (genkitError: any) {
-          console.error("[QuestionSolver] Genkit prompt call failed (Google Model):", genkitError);
-          let errorMessage = "Google AI modeliyle çözüm üretilirken bir hata oluştu.";
+          console.error(`[QuestionSolver] Genkit prompt call failed (Google Model: ${modelToUse}):`, genkitError);
+          let errorMessage = `Google AI modeliyle (${modelToUse}) çözüm üretilirken bir hata oluştu.`;
           if (genkitError.message) {
               errorMessage += ` Detay: ${genkitError.message}`;
           }
-          // Genkit'in fırlattığı hatayı doğrudan döndürmek yerine, şemaya uygun bir nesne döndür.
           return {
               solution: errorMessage,
               relatedConcepts: ["Genkit Hatası"],

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { HelpCircle, Send, Loader2, AlertTriangle, UploadCloud, Image as ImageIcon, Wand2 } from "lucide-react";
+import { HelpCircle, Send, Loader2, AlertTriangle, UploadCloud, ImageIcon, Wand2 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
@@ -25,7 +25,7 @@ export default function QuestionSolverPage() {
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
   const [canProcess, setCanProcess] = useState(false);
-  const [adminSelectedModel, setAdminSelectedModel] = useState<string>("experimental_gemini_1.5_flash"); // Varsayılan olarak en iyi Google modelini seçelim
+  const [adminSelectedModel, setAdminSelectedModel] = useState<string>("experimental_gemini_2_5_flash_preview"); // Default to new experimental
 
   const memoizedCheckAndResetQuota = useCallback(async () => {
     if (checkAndResetQuota) return checkAndResetQuota();
@@ -104,7 +104,7 @@ export default function QuestionSolverPage() {
           setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
         }
       } else {
-        throw new Error("Yapay zeka bir çözüm üretemedi veya format hatalı.");
+        throw new Error(result?.solution || "Yapay zeka bir çözüm üretemedi veya format hatalı.");
       }
     } catch (error: any) {
       console.error("Soru çözme hatası:", error);
@@ -113,6 +113,7 @@ export default function QuestionSolverPage() {
         description: error.message || "Soru çözülürken beklenmedik bir hata oluştu.",
         variant: "destructive",
       });
+      setAnswer({ solution: error.message || "Beklenmedik bir hata oluştu." });
     } finally {
       setIsSolving(false);
     }
@@ -164,7 +165,7 @@ export default function QuestionSolverPage() {
                     <SelectValue placeholder="Model seçin" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="experimental_gemini_1.5_flash">Varsayılan (Gemini 1.5 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
                     <SelectItem value="default_gemini_flash">Eski Model (Gemini 2.0 Flash)</SelectItem>
                   </SelectContent>
                 </Select>
@@ -267,5 +268,3 @@ export default function QuestionSolverPage() {
     </div>
   );
 }
-
-    
