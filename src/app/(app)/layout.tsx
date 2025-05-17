@@ -65,15 +65,22 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     ];
     if (aiToolPaths.some(path => pathname.startsWith(path))) {
       setIsAiToolsSubmenuOpen(true);
+    } else {
+      // Optional: close submenu if navigating away from its children
+      // setIsAiToolsSubmenuOpen(false);
     }
 
     const helperToolPaths = [
       "/dashboard/tools/pomodoro",
       "/dashboard/tools/countdown",
       "/dashboard/tools/goal-tracker",
+      // "/dashboard/tools/whiteboard", // Karalama tahtası kaldırılmıştı
     ];
     if (helperToolPaths.some(path => pathname.startsWith(path))) {
       setIsHelperToolsSubmenuOpen(true);
+    } else {
+      // Optional: close submenu if navigating away from its children
+      // setIsHelperToolsSubmenuOpen(false);
     }
 
   }, [pathname]);
@@ -151,7 +158,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={pathname === "/dashboard"} tooltip="Ana Sayfa"
-                    className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary"
+                    className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
                   >
                     <Link href="/dashboard"><Home /><span>Ana Sayfa</span></Link>
                   </SidebarMenuButton>
@@ -159,7 +166,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    className="justify-between hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary"
+                    className="justify-between hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
                     isActive={isAiToolsPathActive}
                     onClick={() => setIsAiToolsSubmenuOpen(!isAiToolsSubmenuOpen)}
                     data-state={isAiToolsSubmenuOpen ? "open" : "closed"}
@@ -171,42 +178,42 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                   {isAiToolsSubmenuOpen && (
                     <SidebarMenuSub>
                       <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/pdf-summarizer"} className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
-                          <Link href="/dashboard/ai-tools/pdf-summarizer"><FileScan /><span>AI PDF Özetleyici</span></Link>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/pdf-summarizer"} className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
+                          <Link href="/dashboard/ai-tools/pdf-summarizer"><FileScan /><span>AI PDF Anlatıcısı</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/topic-summarizer"} className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/topic-summarizer"} className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
                           <Link href="/dashboard/ai-tools/topic-summarizer"><Lightbulb /><span>AI Konu Özetleyici</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                        <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/topic-explainer"} className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/topic-explainer"} className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
                           <Link href="/dashboard/ai-tools/topic-explainer"><Presentation /><span>AI Konu Anlatımı</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/flashcard-generator"} className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/flashcard-generator"} className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
                           <Link href="/dashboard/ai-tools/flashcard-generator"><LayoutGrid /><span>AI Bilgi Kartları</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/question-solver"} className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
+                       <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/question-solver"} className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
                           <Link href="/dashboard/ai-tools/question-solver"><HelpCircle /><span>AI Soru Çözücü</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/test-generator"} className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/test-generator"} className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
                           <Link href="/dashboard/ai-tools/test-generator"><FileTextIcon /><span>AI Test Oluşturucu</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                        <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/exam-report-analyzer"} className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/exam-report-analyzer"} className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
                           <Link href="/dashboard/ai-tools/exam-report-analyzer"><ClipboardCheck /><span>AI Sınav Analizcisi</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/study-plan-generator"} className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/study-plan-generator"} className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
                           <Link href="/dashboard/ai-tools/study-plan-generator"><CalendarDays /><span>AI Çalışma Planı</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
@@ -216,7 +223,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    className="justify-between hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary"
+                    className="justify-between hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
                     isActive={isHelperToolsPathActive}
                     onClick={() => setIsHelperToolsSubmenuOpen(!isHelperToolsSubmenuOpen)}
                     data-state={isHelperToolsSubmenuOpen ? "open" : "closed"}
@@ -228,17 +235,17 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                   {isHelperToolsSubmenuOpen && (
                     <SidebarMenuSub>
                       <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/tools/pomodoro"} className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/tools/pomodoro"} className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
                           <Link href="/dashboard/tools/pomodoro"><Timer /><span>Pomodoro Zamanlayıcı</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                        <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/tools/countdown"} className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/tools/countdown"} className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
                           <Link href="/dashboard/tools/countdown"><CalendarClock /><span>YKS Geri Sayım</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/tools/goal-tracker"} className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/tools/goal-tracker"} className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
                           <Link href="/dashboard/tools/goal-tracker"><ListChecks /><span>Hedef Takipçisi</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
@@ -247,20 +254,20 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 </SidebarMenuItem>
 
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isSubscriptionPath} tooltip="Aboneliğim" className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
+                  <SidebarMenuButton asChild isActive={isSubscriptionPath} tooltip="Aboneliğim" className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
                     <Link href="/dashboard/subscription"><CreditCard /><span>Aboneliğim</span></Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isSupportPath} tooltip="Destek Talebi" className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
+                  <SidebarMenuButton asChild isActive={isSupportPath} tooltip="Destek Talebi" className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
                     <Link href="/dashboard/support"><LifeBuoy /><span>Destek Talebi</span></Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
 
                 {userProfile?.isAdmin && (
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={isAdminPath} tooltip="Admin Paneli" className="hover:bg-primary/10 data-[active=true]:bg-primary/20 data-[active=true]:text-primary">
+                    <SidebarMenuButton asChild isActive={isAdminPath} tooltip="Admin Paneli" className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
                       <Link href="/dashboard/admin"><ShieldCheck /><span>Admin Paneli</span></Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -268,23 +275,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               </SidebarMenu>
             </SidebarContent>
             <SidebarFooter className="p-2 mt-auto space-y-2">
-               <Card className="bg-primary/10 border-primary/30 shadow-md group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:border-none">
-                <CardContent className="p-3 group-data-[collapsible=icon]:p-0">
-                    <div className="flex flex-col items-center text-center group-data-[collapsible=icon]:hidden">
-                        <HelpCircle className="h-7 w-7 text-primary mb-1.5" />
-                        <p className="text-sm font-semibold text-foreground">AI Soru Çözücü</p>
-                        <p className="text-xs text-muted-foreground mb-2.5 px-1">Çözemediğin soruyu gönder, çözüm cebine gelsin!</p>
-                        <Button size="sm" className="w-full bg-primary/80 hover:bg-primary text-primary-foreground text-xs" asChild>
-                            <Link href="/dashboard/ai-tools/question-solver">Hemen Dene</Link>
-                        </Button>
-                    </div>
-                    <div className="hidden group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center ">
-                       <SidebarMenuButton asChild tooltip="AI Soru Çözücü" className="bg-primary/20 hover:bg-primary/30 text-primary">
-                          <Link href="/dashboard/ai-tools/question-solver"><HelpCircle/></Link>
-                       </SidebarMenuButton>
-                    </div>
-                </CardContent>
-               </Card>
+               {/* AI Soru Çözücü kartı kaldırıldı */}
 
                {(userProfile?.plan !== 'premium' && userProfile?.plan !== 'pro') && (
                 <Card className="bg-gradient-to-br from-primary/20 to-accent/20 border-primary/50 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:border-none">

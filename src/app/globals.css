@@ -84,8 +84,8 @@
     --sidebar-foreground: 0 0% 85%; /* Text color for sidebar items */
     --sidebar-primary: 271 76% 60%; /* Icon and active text color in sidebar */
     --sidebar-primary-foreground: 0 0% 98%; /* Text on primary-accented sidebar items */
-    --sidebar-accent: 0 0% 15%; /* Background for active/hovered sidebar items - Doping Hafıza active orange-ish, we'll use a lighter dark */
-    --sidebar-accent-foreground: 0 0% 95%; /* Text color for active/hovered sidebar items */
+    --sidebar-accent: 0 0% 18%; /* Background for active/hovered sidebar items - Doping Hafıza active orange-ish, we'll use a lighter dark */
+    --sidebar-accent-foreground: hsl(var(--sidebar-primary)); /* Text color for active/hovered sidebar items - updated to use sidebar primary */
     --sidebar-border: 0 0% 18%; /* Border color for sidebar elements */
     --sidebar-ring: 271 76% 65%; /* Focus ring for sidebar items */
   }

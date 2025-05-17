@@ -5,15 +5,15 @@ import { useUser } from "@/hooks/useUser";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Wand2, FileScan, HelpCircle, ArrowRight, Gem, Brain } from "lucide-react";
+import { Wand2, Presentation, FileTextIcon, ArrowRight, Gem, Brain } from "lucide-react";
 
 export default function DashboardHomePage() {
   const { userProfile } = useUser();
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto"> {/* Increased max-width */}
+    <div className="space-y-8 max-w-5xl mx-auto">
       <div>
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
           Hoş Geldin, {userProfile?.displayName || userProfile?.email?.split('@')[0] || "Kullanıcı"}!
         </h1>
         <p className="text-lg text-muted-foreground mt-2">
@@ -27,34 +27,34 @@ export default function DashboardHomePage() {
           <CardDescription>En çok kullanılan yapay zeka araçlarımızla hemen çalışmaya başla.</CardDescription>
         </CardHeader>
         <CardContent className="grid md:grid-cols-2 gap-4 md:gap-6">
-          <Link href="/dashboard/ai-tools/pdf-summarizer" className="block group">
+          <Link href="/dashboard/ai-tools/topic-explainer" className="block group">
             <Card className="bg-background hover:shadow-primary/20 transition-shadow duration-300 h-full border-border hover:border-primary/50">
               <CardHeader>
-                <FileScan className="h-8 w-8 md:h-10 md:w-10 text-primary mb-3" />
-                <CardTitle className="text-lg sm:text-xl text-foreground">AI PDF Özetleyici</CardTitle>
+                <Presentation className="h-8 w-8 md:h-10 md:w-10 text-primary mb-3" />
+                <CardTitle className="text-lg sm:text-xl text-foreground">AI Konu Anlatımı</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground text-sm">Uzun PDF'lerini saniyeler içinde anlaşılır özetlere dönüştür.</p>
+                <p className="text-muted-foreground text-sm">Belirlediğin YKS konusunu yapay zekadan detaylıca öğren.</p>
               </CardContent>
               <CardFooter>
                 <Button variant="ghost" size="sm" className="text-primary group-hover:underline text-sm sm:text-base">
-                  Özetle <ArrowRight className="ml-2 h-4 w-4" />
+                  Konu Anlatımı Al <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </CardFooter>
             </Card>
           </Link>
-          <Link href="/dashboard/ai-tools/question-solver" className="block group">
+          <Link href="/dashboard/ai-tools/test-generator" className="block group">
             <Card className="bg-background hover:shadow-primary/20 transition-shadow duration-300 h-full border-border hover:border-primary/50">
               <CardHeader>
-                <HelpCircle className="h-8 w-8 md:h-10 md:w-10 text-primary mb-3" />
-                <CardTitle className="text-lg sm:text-xl text-foreground">AI Soru Çözücü</CardTitle>
+                <FileTextIcon className="h-8 w-8 md:h-10 md:w-10 text-primary mb-3" />
+                <CardTitle className="text-lg sm:text-xl text-foreground">AI Test Oluşturucu</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground text-sm">Zorlandığın soruları yapay zekaya sor, adım adım çözümler al.</p>
+                <p className="text-muted-foreground text-sm">İstediğin YKS konusundan pratik testler oluştur, kendini sına.</p>
               </CardContent>
               <CardFooter>
                 <Button variant="ghost" size="sm" className="text-primary group-hover:underline text-sm sm:text-base">
-                  Soru Sor <ArrowRight className="ml-2 h-4 w-4" />
+                  Test Oluştur <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </CardFooter>
             </Card>
@@ -72,7 +72,7 @@ export default function DashboardHomePage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-muted-foreground text-sm sm:text-base">
-            NeutralEdu AI, öğrencilerin akademik hayatlarını kolaylaştırmak için tasarlandı. PDF özetlemeden, karmaşık soruları çözmeye, kişiye özel testler oluşturmaya kadar birçok yapay zeka destekli aracı tek bir platformda sunuyoruz.
+            NeutralEdu AI, öğrencilerin akademik hayatlarını kolaylaştırmak için tasarlandı. PDF içeriklerinden detaylı konu anlatımları, kişiye özel testler, sınav raporu analizleri ve daha birçok yapay zeka destekli aracı tek bir platformda sunuyoruz.
           </p>
           <Button asChild size="sm" className="sm:text-base text-primary-foreground bg-primary hover:bg-primary/90">
             <Link href="/dashboard/ai-tools">
