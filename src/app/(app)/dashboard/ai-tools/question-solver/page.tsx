@@ -14,6 +14,7 @@ import { solveQuestion, type SolveQuestionOutput, type SolveQuestionInput } from
 import NextImage from "next/image";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function QuestionSolverPage() {
   const [questionText, setQuestionText] = useState("");
@@ -24,7 +25,7 @@ export default function QuestionSolverPage() {
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
   const [canProcess, setCanProcess] = useState(false);
-  const [adminSelectedModel, setAdminSelectedModel] = useState<string>("default_gemini_flash");
+  const [adminSelectedModel, setAdminSelectedModel] = useState<string>("experimental_gemini_1.5_flash"); // Varsayılan olarak en iyi Google modelini seçelim
 
   const memoizedCheckAndResetQuota = useCallback(async () => {
     if (checkAndResetQuota) return checkAndResetQuota();
@@ -88,7 +89,7 @@ export default function QuestionSolverPage() {
         questionText: questionText.trim() || undefined, 
         imageDataUri: imageDataUri || undefined,
         userPlan: currentProfile.plan,
-        customModelIdentifier: userProfile?.isAdmin && adminSelectedModel !== "default_gemini_flash" ? adminSelectedModel : undefined,
+        customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
       };
       const result = await solveQuestion(input);
 
@@ -103,7 +104,7 @@ export default function QuestionSolverPage() {
           setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
         }
       } else {
-        throw new Error("Yapay zeka bir çözüm üretemedi.");
+        throw new Error("Yapay zeka bir çözüm üretemedi veya format hatalı.");
       }
     } catch (error: any) {
       console.error("Soru çözme hatası:", error);
@@ -163,15 +164,12 @@ export default function QuestionSolverPage() {
                     <SelectValue placeholder="Model seçin" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
-                    <SelectItem value="experimental_gemini_1.5_flash">Deneysel Model (Gemini 1.5 Flash)</SelectItem>
-                    <SelectItem value="openrouter_deepseek_r1">
-                      OpenRouter: Deepseek R1 (Beta)
-                    </SelectItem>
+                    <SelectItem value="experimental_gemini_1.5_flash">Varsayılan (Gemini 1.5 Flash)</SelectItem>
+                    <SelectItem value="default_gemini_flash">Eski Model (Gemini 2.0 Flash)</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  Bu seçenek sadece adminlere özeldir. OpenRouter kullanmak için `.env.local` dosyanızda `OPENROUTER_API_KEY` ve flow dosyasında site bilgileri ayarlanmalıdır.
+                  Bu seçenek sadece adminlere özeldir. Farklı Google modellerini test edebilirsiniz.
                 </p>
               </div>
             )}
@@ -233,30 +231,32 @@ export default function QuestionSolverPage() {
             <CardTitle>Yapay Zeka Çözümü</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-line">
-              <h3 className="font-semibold text-foreground">Çözüm:</h3>
-              <p>{answer.solution}</p>
-              {answer.relatedConcepts && answer.relatedConcepts.length > 0 && (
-                <>
-                  <h3 className="font-semibold text-foreground mt-4">İlgili Kavramlar:</h3>
-                  <ul className="list-disc pl-5">
-                    {answer.relatedConcepts.map((concept, index) => (
-                      <li key={index}>{concept}</li>
-                    ))}
-                  </ul>
-                </>
-              )}
-               {answer.examStrategyTips && answer.examStrategyTips.length > 0 && (
-                <>
-                  <h3 className="font-semibold text-foreground mt-4">Sınav Stratejisi İpuçları:</h3>
-                  <ul className="list-disc pl-5">
-                    {answer.examStrategyTips.map((tip, index) => (
-                      <li key={index}>{tip}</li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </div>
+            <ScrollArea className="h-auto max-h-[500px] w-full rounded-md border p-4 bg-muted/30">
+                <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-line">
+                <h3 className="font-semibold text-foreground">Çözüm:</h3>
+                <p>{answer.solution}</p>
+                {answer.relatedConcepts && answer.relatedConcepts.length > 0 && (
+                    <>
+                    <h3 className="font-semibold text-foreground mt-4">İlgili Kavramlar:</h3>
+                    <ul className="list-disc pl-5">
+                        {answer.relatedConcepts.map((concept, index) => (
+                        <li key={index}>{concept}</li>
+                        ))}
+                    </ul>
+                    </>
+                )}
+                {answer.examStrategyTips && answer.examStrategyTips.length > 0 && (
+                    <>
+                    <h3 className="font-semibold text-foreground mt-4">Sınav Stratejisi İpuçları:</h3>
+                    <ul className="list-disc pl-5">
+                        {answer.examStrategyTips.map((tip, index) => (
+                        <li key={index}>{tip}</li>
+                        ))}
+                    </ul>
+                    </>
+                )}
+                </div>
+            </ScrollArea>
             <div className="mt-4 p-3 text-xs text-destructive-foreground bg-destructive/80 rounded-md flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
               <span>NeutralEdu AI bir yapay zekadır bu nedenle hata yapabilir, bu yüzden verdiği bilgileri doğrulayınız.</span>

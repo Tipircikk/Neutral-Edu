@@ -12,17 +12,11 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-// IMPORTANT: Replace with your actual site URL and name for OpenRouter HTTP headers
-// These are used if you select the "OpenRouter: Deepseek R1 (Beta)" model as an admin.
-const YOUR_SITE_URL_HERE = "https://your-site-url.com"; // Example: "https://neutraledu.ai"
-const YOUR_SITE_NAME_HERE = "NeutralEdu AI";           // Example: "My Awesome App"
-// IMPORTANT: Ensure OPENROUTER_API_KEY is set in your .env.local file for the OpenRouter model to work.
-
 const SolveQuestionInputSchema = z.object({
   questionText: z.string().optional().describe('Öğrencinin çözülmesini istediği, YKS kapsamındaki soru metni.'),
   imageDataUri: z.string().optional().describe("Soruyla ilgili bir görselin data URI'si (Base64 formatında). 'data:<mimetype>;base64,<encoded_data>' formatında olmalıdır. Görsel, soru metni yerine veya ona ek olarak sunulabilir."),
   userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
-  customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi (örn: 'experimental_gemini_1.5_flash' veya 'openrouter_deepseek_r1').")
+  customModelIdentifier: z.string().optional().describe("Adminler için özel Google model seçimi (örn: 'default_gemini_flash', 'experimental_gemini_1.5_flash').")
 });
 export type SolveQuestionInput = z.infer<typeof SolveQuestionInputSchema>;
 
@@ -52,7 +46,7 @@ Premium kullanıcılar için: Daha derinlemesine açıklamalar, varsa alternatif
 {{/ifEquals}}
 
 {{#if customModelIdentifier}}
-(Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmeye çalışılmaktadır. Eğer bu model Genkit'te yapılandırılmamışsa veya OpenRouter API anahtarı gibi gerekli yapılandırmalar eksikse, varsayılan Google modeli kullanılacaktır.)
+(Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' Google modeli kullanılarak üretilmektedir.)
 {{/if}}
 
 Kullanıcının girdileri aşağıdadır. Lütfen bu girdilere dayanarak, YKS formatına ve zorluk seviyesine uygun bir çözüm üret:
@@ -117,87 +111,21 @@ const questionSolverFlow = ai.defineFlow(
         };
       }
       
-      if (input.customModelIdentifier === 'openrouter_deepseek_r1') {
-        console.log("[QuestionSolver] Admin selected OpenRouter/Deepseek R1 model. Attempting API call.");
-        if (!process.env.OPENROUTER_API_KEY) {
-          console.error("[QuestionSolver] OpenRouter API key (OPENROUTER_API_KEY) not found in environment variables.");
-          return {
-            solution: "OpenRouter API anahtarı yapılandırılmamış. Lütfen sistem yöneticisiyle iletişime geçin.",
-            relatedConcepts: ["Yapılandırma Hatası"],
-            examStrategyTips: [],
-          };
-        }
-        if (!input.questionText) {
-           console.warn("[QuestionSolver] Deepseek R1 model requires text input.");
-          return {
-            solution: "Deepseek R1 modeli için metin tabanlı bir soru gereklidir. Lütfen sorunuzu metin olarak girin veya görseldeki soruyu metinle açıklayın.",
-            relatedConcepts: [],
-            examStrategyTips: [],
-          };
-        }
+      let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Varsayılan olarak yeni Flash modeli
 
-        const openRouterPrompt = `Sen bir YKS uzman öğretmenisin. Aşağıdaki soruyu adım adım, detaylı açıklamalarla ve YKS öğrencisinin anlayacağı bir dilde çöz: \n\nSoru: ${input.questionText}`;
-        
-        try {
-          const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-              "HTTP-Referer": YOUR_SITE_URL_HERE, 
-              "X-Title": YOUR_SITE_NAME_HERE,      
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              model: "deepseek/deepseek-r1:free", 
-              messages: [{ role: "user", content: openRouterPrompt }],
-            })
-          });
-
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ message: response.statusText }));
-            console.error("[QuestionSolver] OpenRouter API error:", response.status, errorData);
-            return {
-              solution: `OpenRouter API'sinden bir hata alındı: ${response.status} - ${errorData.message || 'Bilinmeyen hata'}. Lütfen daha sonra tekrar deneyin veya varsayılan modeli kullanın.`,
-              relatedConcepts: ["API Hatası"],
-              examStrategyTips: [],
-            };
-          }
-
-          const data = await response.json();
-          const solutionText = data.choices?.[0]?.message?.content;
-
-          if (solutionText) {
-            console.log("[QuestionSolver] Successfully received solution from OpenRouter/Deepseek R1.");
-            return {
-              solution: solutionText,
-              relatedConcepts: ["Deepseek R1 ile çözülmüştür."], 
-              examStrategyTips: ["Bu çözüm Deepseek R1 modeli kullanılarak üretilmiştir. Çözüm adımlarını ve mantığını dikkatlice inceleyin."]
-            };
-          } else {
-            console.warn("[QuestionSolver] No valid solution text received from OpenRouter/Deepseek R1. Response:", data, "Falling back to default model.");
-            // Fallback to Google model if OpenRouter response is empty or invalid
-          }
-        } catch (error: any) {
-          console.error("[QuestionSolver] Error calling OpenRouter API:", error);
-          // Fallback to Google model on fetch error
-          console.warn("[QuestionSolver] Falling back to default Google model due to OpenRouter API call error.");
-        }
-      }
-
-      // Varsayılan Genkit / Google AI modeli kullanımı (OpenRouter kullanılmıyorsa veya başarısız olup fallback yapılıyorsa)
-      let modelToUse = 'googleai/gemini-2.0-flash'; 
-      if (input.userPlan === 'pro') {
-         // Pro kullanıcılar için farklı model, API kotası düzeldiğinde burası aktif edilebilir.
-         // modelToUse = 'googleai/gemini-1.5-flash-latest'; 
-      }
-
-      if (input.customModelIdentifier === 'experimental_gemini_1.5_flash') {
-        modelToUse = 'googleai/gemini-1.5-flash-latest'; 
-        console.log("[QuestionSolver] Admin selected Google experimental model: gemini-1.5-flash-latest");
-      } else if (input.customModelIdentifier === 'default_gemini_flash') {
-          modelToUse = 'googleai/gemini-2.0-flash';
+      if (input.customModelIdentifier) {
+        if (input.customModelIdentifier === 'default_gemini_flash') {
+          modelToUse = 'googleai/gemini-2.0-flash'; // Admin eski Flash modelini seçti
           console.log("[QuestionSolver] Admin selected default Google model: gemini-2.0-flash");
+        } else if (input.customModelIdentifier === 'experimental_gemini_1.5_flash') {
+          modelToUse = 'googleai/gemini-1.5-flash-latest'; // Admin yeni Flash modelini seçti
+          console.log("[QuestionSolver] Admin selected experimental Google model: gemini-1.5-flash-latest");
+        }
+      } else if (input.userPlan === 'pro') {
+        // Pro kullanıcılar için varsayılan olarak en iyi flash modeli
+        modelToUse = 'googleai/gemini-1.5-flash-latest'; 
       }
+      // Ücretsiz ve premium kullanıcılar için de (admin özel bir model seçmediyse) varsayılan gemini-1.5-flash-latest olacak
       
       try {
         console.log(`[QuestionSolver] Using Google model: ${modelToUse} for user plan: ${input.userPlan}`);
@@ -218,6 +146,7 @@ const questionSolverFlow = ai.defineFlow(
           if (genkitError.message) {
               errorMessage += ` Detay: ${genkitError.message}`;
           }
+          // Genkit'in fırlattığı hatayı doğrudan döndürmek yerine, şemaya uygun bir nesne döndür.
           return {
               solution: errorMessage,
               relatedConcepts: ["Genkit Hatası"],
@@ -235,4 +164,4 @@ const questionSolverFlow = ai.defineFlow(
     }
   }
 );
-
+    
