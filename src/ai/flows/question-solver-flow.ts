@@ -144,7 +144,6 @@ const questionSolverFlow = ai.defineFlow(
       
       try {
         console.log(`[QuestionSolver] Using Google model: ${modelToUse} for user plan: ${input.userPlan}`);
-        // HATA BURADAYDI: `prompt` yerine `questionSolverPrompt` kullanılmalıydı.
         const {output} = await questionSolverPrompt(input, { model: modelToUse }); 
         if (!output || !output.solution) {
           console.error("[QuestionSolver] AI (Google model) did not produce a valid solution matching the schema. Input relevant parts:", { 
