@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { UploadCloud, Sparkles, Lightbulb, MessageCircleQuestion, FileUp, BotMessageSquare, BookOpenCheck, ArrowRight, Zap, Clock, Users, ThumbsUp, Brain, FileText, BarChart3, Presentation, ClipboardCheck, CalendarDays, LayoutGrid, HelpCircle } from "lucide-react"; // Added HelpCircle
+import { Presentation, Sparkles, FileText, HelpCircle, LayoutGrid, ClipboardCheck, CalendarDays, UploadCloud, Lightbulb, FileUp, BotMessageSquare, BookOpenCheck, ArrowRight, Zap, Clock, Users, ThumbsUp, Brain, Wand2 } from "lucide-react";
 import LandingHeader from "@/components/layout/LandingHeader";
 import Footer from "@/components/layout/Footer";
 
@@ -26,7 +26,7 @@ const features = [
     description: "Belirlediğiniz YKS konularından, istediğiniz zorluk seviyesinde pratik testler oluşturarak kendinizi sınayın.",
   },
   {
-    icon: <HelpCircle className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />, // Corrected Icon
+    icon: <HelpCircle className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
     title: "AI Soru Çözücü",
     description: "Zorlandığınız YKS sorularına adım adım, açıklamalı çözümler alın. (Şu an geliştirme aşamasında).",
   },
