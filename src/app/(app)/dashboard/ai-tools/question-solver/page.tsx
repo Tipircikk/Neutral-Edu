@@ -16,11 +16,17 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
+interface ParsedSolution {
+  answerValue: string | null;
+  explanationSections: React.ReactNode[];
+}
+
 export default function QuestionSolverPage() {
   const [questionText, setQuestionText] = useState("");
   const [imageDataUri, setImageDataUri] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [answer, setAnswer] = useState<SolveQuestionOutput | null>(null);
+  const [parsedSolution, setParsedSolution] = useState<ParsedSolution | null>(null);
   const [isSolving, setIsSolving] = useState(false);
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
@@ -48,7 +54,6 @@ export default function QuestionSolverPage() {
     if (isSolving) {
       loadingStartTimeRef.current = Date.now();
       setLoadingMessage("Çözüm oluşturuluyor...");
-
       const messages = [
         { time: 15, message: "Yapay zeka düşünüyor, bu biraz zaman alabilir..." },
         { time: 30, message: "Karmaşık bir soru üzerinde çalışılıyor, bu işlem birkaç dakika sürebilir, lütfen bekleyin..." },
@@ -57,80 +62,158 @@ export default function QuestionSolverPage() {
         { time: 180, message: "Bu gerçekten uzun sürdü... Sunucunun yanıt vermesi bekleniyor. Gerekirse sayfayı yenileyip daha basit bir soruyla tekrar deneyebilirsiniz." },
         { time: 240, message: "Çok uzun bir bekleme süresi oldu. Teknik bir sorun olabilir veya model soruyu işlemekte zorlanıyor. Biraz daha bekleyebilir veya işlemi iptal etmeyi düşünebilirsiniz."}
       ];
-
       let messageIndex = 0;
-
       loadingMessageIntervalRef.current = setInterval(() => {
         if (loadingStartTimeRef.current) {
           const elapsedTimeSeconds = Math.floor((Date.now() - loadingStartTimeRef.current) / 1000);
-          
           if (messageIndex < messages.length && elapsedTimeSeconds >= messages[messageIndex].time) {
             setLoadingMessage(messages[messageIndex].message);
             messageIndex++;
           }
         }
-      }, 5000); 
+      }, 5000);
     } else {
-      if (loadingMessageIntervalRef.current) {
-        clearInterval(loadingMessageIntervalRef.current);
-        loadingMessageIntervalRef.current = null;
-      }
+      if (loadingMessageIntervalRef.current) clearInterval(loadingMessageIntervalRef.current);
       loadingStartTimeRef.current = null;
     }
-
-    return () => {
-      if (loadingMessageIntervalRef.current) {
-        clearInterval(loadingMessageIntervalRef.current);
-      }
-    };
+    return () => { if (loadingMessageIntervalRef.current) clearInterval(loadingMessageIntervalRef.current); };
   }, [isSolving]);
 
+  const parseInlineFormatting = (line: string): React.ReactNode[] => {
+    if (!line) return [];
+    const elements: React.ReactNode[] = [];
+    let remainingLine = line;
+
+    // Handle bold text: **text**
+    const boldRegex = /\*\*(.*?)\*\*/g;
+    let lastIndex = 0;
+    let match;
+
+    while ((match = boldRegex.exec(remainingLine)) !== null) {
+      if (match.index > lastIndex) {
+        elements.push(remainingLine.substring(lastIndex, match.index));
+      }
+      elements.push(<strong key={`bold-${elements.length}`}>{match[1]}</strong>);
+      lastIndex = match.index + match[0].length;
+    }
+    if (lastIndex < remainingLine.length) {
+      elements.push(remainingLine.substring(lastIndex));
+    }
+    
+    // Simple ^ and _ parsing can be added here if needed, but bold is primary for now based on image
+    // For example, for superscripts (x^2):
+    // return elements.flatMap(el => typeof el === 'string' ? el.split(/(\S+\^\S+)/g).map((part, idx) => part.includes('^') ? <Fragment key={`${idx}-sup`}>{part.split('^')[0]}<sup>{part.split('^')[1]}</sup></Fragment> : part) : el);
+    // This part needs to be more robust if multiple inline formats are mixed.
+    // For now, focusing on bold as per the image.
+    return elements;
+  };
+
+  const formatSolverOutputForDisplay = (text: string): ParsedSolution => {
+    const lines = text.split('\n');
+    let answerValue: string | null = null;
+    const explanationSections: React.ReactNode[] = [];
+    let isExplanationSection = false;
+    let currentListItems: React.ReactNode[] = [];
+
+    const flushList = () => {
+      if (currentListItems.length > 0) {
+        explanationSections.push(
+          <ul key={`ul-${explanationSections.length}`} className="list-disc pl-5 my-2 space-y-1">
+            {currentListItems.map((itemContent, idx) => <li key={idx}>{itemContent}</li>)}
+          </ul>
+        );
+        currentListItems = [];
+      }
+    };
+
+    let captureAnswer = false;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmedLine = line.trim();
+
+      if (trimmedLine.toLowerCase().startsWith("cevap:")) {
+        flushList();
+        isExplanationSection = false;
+        captureAnswer = true;
+        const answerText = trimmedLine.substring("cevap:".length).trim();
+        if (answerText) {
+          answerValue = answerText;
+        } else if (lines[i+1] && lines[i+1].trim() && !lines[i+1].trim().toLowerCase().startsWith("açıklama:")) {
+          // If answer is on the next line and it's not the explanation starting
+          answerValue = lines[i+1].trim();
+          i++; // Skip next line as it's part of the answer
+        }
+        continue;
+      }
+      
+      if (trimmedLine.toLowerCase().startsWith("açıklama:")) {
+        flushList();
+        isExplanationSection = true;
+        captureAnswer = false;
+        explanationSections.push(<div key={`desc-label-${explanationSections.length}`} className="h-2"></div>); // Space after label
+        continue;
+      }
+
+      if (captureAnswer && trimmedLine && !trimmedLine.toLowerCase().startsWith("açıklama:")) {
+        answerValue = (answerValue ? answerValue + "\n" : "") + trimmedLine;
+        continue;
+      }
+      
+      if (isExplanationSection) {
+        if (trimmedLine.startsWith('### ')) {
+          flushList();
+          explanationSections.push(<h4 key={`h4-${explanationSections.length}`} className="text-md font-semibold mt-3 mb-1">{parseInlineFormatting(trimmedLine.substring(4))}</h4>);
+        } else if (trimmedLine.startsWith('## ')) {
+          flushList();
+          explanationSections.push(<h3 key={`h3-${explanationSections.length}`} className="text-lg font-semibold mt-4 mb-2">{parseInlineFormatting(trimmedLine.substring(3))}</h3>);
+        } else if (trimmedLine.startsWith('* ') || trimmedLine.startsWith('- ')) {
+          currentListItems.push(parseInlineFormatting(trimmedLine.substring(trimmedLine.indexOf(' ') + 1)));
+        } else if (trimmedLine === "") {
+          flushList();
+          explanationSections.push(<div key={`space-${explanationSections.length}`} className="h-2"></div>);
+        } else {
+          flushList();
+          explanationSections.push(<p key={`p-${explanationSections.length}`} className="mb-2 last:mb-0">{parseInlineFormatting(line)}</p>);
+        }
+      }
+    }
+    flushList(); // Ensure any remaining list items are flushed
+
+    return { answerValue, explanationSections };
+  };
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) { 
+      if (file.size > 5 * 1024 * 1024) {
         toast({ title: "Dosya Boyutu Büyük", description: "Lütfen 5MB'den küçük bir görsel yükleyin.", variant: "destructive" });
-        event.target.value = "";
-        setImageFile(null);
-        setImageDataUri(null);
-        return;
+        event.target.value = ""; setImageFile(null); setImageDataUri(null); return;
       }
       setImageFile(file);
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setImageDataUri(reader.result as string);
-      };
+      reader.onloadend = () => setImageDataUri(reader.result as string);
       reader.readAsDataURL(file);
     } else {
-      setImageFile(null);
-      setImageDataUri(null);
+      setImageFile(null); setImageDataUri(null);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!questionText.trim() && !imageDataUri) {
-      toast({ title: "Girdi Gerekli", description: "Lütfen bir soru metni girin veya bir görsel yükleyin.", variant: "destructive" });
-      return;
+      toast({ title: "Girdi Gerekli", description: "Lütfen bir soru metni girin veya bir görsel yükleyin.", variant: "destructive" }); return;
     }
-
-    setIsSolving(true);
-    setAnswer(null);
+    setIsSolving(true); setAnswer(null); setParsedSolution(null);
 
     const currentProfile = await memoizedCheckAndResetQuota();
     if (!currentProfile || (currentProfile.dailyRemainingQuota ?? 0) <= 0) {
       toast({ title: "Kota Aşıldı", description: "Bugünkü hakkınızı doldurdunuz.", variant: "destructive" });
-      setIsSolving(false);
-      setCanProcess(false);
-      return;
+      setIsSolving(false); setCanProcess(false); return;
     }
     setCanProcess(true);
 
     try {
-      if (!currentProfile?.plan) {
-        throw new Error("Kullanıcı planı bulunamadı.");
-      }
+      if (!currentProfile?.plan) throw new Error("Kullanıcı planı bulunamadı.");
       const input: SolveQuestionInput = {
         questionText: questionText.trim() || undefined,
         imageDataUri: imageDataUri || undefined,
@@ -138,132 +221,45 @@ export default function QuestionSolverPage() {
         customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
       };
       const result = await solveQuestion(input);
+      setAnswer(result);
+      if (result && result.solution) {
+        setParsedSolution(formatSolverOutputForDisplay(result.solution));
+      }
 
       if (result && typeof result.solution === 'string' && Array.isArray(result.relatedConcepts) && Array.isArray(result.examStrategyTips)) {
-        setAnswer(result);
         if (result.solution.startsWith("AI modeli") || result.solution.startsWith("Sunucu tarafında") || result.solution.includes("Hata:") || result.solution.includes("Error:")) {
            toast({ title: "Çözüm Bilgisi", description: "Detaylar için çözüme bakın.", variant: "default" });
         } else {
            toast({ title: "Çözüm Hazır!", description: "Sorunuz için bir çözüm oluşturuldu." });
         }
-
-        if (!result.solution.startsWith("Kota Aşıldı")) {
-          if (decrementQuota) {
-              const decrementSuccess = await decrementQuota(currentProfile);
-              if (decrementSuccess) {
-                const updatedProfileAgain = await memoizedCheckAndResetQuota();
-                if (updatedProfileAgain) {
-                    setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
-                } else {
-                    setCanProcess(false);
-                }
-              } else {
-                 const refreshedProfile = await memoizedCheckAndResetQuota();
-                 if (refreshedProfile) {
-                    setCanProcess((refreshedProfile.dailyRemainingQuota ?? 0) > 0);
-                 }
-              }
+        if (!result.solution.startsWith("Kota Aşıldı") && decrementQuota) {
+          const decrementSuccess = await decrementQuota(currentProfile);
+          if (decrementSuccess) {
+            const updatedProfileAgain = await memoizedCheckAndResetQuota();
+            if (updatedProfileAgain) setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
+            else setCanProcess(false);
+          } else {
+             const refreshedProfile = await memoizedCheckAndResetQuota();
+             if (refreshedProfile) setCanProcess((refreshedProfile.dailyRemainingQuota ?? 0) > 0);
           }
         }
       } else {
-        console.error("[QuestionSolverPage] Flow returned invalid or malformed result:", result);
-        const errorMessage = "AI akışından geçersiz veya eksik bir yanıt alındı. Lütfen tekrar deneyin veya farklı bir soru sorun.";
-        setAnswer({
-            solution: errorMessage,
-            relatedConcepts: ["Hata"],
-            examStrategyTips: ["Tekrar deneyin"],
-        });
-        toast({
-          title: "Yanıt Hatası",
-          description: errorMessage,
-          variant: "destructive",
-        });
+        const errorMessage = "AI akışından geçersiz veya eksik bir yanıt alındı.";
+        setAnswer({ solution: errorMessage, relatedConcepts: ["Hata"], examStrategyTips: ["Tekrar deneyin"] });
+        setParsedSolution(formatSolverOutputForDisplay(errorMessage));
+        toast({ title: "Yanıt Hatası", description: errorMessage, variant: "destructive" });
       }
     } catch (error: any) {
-      console.error("[QuestionSolverPage] CRITICAL error during handleSubmit:", error);
-      let errorMessage = 'Bilinmeyen bir istemci tarafı hatası oluştu.';
-      if (error instanceof Error) {
-          errorMessage = error.message;
-      } else if (typeof error === 'string') {
-          errorMessage = error;
-      }
-      setAnswer({
-        solution: `İstemci Hatası: ${errorMessage}. Geliştirici konsolunu kontrol edin.`,
-        relatedConcepts: ["Hata"],
-        examStrategyTips: ["Tekrar deneyin"],
-      });
-      toast({
-        title: "Çözüm Hatası",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      const errorMessage = error.message || 'Bilinmeyen bir istemci tarafı hatası oluştu.';
+      setAnswer({ solution: `İstemci Hatası: ${errorMessage}. Geliştirici konsolunu kontrol edin.`, relatedConcepts: ["Hata"], examStrategyTips: ["Tekrar deneyin"] });
+      setParsedSolution(formatSolverOutputForDisplay(`İstemci Hatası: ${errorMessage}.`));
+      toast({ title: "Çözüm Hatası", description: errorMessage, variant: "destructive" });
     } finally {
       setIsSolving(false);
     }
   };
-
+  
   const isSubmitDisabled = isSolving || (!questionText.trim() && !imageDataUri) || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
-
-  const parseInlineFormatting = (line: string | undefined | null): React.ReactNode[] => {
-    if (!line) return [];
-    const parts = line.split(/(\S+\^\S+|\S+_\d+)/g);
-    return parts.map((part, index) => {
-      if (part.includes('^')) {
-        const [base, exponent] = part.split('^');
-        return <Fragment key={index}>{base}<sup>{exponent}</sup></Fragment>;
-      } else if (part.match(/(\S+)_(\d+)/)) {
-        const match = part.match(/(\S+)_(\d+)(.*)/);
-        if (match) {
-          return <Fragment key={index}>{match[1]}<sub>{match[2]}</sub>{match[3]}</Fragment>;
-        }
-      }
-      return <Fragment key={index}>{part}</Fragment>;
-    });
-  };
-
-  const formatSolverOutputForDisplay = (text: string): JSX.Element[] => {
-    if (!text) return [];
-    const lines = text.split('\n');
-    const elements: JSX.Element[] = [];
-    let listItems: React.ReactNode[] = [];
-
-    const flushList = () => {
-      if (listItems.length > 0) {
-        elements.push(
-          <ul key={`ul-${elements.length}`} className="list-disc pl-5 my-2 space-y-1">
-            {listItems.map((itemContent, idx) => <li key={idx}>{itemContent}</li>)}
-          </ul>
-        );
-        listItems = [];
-      }
-    };
-
-    lines.forEach((line, index) => {
-      const trimmedLine = line.trim();
-      if (trimmedLine.startsWith('### ')) {
-        flushList();
-        elements.push(<h4 key={index} className="text-md font-semibold mt-3 mb-1 text-foreground">{parseInlineFormatting(trimmedLine.substring(4))}</h4>);
-      } else if (trimmedLine.startsWith('## ')) {
-        flushList();
-        elements.push(<h3 key={index} className="text-lg font-semibold mt-4 mb-2 text-foreground">{parseInlineFormatting(trimmedLine.substring(3))}</h3>);
-      } else if (trimmedLine.startsWith('Soru Analizi:') || trimmedLine.startsWith('Çözüm Yolu (Adım Adım):') || trimmedLine.startsWith('Sonuç:') || trimmedLine.startsWith('Kavramlar:') || trimmedLine.startsWith('YKS Strateji İpucu:')) {
-        flushList();
-        elements.push(<h3 key={index} className="text-lg font-semibold mt-4 mb-2 text-primary">{parseInlineFormatting(trimmedLine)}</h3>);
-      } else if (trimmedLine.startsWith('* ') || trimmedLine.startsWith('- ')) {
-        listItems.push(parseInlineFormatting(trimmedLine.substring(trimmedLine.indexOf(' ') + 1)));
-      } else if (trimmedLine === "") {
-        if (listItems.length > 0) {
-          flushList();
-        }
-        elements.push(<div key={index} className="h-2"></div>); 
-      } else {
-        flushList();
-        elements.push(<p key={index} className="mb-2 last:mb-0">{parseInlineFormatting(line)}</p>);
-      }
-    });
-    flushList(); 
-    return elements;
-  };
 
   if (userProfileLoading) {
     return (
@@ -278,23 +274,15 @@ export default function QuestionSolverPage() {
     <div className="space-y-6">
       <Card className="shadow-sm">
         <CardHeader>
-          <div className="flex items-center gap-3">
-            <HelpCircle className="h-7 w-7 text-primary" />
-            <CardTitle className="text-2xl">AI Soru Çözücü</CardTitle>
-          </div>
-          <CardDescription>
-            Aklınızdaki soruları sorun, yapay zeka size adım adım çözümler ve açıklamalar sunsun. İsterseniz soru içeren bir görsel de yükleyebilirsiniz.
-          </CardDescription>
+          <div className="flex items-center gap-3"> <HelpCircle className="h-7 w-7 text-primary" /> <CardTitle className="text-2xl">AI Soru Çözücü</CardTitle> </div>
+          <CardDescription> Aklınızdaki soruları sorun, yapay zeka size adım adım çözümler ve açıklamalar sunsun. İsterseniz soru içeren bir görsel de yükleyebilirsiniz. </CardDescription>
         </CardHeader>
       </Card>
 
       {!canProcess && !isSolving && userProfile && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
          <Alert variant="destructive" className="shadow-md">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Günlük Kota Doldu</AlertTitle>
-          <AlertDescription>
-            Bugünlük ücretsiz hakkınızı kullandınız. Lütfen yarın tekrar kontrol edin veya Premium/Pro'ya yükseltin.
-          </AlertDescription>
+          <AlertTriangle className="h-4 w-4" /> <AlertTitle>Günlük Kota Doldu</AlertTitle>
+          <AlertDescription> Bugünlük ücretsiz hakkınızı kullandınız. Lütfen yarın tekrar kontrol edin veya Premium/Pro'ya yükseltin. </AlertDescription>
         </Alert>
       )}
 
@@ -305,43 +293,23 @@ export default function QuestionSolverPage() {
               <div className="space-y-2 p-4 border rounded-md bg-muted/50">
                 <Label htmlFor="adminModelSelect" className="font-semibold text-primary">Model Seç (Admin Özel)</Label>
                 <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSolving}>
-                  <SelectTrigger id="adminModelSelect">
-                    <SelectValue placeholder="Model seçin" />
-                  </SelectTrigger>
+                  <SelectTrigger id="adminModelSelect"><SelectValue placeholder="Model seçin" /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
                     <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
                     <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
-                    <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">
-                  Bu seçenek sadece adminlere özeldir. Farklı Google modellerini test edebilirsiniz.
-                </p>
+                <p className="text-xs text-muted-foreground"> Bu seçenek sadece adminlere özeldir. Farklı Google modellerini test edebilirsiniz. </p>
               </div>
             )}
-
             <div>
               <Label htmlFor="questionText" className="block text-sm font-medium text-foreground mb-1">Soru Metni (isteğe bağlı)</Label>
-              <Textarea
-                id="questionText"
-                placeholder="Örneğin: Bir dik üçgenin hipotenüsü 10 cm, bir dik kenarı 6 cm ise diğer dik kenarı kaç cm'dir?"
-                value={questionText}
-                onChange={(e) => setQuestionText(e.target.value)}
-                rows={5}
-                className="text-base"
-                disabled={isSolving || !canProcess}
-              />
+              <Textarea id="questionText" placeholder="Örneğin: Bir dik üçgenin hipotenüsü 10 cm, bir dik kenarı 6 cm ise diğer dik kenarı kaç cm'dir?" value={questionText} onChange={(e) => setQuestionText(e.target.value)} rows={5} className="text-base" disabled={isSolving || !canProcess} />
             </div>
             <div className="space-y-2">
                 <Label htmlFor="imageUpload" className="block text-sm font-medium text-foreground">Soru Görseli Yükle (isteğe bağlı, maks 5MB)</Label>
-                 <Input
-                    id="imageUpload"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-                    disabled={isSolving || !canProcess}
-                />
+                 <Input id="imageUpload" type="file" accept="image/*" onChange={handleImageChange} className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90" disabled={isSolving || !canProcess} />
                 {imageDataUri && imageFile && (
                   <div className="mt-2 p-2 border rounded-md bg-muted">
                     <p className="text-sm text-muted-foreground mb-2">Seçilen görsel: {imageFile.name}</p>
@@ -349,10 +317,7 @@ export default function QuestionSolverPage() {
                   </div>
                 )}
             </div>
-            <Button type="submit" className="w-full" disabled={isSubmitDisabled}>
-              {isSolving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-              Çözüm İste
-            </Button>
+            <Button type="submit" className="w-full" disabled={isSubmitDisabled}> {isSolving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />} Çözüm İste </Button>
           </CardContent>
         </Card>
       </form>
@@ -360,53 +325,56 @@ export default function QuestionSolverPage() {
       {isSolving && !answer && (
         <Card className="mt-6 shadow-lg">
           <CardContent className="p-6">
-            <div className="flex flex-col items-center justify-center text-center">
-              <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
-              <p className="text-lg font-medium text-foreground">{loadingMessage}</p>
-            </div>
+            <div className="flex flex-col items-center justify-center text-center"> <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" /> <p className="text-lg font-medium text-foreground">{loadingMessage}</p> </div>
           </CardContent>
         </Card>
       )}
 
-      {answer && answer.solution && (
+      {parsedSolution && (
         <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Yapay Zeka Çözümü</CardTitle>
-          </CardHeader>
+          <CardHeader> <CardTitle className="text-xl">Neutral Edu AI Çözümü</CardTitle> </CardHeader>
           <CardContent>
             <ScrollArea className="h-auto max-h-[600px] w-full rounded-md border p-4 bg-muted/30">
-                <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
-                  {formatSolverOutputForDisplay(answer.solution)}
-
-                  {answer.relatedConcepts && answer.relatedConcepts.length > 0 && (
-                      <>
-                      <h3 className="text-lg font-semibold mt-4 mb-2 text-primary">İlgili Kavramlar:</h3>
-                      <ul className="list-disc pl-5 space-y-1">
-                          {answer.relatedConcepts.map((concept, index) => (
-                          <li key={index}>{parseInlineFormatting(concept)}</li>
-                          ))}
-                      </ul>
-                      </>
-                  )}
-                  {answer.examStrategyTips && answer.examStrategyTips.length > 0 && (
-                      <>
-                      <h3 className="text-lg font-semibold mt-4 mb-2 text-primary">Sınav Stratejisi İpuçları:</h3>
-                      <ul className="list-disc pl-5 space-y-1">
-                          {answer.examStrategyTips.map((tip, index) => (
-                          <li key={index}>{parseInlineFormatting(tip)}</li>
-                          ))}
-                      </ul>
-                      </>
-                  )}
-                </div>
+              <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
+                {parsedSolution.answerValue && (
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-primary mb-1">Cevap:</h3>
+                    <p className="text-lg font-bold text-foreground">{parsedSolution.answerValue}</p>
+                  </div>
+                )}
+                {parsedSolution.explanationSections.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-primary mb-2">Açıklama:</h3>
+                    {parsedSolution.explanationSections}
+                  </div>
+                )}
+                {!parsedSolution.answerValue && parsedSolution.explanationSections.length === 0 && answer?.solution && (
+                   <p>{parseInlineFormatting(answer.solution)}</p> // Fallback for non-structured error messages
+                )}
+              </div>
             </ScrollArea>
-            <div className="mt-4 p-3 text-xs text-destructive-foreground bg-destructive/80 rounded-md flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              <span>NeutralEdu AI bir yapay zekadır bu nedenle hata yapabilir, bu yüzden verdiği bilgileri doğrulayınız.</span>
-            </div>
+             {answer && answer.relatedConcepts && answer.relatedConcepts.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="text-md font-semibold text-foreground mb-1">İlgili Kavramlar:</h4>
+                  <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
+                    {answer.relatedConcepts.map((concept, index) => ( <li key={index}>{parseInlineFormatting(concept)}</li> ))}
+                  </ul>
+                </div>
+              )}
+              {answer && answer.examStrategyTips && answer.examStrategyTips.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="text-md font-semibold text-foreground mb-1">Sınav Stratejisi İpuçları:</h4>
+                  <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
+                    {answer.examStrategyTips.map((tip, index) => ( <li key={index}>{parseInlineFormatting(tip)}</li> ))}
+                  </ul>
+                </div>
+              )}
+            <div className="mt-4 p-3 text-xs text-destructive-foreground bg-destructive/80 rounded-md flex items-center gap-2"> <AlertTriangle className="h-4 w-4" /> <span>NeutralEdu AI bir yapay zekadır bu nedenle hata yapabilir, bu yüzden verdiği bilgileri doğrulayınız.</span> </div>
           </CardContent>
         </Card>
       )}
     </div>
   );
 }
+
+    

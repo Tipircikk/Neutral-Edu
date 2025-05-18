@@ -5,81 +5,76 @@ import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Presentation, Sparkles, FileText, HelpCircle, LayoutGrid, ClipboardCheck, CalendarDays, UploadCloud, Lightbulb, FileUp, BotMessageSquare, BookOpenCheck, ArrowRight, Zap, Clock, Users, ThumbsUp, Brain, Wand2 } from "lucide-react";
+import { Presentation, Sparkles, FileText, HelpCircle, LayoutGrid, ClipboardCheck, CalendarDays, Wand2, FileUp, BotMessageSquare, BookOpenCheck, ArrowRight, Zap, Clock, Brain, ThumbsUp, ListChecks, Palette, Timer, CalendarClock } from "lucide-react";
 import LandingHeader from "@/components/layout/LandingHeader";
 import Footer from "@/components/layout/Footer";
 
 const features = [
   {
     icon: <Presentation className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
-    title: "AI Konu Anlatımı",
-    description: "YKS konularını yapay zekadan detaylıca öğrenin, seviyenize özel anlatımlarla anlayışınızı pekiştirin.",
-  },
-  {
-    icon: <Sparkles className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
-    title: "AI PDF/Konu Özetleyici",
-    description: "Uzun PDF'leri veya karmaşık konuları saniyeler içinde anahtar noktaları içeren anlaşılır özetlere dönüştürün.",
+    title: "AI Konu Anlatımı ve Özetleme",
+    description: "YKS konularını yapay zekadan detaylıca öğrenin veya uzun metinleri/PDF'leri saniyeler içinde anlaşılır özetlere dönüştürün. Farklı anlatım seviyeleri ve hoca tarzları seçin!",
   },
   {
     icon: <FileText className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
     title: "AI Test Oluşturucu",
-    description: "Belirlediğiniz YKS konularından, istediğiniz zorluk seviyesinde pratik testler oluşturarak kendinizi sınayın.",
+    description: "Belirlediğiniz YKS konularından, istediğiniz zorluk seviyesinde pratik testler oluşturarak kendinizi sınayın. Detaylı çözümlerle öğrenin.",
   },
-  {
+   {
     icon: <HelpCircle className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
-    title: "AI Soru Çözücü",
-    description: "Zorlandığınız YKS sorularına adım adım, açıklamalı çözümler alın. (Şu an geliştirme aşamasında).",
+    title: "AI Soru Çözücü (Beta)",
+    description: "Zorlandığınız YKS sorularına (metin veya görsel) adım adım, açıklamalı çözümler alın. (Bu özellik geliştirme aşamasındadır).",
   },
   {
     icon: <LayoutGrid className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
     title: "AI Bilgi Kartları",
-    description: "Önemli tanımlardan ve kavramlardan hızlıca çalışmak için etkileşimli bilgi kartları oluşturun.",
+    description: "Önemli tanımlardan ve kavramlardan hızlıca çalışmak için etkileşimli bilgi kartları (flashcard) oluşturun.",
   },
   {
     icon: <ClipboardCheck className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
     title: "AI Sınav Raporu Analizi",
-    description: "Deneme sınavı raporlarınızı analiz ederek zayıf olduğunuz konuları ve gelişim alanlarınızı keşfedin.",
+    description: "Deneme sınavı raporlarınızı (PDF) analiz ederek zayıf olduğunuz konuları ve gelişim alanlarınızı yapay zeka ile keşfedin.",
   },
   {
     icon: <CalendarDays className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
-    title: "AI Çalışma Planı",
-    description: "Hedeflerinize ve konularınıza özel, kişiselleştirilmiş YKS çalışma planı taslakları edinin.",
+    title: "AI Çalışma Planı Oluşturucu",
+    description: "Hedeflerinize, konularınıza ve çalışma sürenize özel, kişiselleştirilmiş YKS çalışma planı taslakları edinin.",
   },
 ];
 
 const benefits = [
  {
     icon: <Clock className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
-    title: "Verimli Çalışma",
-    description: "Okuma ve araştırma saatlerini azaltın, YKS için gerçekten önemli olan bilgilere odaklanın.",
+    title: "Verimli ve Odaklı Çalışma",
+    description: "Yapay zeka destekli araçlarla öğrenme sürenizi optimize edin, YKS için gerçekten önemli olan bilgilere ve stratejilere odaklanın.",
   },
   {
     icon: <Brain className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
     title: "Kapsamlı Konu Anlayışı",
-    description: "Yapay zeka destekli anlatımlar ve özetlerle konuları derinlemesine kavrayın, ana fikirleri kolayca yakalayın.",
+    description: "AI destekli konu anlatımları, özetler, bilgi kartları ve testlerle konuları derinlemesine kavrayın, ana fikirleri kolayca yakalayın.",
   },
   {
     icon: <Zap className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
-    title: "Akıllı Sınav Hazırlığı",
-    description: "YKS odaklı testler, soru çözümleri ve sınav analizleriyle hedefinize daha emin adımlarla ilerleyin.",
+    title: "Akıllı Sınav Hazırlığı ve Analiz",
+    description: "YKS odaklı testler, soru çözümleri, sınav raporu analizleri ve kişiye özel çalışma planlarıyla hedefinize daha emin adımlarla ilerleyin.",
   },
 ];
 
 const howItWorksSteps = [
   {
     icon: <Wand2 className="h-10 w-10 md:h-12 md:w-12 text-primary mb-4" />,
-    title: "1. Aracınızı Seçin",
-    description: "İhtiyacınıza uygun AI aracını (Konu Anlatımı, Soru Çözücü, Test Oluşturucu vb.) seçin.",
+    title: "1. İhtiyacınız Olan Aracı Seçin",
+    description: "Konu anlatımı, test oluşturma, PDF özetleme, sınav analizi veya çalışma planı gibi birçok YKS odaklı AI aracımızdan birini seçin.",
   },
   {
     icon: <FileUp className="h-10 w-10 md:h-12 md:w-12 text-primary mb-4" />,
-    title: "2. Girdinizi Sağlayın",
-    description: "Öğrenmek istediğiniz konuyu, PDF'inizi, sorunuzu veya sınav raporunuzu sisteme yükleyin veya girin.",
+    title: "2. Gerekli Bilgileri Sağlayın",
+    description: "Öğrenmek istediğiniz konuyu, PDF'inizi, soru metnini/görselini, sınav raporunuzu veya çalışma tercihlerinizi sisteme girin.",
   },
   {
     icon: <BookOpenCheck className="h-10 w-10 md:h-12 md:w-12 text-primary mb-4" />,
-    title: "3. AI Destekli Çıktınızı Alın",
-    description: "Yapay zekanın sizin için hazırladığı detaylı anlatımlara, özetlere, çözümlere veya analizlere anında erişin!",
+    title: "3. AI Destekli Çıktınızı Anında Alın!",
+    description: "Yapay zekanın sizin için hazırladığı detaylı konu anlatımlarına, kişiselleştirilmiş testlere, özetlere, analizlere veya planlara saniyeler içinde erişin!",
   },
 ];
 
@@ -111,10 +106,10 @@ export default function LandingPage() {
         <section className="py-16 md:py-24 lg:py-32 bg-gradient-to-b from-background to-background/90">
           <div className="container mx-auto px-4 text-center">
             <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight text-foreground mb-6">
-              YKS Hazırlığında Yapay Zeka Destekli Yol Arkadaşınız
+              YKS Hazırlığında Yapay Zeka Destekli Kapsamlı Yol Arkadaşınız
             </h1>
             <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto mb-10">
-              NeutralEdu AI, karmaşık konuları anlamanıza, etkili testler oluşturmanıza ve YKS'ye en iyi şekilde hazırlanmanıza yardımcı olur.
+              NeutralEdu AI, konuları anlamaktan test oluşturmaya, sınav analizinden çalışma planlamasına kadar YKS'ye hazırlık sürecinizi A'dan Z'ye destekler. Akıllı araçlarla daha verimli çalışın, hedeflerinize ulaşın!
             </p>
             <div className="flex flex-col sm:flex-row justify-center gap-4">
               <Button size="lg" asChild className="text-md sm:text-lg px-6 sm:px-8 py-3 sm:py-6 shadow-lg hover:shadow-primary/50 transition-shadow">
@@ -127,7 +122,7 @@ export default function LandingPage() {
             <div className="mt-12 md:mt-16 lg:mt-24 max-w-4xl mx-auto px-2">
               <Image
                 src="https://placehold.co/1200x600.png"
-                alt="NeutralEdu AI Uygulama Demosu"
+                alt="NeutralEdu AI Uygulama Arayüzü"
                 width={1200}
                 height={600}
                 className="rounded-xl shadow-2xl border border-border"
@@ -168,8 +163,8 @@ export default function LandingPage() {
             <p className="text-md sm:text-lg text-muted-foreground text-center mb-10 md:mb-12 max-w-2xl mx-auto">
               Öğrenmenizi hızlandıracak, anlayışınızı artıracak ve sınav performansınızı yükseltecek özelliklerle dolu.
             </p>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
-              {features.slice(0, 4).map((feature, index) => ( 
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+              {features.map((feature, index) => ( 
                 <Card key={index} className="bg-card hover:shadow-xl transition-shadow duration-300 ease-in-out transform hover:-translate-y-1">
                   <CardHeader className="items-center text-center">
                     {feature.icon}
