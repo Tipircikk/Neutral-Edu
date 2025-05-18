@@ -137,7 +137,7 @@ const SidebarProvider = React.forwardRef<
               } as React.CSSProperties
             }
             className={cn(
-              "group/sidebar-wrapper flex min-h-svh w-full has-[[data-variant=inset]]:bg-sidebar",
+              "group/sidebar-wrapper flex min-h-svh w-full has-[[data-variant=inset]]:bg-sidebar-background",
               className
             )}
             ref={ref}
@@ -203,7 +203,7 @@ const Sidebar = React.forwardRef<
             side={side}
           >
             <SheetHeader className="p-4 border-b border-sidebar-border">
-              <SheetTitle>Menu</SheetTitle>
+              <SheetTitle>Menu</SheetTitle> {/* Ensures DialogTitle for accessibility */}
             </SheetHeader>
             <div className="flex-1 overflow-y-auto">
               {children}
@@ -357,7 +357,7 @@ const SidebarHeader = React.forwardRef<
     <div
       ref={ref}
       data-sidebar="header"
-      className={cn("flex flex-col gap-2 p-2", className)}
+      className={cn("flex flex-col gap-2", className)}
       {...props}
     />
   )
@@ -372,7 +372,7 @@ const SidebarFooter = React.forwardRef<
     <div
       ref={ref}
       data-sidebar="footer"
-      className={cn("flex flex-col gap-2 p-2", className)}
+      className={cn("flex flex-col gap-2", className)}
       {...props}
     />
   )
@@ -535,7 +535,6 @@ interface SidebarMenuButtonProps extends React.ComponentProps<"button">, Variant
   asChild?: boolean;
   isActive?: boolean;
   tooltip?: string | React.ComponentProps<typeof TooltipContent>;
-  // isSubmenu prop is intentionally omitted here to prevent passing to DOM
 }
 
 
@@ -551,8 +550,7 @@ const SidebarMenuButton = React.forwardRef<
       size = "default",
       tooltip,
       className,
-      // Do not include isSubmenu in ...rest
-      ...rest
+      ...props 
     },
     ref
   ) => {
@@ -566,7 +564,7 @@ const SidebarMenuButton = React.forwardRef<
         data-size={size}
         data-active={isActive}
         className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
-        {...rest}
+        {...props}
       />
     )
 
@@ -766,3 +764,5 @@ export {
   SidebarTrigger,
   useSidebar,
 }
+
+    

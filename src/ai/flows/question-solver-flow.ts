@@ -97,6 +97,7 @@ Kullanıcının seçtiği özel model (eğer varsa): {{{customModelIdentifier}}}
 {{#if isGemini25PreviewSelected}}
 Özel Not (Gemini 2.5 Flash Preview için): Çözümü ana adımları ve kilit mantıksal çıkarımları vurgulayarak, olabildiğince öz ama anlaşılır olmalıdır. Aşırı detaydan kaçın, doğrudan ve net bir çözüm sun.
 {{/if}}
+)
 {{/if}}
 
 {{#if isProUser}}
@@ -180,7 +181,7 @@ const questionSolverFlow = ai.defineFlow(
         };
       }
       
-      let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Default for free/premium or if admin doesn't select
+      let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Default if admin doesn't select or for free/premium
       let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
       if (input.customModelIdentifier && input.userPlan === 'pro') { 
@@ -201,10 +202,13 @@ const questionSolverFlow = ai.defineFlow(
         callOptions.model = modelToUse;
         console.log(`[QuestionSolver Flow] Pro user using model: ${modelToUse}`);
       } else {
+        // Free or Premium users without admin override
+        modelToUse = 'googleai/gemini-1.5-flash-latest'; // Defaulting to 1.5 Flash for better quality
+        callOptions.model = modelToUse;
         console.log(`[QuestionSolver Flow] Free/Premium user using model: ${modelToUse}`);
       }
       
-      // Conditionally add generationConfig
+      // Conditionally add generationConfig: DO NOT add for gemini-2.5-flash-preview
       if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
         callOptions.config = {
           generationConfig: {
@@ -214,13 +218,17 @@ const questionSolverFlow = ai.defineFlow(
         console.log(`[QuestionSolver Flow] Using generationConfig for model ${modelToUse}:`, callOptions.config);
       } else {
         console.log(`[QuestionSolver Flow] NOT using generationConfig for preview model ${modelToUse}.`);
-        callOptions.config = {};
+        // Ensure config is not passed or is empty if the model doesn't support it
+        // If callOptions already contains config, we need to remove it or set it to empty.
+        // For simplicity, if we created callOptions = { model: modelToUse }, config isn't there yet.
+        // If we want to be super safe: callOptions = { model: modelToUse }; // No config by default
       }
 
       console.log(`[QuestionSolver Flow] Calling Google prompt with model: ${callOptions.model} and options:`, callOptions);
       
       let outputFromPrompt: SolveQuestionOutput | undefined;
       try {
+        // Pass callOptions which includes model and potentially config
         const { output } = await questionSolverPrompt(input, callOptions); 
         outputFromPrompt = output;
       } catch (promptError: any) {
@@ -280,5 +288,7 @@ const questionSolverFlow = ai.defineFlow(
     }
   }
 );
+
+    
 
     
