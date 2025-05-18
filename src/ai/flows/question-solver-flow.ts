@@ -10,8 +10,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
-import type { UserProfile } from '@/types';
+import {z} from 'genkit'; // Ensure z is imported correctly
 
 const SolveQuestionInputSchema = z.object({
   questionText: z.string().optional().describe('Öğrencinin çözülmesini istediği, YKS kapsamındaki soru metni.'),
@@ -40,6 +39,7 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
   try {
     const result = await questionSolverFlow(input);
 
+    // Robust check for valid result structure
     if (!result || typeof result.solution !== 'string' || !Array.isArray(result.relatedConcepts) || !Array.isArray(result.examStrategyTips)) {
       console.error("[SolveQuestion Action] Flow returned invalid, null, or malformed result:", JSON.stringify(result).substring(0, 500));
       return {
@@ -52,16 +52,20 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
     console.log("[SolveQuestion Action] Successfully received result from questionSolverFlow.");
     return result;
   } catch (error: any) {
-    console.error("[SolveQuestion Action] Critical error during server action execution:", error);
+    console.error("[SolveQuestion Action] CRITICAL error during server action execution:", error);
+    
     let errorMessage = 'Bilinmeyen sunucu hatası oluştu.';
     if (error instanceof Error) {
         errorMessage = error.message;
     } else if (typeof error === 'string') {
         errorMessage = error;
-    } else if (error && typeof error.toString === 'function') {
-        errorMessage = error.toString();
     } else {
-        errorMessage = JSON.stringify(error); // Fallback for non-standard errors
+        // Attempt to stringify, but handle potential circular references or other issues
+        try {
+            errorMessage = JSON.stringify(error);
+        } catch (stringifyError) {
+            errorMessage = 'Serileştirilemeyen sunucu hata nesnesi.';
+        }
     }
     
     return {
@@ -77,6 +81,7 @@ const questionSolverPrompt = ai.definePrompt({
   name: 'questionSolverPrompt',
   input: {schema: SolveQuestionInputSchema},
   output: {schema: SolveQuestionOutputSchema},
+  // Removed default config from here
   prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilere her türlü akademik soruyu (Matematik, Geometri, Fizik, Kimya, Biyoloji, Türkçe, Edebiyat, Tarih, Coğrafya, Felsefe vb.) en karmaşık detaylarına kadar, temel prensiplerine indirgeyerek, adım adım, son derece anlaşılır, pedagojik değeri yüksek ve motive edici bir şekilde çözmede uzmanlaşmış kıdemli bir AI YKS uzman öğretmenisin.
 Amacın sadece doğru cevabı vermek değil, aynı zamanda sorunun çözüm mantığını, SATIR SATIR ve ADIM ADIM açıklamak, altında yatan temel prensipleri ve YKS'de sıkça sorulan püf noktalarını vurgulamak ve öğrencinin konuyu tam anlamıyla "öğrenmesini" sağlamaktır. Çözümün her bir aşaması, nedenleriyle birlikte, bir öğrenciye ders anlatır gibi sunulmalıdır. Öğrencinin bu soru tipini bir daha gördüğünde kendinden emin bir şekilde çözebilmesi için gereken her türlü bilgiyi ve stratejiyi sun. Çözümün olabildiğince açık ve anlaşılır olmasına, ancak gereksiz yere aşırı uzun olmamasına özen göster.
 Matematiksel ifadeleri ve denklemleri yazarken lütfen Markdown formatlamasına (örneğin, tek backtick \`denklem\` veya üçlü backtick ile kod blokları) dikkat edin ve formatlamayı doğru bir şekilde kapatın.
@@ -150,14 +155,14 @@ const questionSolverFlow = ai.defineFlow(
   async (input): Promise<SolveQuestionOutput> => {
     console.log("[QuestionSolver Flow] Flow started. Input received:", {
       hasQuestionText: !!input.questionText,
-      hasImageDataUri: !!input.imageDataUri,
+      hasImageDataUri: !!input.imageDataUri && input.imageDataUri.length > 30 ? input.imageDataUri.substring(0,30) + "..." : "No Image",
       userPlan: input.userPlan,
-      customModelIdentifier: input.customModelIdentifier // Log the received custom model identifier
+      customModelIdentifier: input.customModelIdentifier
     });
 
     try {
       if (!input.questionText && !input.imageDataUri) {
-        console.warn("[QuestionSolver Flow] No question text or image data provided.");
+        console.warn("[QuestionSolver Flow] No question text or image data provided by user.");
         return {
           solution: "Soru çözmek için lütfen bir metin girin veya bir görsel yükleyin.",
           relatedConcepts: [],
@@ -186,11 +191,10 @@ const questionSolverFlow = ai.defineFlow(
         callOptions.model = modelToUse;
         console.log(`[QuestionSolver Flow] Pro user using model: ${modelToUse}`);
       } else {
-        // Free and Premium users will use the default Genkit model (gemini-1.5-flash-latest) or the one explicitly set here
         console.log(`[QuestionSolver Flow] Free/Premium user using model: ${modelToUse}`);
       }
       
-      // Add generationConfig only if the model is NOT the preview version
+      // Conditionally add generationConfig
       if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
         callOptions.config = {
           generationConfig: {
@@ -200,16 +204,14 @@ const questionSolverFlow = ai.defineFlow(
         console.log(`[QuestionSolver Flow] Using generationConfig for model ${modelToUse}:`, callOptions.config);
       } else {
         console.log(`[QuestionSolver Flow] NOT using generationConfig for preview model ${modelToUse}.`);
-        // Ensure config is not passed or is empty for the preview model if it causes issues.
-        // If the prompt itself has a default config, we might need to override it with an empty config.
-        // For now, we'll let the Genkit prompt use its default config if callOptions.config is undefined.
+        // Ensure config is explicitly empty or undefined if it was previously set
+        callOptions.config = {}; // Or delete callOptions.config;
       }
 
-      console.log(`[QuestionSolver Flow] Calling Google prompt with model: ${callOptions.model} and config:`, callOptions.config || "Prompt's default config");
+      console.log(`[QuestionSolver Flow] Calling Google prompt with model: ${callOptions.model} and options:`, callOptions);
       
       let outputFromPrompt: SolveQuestionOutput | undefined;
       try {
-        // Pass callOptions which now correctly omits/includes config based on modelToUse
         const { output } = await questionSolverPrompt(input, callOptions); 
         outputFromPrompt = output;
       } catch (promptError: any) {
@@ -248,7 +250,7 @@ const questionSolverFlow = ai.defineFlow(
       };
 
     } catch (flowError: any) {
-        console.error("[QuestionSolver Flow] UNEXPECTED CRITICAL ERROR in flow execution:", flowError);
+        console.error("[QuestionSolver Flow] UNEXPECTED CRITICAL ERROR in flow execution:", flowError, "Input was:", input);
         let flowErrorMessage = 'Soru çözme akışında beklenmedik kritik bir hata oluştu.';
         if (flowError instanceof Error) {
             flowErrorMessage = flowError.message;
@@ -269,3 +271,5 @@ const questionSolverFlow = ai.defineFlow(
     }
   }
 );
+
+    

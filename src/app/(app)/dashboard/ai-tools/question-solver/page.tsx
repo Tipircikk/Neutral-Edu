@@ -7,14 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { HelpCircle, Send, Loader2, AlertTriangle, UploadCloud, ImageIcon } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react"; // Added useRef
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { solveQuestion, type SolveQuestionOutput, type SolveQuestionInput } from "@/ai/flows/question-solver-flow"; 
 import NextImage from "next/image";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area"; // ScrollArea import edildi
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function QuestionSolverPage() {
   const [questionText, setQuestionText] = useState("");
@@ -26,6 +26,10 @@ export default function QuestionSolverPage() {
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
   const [canProcess, setCanProcess] = useState(false);
   const [adminSelectedModel, setAdminSelectedModel] = useState<string>("experimental_gemini_2_5_flash_preview");
+
+  const [loadingMessage, setLoadingMessage] = useState("Çözüm oluşturuluyor...");
+  const loadingMessageIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const loadingStartTimeRef = useRef<number | null>(null);
 
   const memoizedCheckAndResetQuota = useCallback(async () => {
     if (checkAndResetQuota) return checkAndResetQuota();
@@ -39,6 +43,39 @@ export default function QuestionSolverPage() {
       });
     }
   }, [userProfile, memoizedCheckAndResetQuota]);
+
+  useEffect(() => {
+    if (isSolving) {
+      loadingStartTimeRef.current = Date.now();
+      setLoadingMessage("Çözüm oluşturuluyor..."); // Reset message on new request
+
+      loadingMessageIntervalRef.current = setInterval(() => {
+        if (loadingStartTimeRef.current) {
+          const elapsedTimeSeconds = Math.floor((Date.now() - loadingStartTimeRef.current) / 1000);
+          if (elapsedTimeSeconds >= 45) {
+            setLoadingMessage("Çözüm hala oluşturuluyor, sabrınız için teşekkürler. Çok uzun sürerse, soruyu basitleştirmeyi veya daha sonra tekrar denemeyi düşünebilirsiniz.");
+          } else if (elapsedTimeSeconds >= 30) {
+            setLoadingMessage("Karmaşık bir soru üzerinde çalışılıyor, lütfen bekleyin...");
+          } else if (elapsedTimeSeconds >= 15) {
+            setLoadingMessage("Yapay zeka düşünüyor, bu biraz zaman alabilir...");
+          }
+        }
+      }, 15000); // Update message every 15 seconds
+    } else {
+      if (loadingMessageIntervalRef.current) {
+        clearInterval(loadingMessageIntervalRef.current);
+        loadingMessageIntervalRef.current = null;
+      }
+      loadingStartTimeRef.current = null;
+    }
+
+    return () => {
+      if (loadingMessageIntervalRef.current) {
+        clearInterval(loadingMessageIntervalRef.current);
+      }
+    };
+  }, [isSolving]);
+
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -95,27 +132,60 @@ export default function QuestionSolverPage() {
 
       if (result && result.solution) {
         setAnswer(result);
-        toast({ title: "Çözüm Hazır!", description: "Sorunuz için bir çözüm oluşturuldu." });
-        if (decrementQuota) {
-            await decrementQuota(currentProfile);
+        if (result.solution.startsWith("AI modeli") || result.solution.startsWith("Sunucu tarafında") || result.solution.startsWith("OpenRouter")) {
+           toast({ title: "Çözüm Bilgisi", description: "Detaylar için çözüme bakın.", variant: "default" });
+        } else {
+           toast({ title: "Çözüm Hazır!", description: "Sorunuz için bir çözüm oluşturuldu." });
         }
-        const updatedProfileAgain = await memoizedCheckAndResetQuota();
-        if (updatedProfileAgain) {
-          setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
+        
+        if (!result.solution.startsWith("Kota Aşıldı")) { // Only decrement if not a quota error from server
+          if (decrementQuota) {
+              const decrementSuccess = await decrementQuota(currentProfile);
+              if (decrementSuccess) {
+                const updatedProfileAgain = await memoizedCheckAndResetQuota(); 
+                if (updatedProfileAgain) {
+                    setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
+                } else {
+                    setCanProcess(false); // Fallback if profile couldn't be re-fetched
+                }
+              } else {
+                 // If decrement fails, quota might be stale on client, re-check and update UI
+                 const refreshedProfile = await memoizedCheckAndResetQuota();
+                 if (refreshedProfile) {
+                    setCanProcess((refreshedProfile.dailyRemainingQuota ?? 0) > 0);
+                 }
+              }
+          }
         }
       } else {
-        throw new Error(result?.solution || "Yapay zeka bir çözüm üretemedi veya format hatalı.");
+         // This case should ideally be handled by the robust error handling in solveQuestion now
+        console.error("SolveQuestion returned an unexpected structure:", result);
+        toast({
+          title: "Yanıt Hatası",
+          description: "Sunucudan beklenmedik bir yanıt formatı alındı. Lütfen tekrar deneyin.",
+          variant: "destructive",
+        });
+        setAnswer({ 
+            solution: "Sunucudan beklenmedik bir yanıt formatı alındı. Geliştirici konsolunu kontrol edin.",
+            relatedConcepts: [],
+            examStrategyTips: []
+        });
       }
     } catch (error: any) {
-      console.error("Soru çözme hatası:", error);
+      console.error("Soru çözme hatası (handleSubmit):", error);
+      let errorMessage = "Soru çözülürken bilinmeyen bir hata oluştu.";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
       toast({
         title: "Çözüm Hatası",
-        description: error.message || "Soru çözülürken beklenmedik bir hata oluştu.",
+        description: errorMessage,
         variant: "destructive",
       });
-      // Ensure a structured response for error display
       setAnswer({ 
-        solution: error.message || "Beklenmedik bir hata oluştu.",
+        solution: `İstemci tarafında hata: ${errorMessage}`,
         relatedConcepts: [],
         examStrategyTips: []
       });
@@ -223,10 +293,7 @@ export default function QuestionSolverPage() {
           <CardContent className="p-6">
             <div className="flex flex-col items-center justify-center text-center">
               <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
-              <p className="text-lg font-medium text-foreground">Çözüm Oluşturuluyor...</p>
-              <p className="text-sm text-muted-foreground">
-                Yapay zeka sihrini yapıyor... Bu işlem biraz zaman alabilir.
-              </p>
+              <p className="text-lg font-medium text-foreground">{loadingMessage}</p>
             </div>
           </CardContent>
         </Card>
@@ -274,3 +341,5 @@ export default function QuestionSolverPage() {
     </div>
   );
 }
+
+    
