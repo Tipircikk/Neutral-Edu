@@ -7,10 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { HelpCircle, Send, Loader2, AlertTriangle, UploadCloud, ImageIcon } from "lucide-react";
-import { useState, useEffect, useCallback, useRef } from "react"; // Added useRef
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
-import { solveQuestion, type SolveQuestionOutput, type SolveQuestionInput } from "@/ai/flows/question-solver-flow"; 
+import { solveQuestion, type SolveQuestionOutput, type SolveQuestionInput } from "@/ai/flows/question-solver-flow";
 import NextImage from "next/image";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -25,7 +25,7 @@ export default function QuestionSolverPage() {
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
   const [canProcess, setCanProcess] = useState(false);
-  const [adminSelectedModel, setAdminSelectedModel] = useState<string>("experimental_gemini_2_5_flash_preview");
+  const [adminSelectedModel, setAdminSelectedModel] = useState<string>("experimental_gemini_1_5_flash");
 
   const [loadingMessage, setLoadingMessage] = useState("Çözüm oluşturuluyor...");
   const loadingMessageIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -47,20 +47,29 @@ export default function QuestionSolverPage() {
   useEffect(() => {
     if (isSolving) {
       loadingStartTimeRef.current = Date.now();
-      setLoadingMessage("Çözüm oluşturuluyor..."); // Reset message on new request
+      setLoadingMessage("Çözüm oluşturuluyor...");
+
+      const messages = [
+        { time: 15, message: "Yapay zeka düşünüyor, bu biraz zaman alabilir..." },
+        { time: 30, message: "Karmaşık bir soru üzerinde çalışılıyor, bu işlem birkaç dakika sürebilir, lütfen bekleyin..." },
+        { time: 60, message: "Hesaplama devam ediyor. Çok karmaşık soruların çözümü beklenenden uzun sürebilir. Sabrınız için teşekkürler." },
+        { time: 120, message: "İşlem hala devam ediyor. Sunucu zaman aşımı limitlerine yaklaşılıyor olabilir. Eğer çözüm çok uzun sürerse, soruyu basitleştirmeyi veya farklı bir modelle denemeyi düşünebilirsiniz." },
+        { time: 180, message: "Bu gerçekten uzun sürdü... Sunucunun yanıt vermesi bekleniyor. Gerekirse sayfayı yenileyip daha basit bir soruyla tekrar deneyebilirsiniz." },
+        { time: 240, message: "Çok uzun bir bekleme süresi oldu. Teknik bir sorun olabilir veya model soruyu işlemekte zorlanıyor. Biraz daha bekleyebilir veya işlemi iptal etmeyi düşünebilirsiniz."}
+      ];
+
+      let messageIndex = 0;
 
       loadingMessageIntervalRef.current = setInterval(() => {
         if (loadingStartTimeRef.current) {
           const elapsedTimeSeconds = Math.floor((Date.now() - loadingStartTimeRef.current) / 1000);
-          if (elapsedTimeSeconds >= 45) {
-            setLoadingMessage("Çözüm hala oluşturuluyor, sabrınız için teşekkürler. Çok uzun sürerse, soruyu basitleştirmeyi veya daha sonra tekrar denemeyi düşünebilirsiniz.");
-          } else if (elapsedTimeSeconds >= 30) {
-            setLoadingMessage("Karmaşık bir soru üzerinde çalışılıyor, lütfen bekleyin...");
-          } else if (elapsedTimeSeconds >= 15) {
-            setLoadingMessage("Yapay zeka düşünüyor, bu biraz zaman alabilir...");
+          
+          if (messageIndex < messages.length && elapsedTimeSeconds >= messages[messageIndex].time) {
+            setLoadingMessage(messages[messageIndex].message);
+            messageIndex++;
           }
         }
-      }, 15000); // Update message every 15 seconds
+      }, 5000); // Check every 5 seconds for new message
     } else {
       if (loadingMessageIntervalRef.current) {
         clearInterval(loadingMessageIntervalRef.current);
@@ -82,7 +91,7 @@ export default function QuestionSolverPage() {
     if (file) {
       if (file.size > 5 * 1024 * 1024) { // 5MB limit
         toast({ title: "Dosya Boyutu Büyük", description: "Lütfen 5MB'den küçük bir görsel yükleyin.", variant: "destructive" });
-        event.target.value = ""; 
+        event.target.value = "";
         setImageFile(null);
         setImageDataUri(null);
         return;
@@ -122,34 +131,33 @@ export default function QuestionSolverPage() {
       if (!currentProfile?.plan) {
         throw new Error("Kullanıcı planı bulunamadı.");
       }
-      const input: SolveQuestionInput = { 
-        questionText: questionText.trim() || undefined, 
+      const input: SolveQuestionInput = {
+        questionText: questionText.trim() || undefined,
         imageDataUri: imageDataUri || undefined,
         userPlan: currentProfile.plan,
         customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
       };
       const result = await solveQuestion(input);
 
-      if (result && result.solution) {
+      if (result && typeof result.solution === 'string' && Array.isArray(result.relatedConcepts) && Array.isArray(result.examStrategyTips)) {
         setAnswer(result);
-        if (result.solution.startsWith("AI modeli") || result.solution.startsWith("Sunucu tarafında") || result.solution.startsWith("OpenRouter")) {
+        if (result.solution.startsWith("AI modeli") || result.solution.startsWith("Sunucu tarafında") || result.solution.startsWith("OpenRouter") || result.solution.includes("Hata:") || result.solution.includes("Error:")) {
            toast({ title: "Çözüm Bilgisi", description: "Detaylar için çözüme bakın.", variant: "default" });
         } else {
            toast({ title: "Çözüm Hazır!", description: "Sorunuz için bir çözüm oluşturuldu." });
         }
-        
-        if (!result.solution.startsWith("Kota Aşıldı")) { // Only decrement if not a quota error from server
+
+        if (!result.solution.startsWith("Kota Aşıldı")) {
           if (decrementQuota) {
               const decrementSuccess = await decrementQuota(currentProfile);
               if (decrementSuccess) {
-                const updatedProfileAgain = await memoizedCheckAndResetQuota(); 
+                const updatedProfileAgain = await memoizedCheckAndResetQuota();
                 if (updatedProfileAgain) {
                     setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
                 } else {
-                    setCanProcess(false); // Fallback if profile couldn't be re-fetched
+                    setCanProcess(false);
                 }
               } else {
-                 // If decrement fails, quota might be stale on client, re-check and update UI
                  const refreshedProfile = await memoizedCheckAndResetQuota();
                  if (refreshedProfile) {
                     setCanProcess((refreshedProfile.dailyRemainingQuota ?? 0) > 0);
@@ -158,42 +166,42 @@ export default function QuestionSolverPage() {
           }
         }
       } else {
-         // This case should ideally be handled by the robust error handling in solveQuestion now
-        console.error("SolveQuestion returned an unexpected structure:", result);
+        console.error("[QuestionSolverPage] Flow returned invalid or malformed result:", result);
+        const errorMessage = "AI akışından geçersiz veya eksik bir yanıt alındı. Lütfen tekrar deneyin veya farklı bir soru sorun.";
+        setAnswer({
+            solution: errorMessage,
+            relatedConcepts: ["Hata"],
+            examStrategyTips: ["Tekrar deneyin"],
+        });
         toast({
           title: "Yanıt Hatası",
-          description: "Sunucudan beklenmedik bir yanıt formatı alındı. Lütfen tekrar deneyin.",
+          description: errorMessage,
           variant: "destructive",
-        });
-        setAnswer({ 
-            solution: "Sunucudan beklenmedik bir yanıt formatı alındı. Geliştirici konsolunu kontrol edin.",
-            relatedConcepts: [],
-            examStrategyTips: []
         });
       }
     } catch (error: any) {
-      console.error("Soru çözme hatası (handleSubmit):", error);
-      let errorMessage = "Soru çözülürken bilinmeyen bir hata oluştu.";
+      console.error("[QuestionSolverPage] CRITICAL error during handleSubmit:", error);
+      let errorMessage = 'Bilinmeyen bir istemci tarafı hatası oluştu.';
       if (error instanceof Error) {
-        errorMessage = error.message;
+          errorMessage = error.message;
       } else if (typeof error === 'string') {
-        errorMessage = error;
+          errorMessage = error;
       }
+      setAnswer({
+        solution: `İstemci Hatası: ${errorMessage}. Geliştirici konsolunu kontrol edin.`,
+        relatedConcepts: ["Hata"],
+        examStrategyTips: ["Tekrar deneyin"],
+      });
       toast({
         title: "Çözüm Hatası",
         description: errorMessage,
         variant: "destructive",
       });
-      setAnswer({ 
-        solution: `İstemci tarafında hata: ${errorMessage}`,
-        relatedConcepts: [],
-        examStrategyTips: []
-      });
     } finally {
       setIsSolving(false);
     }
   };
-  
+
   const isSubmitDisabled = isSolving || (!questionText.trim() && !imageDataUri) || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
 
   if (userProfileLoading) {
@@ -235,13 +243,13 @@ export default function QuestionSolverPage() {
             {userProfile?.isAdmin && (
               <div className="space-y-2 p-4 border rounded-md bg-muted/50">
                 <Label htmlFor="adminModelSelect" className="font-semibold text-primary">Model Seç (Admin Özel)</Label>
-                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel}>
+                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSolving}>
                   <SelectTrigger id="adminModelSelect">
                     <SelectValue placeholder="Model seçin" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
                     <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
                     <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
                   </SelectContent>
                 </Select>
