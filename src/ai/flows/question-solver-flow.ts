@@ -10,13 +10,18 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit'; // Ensure z is imported correctly
+import {z} from 'genkit'; 
 
 const SolveQuestionInputSchema = z.object({
   questionText: z.string().optional().describe('Öğrencinin çözülmesini istediği, YKS kapsamındaki soru metni.'),
   imageDataUri: z.string().optional().describe("Soruyla ilgili bir görselin data URI'si (Base64 formatında). 'data:<mimetype>;base64,<encoded_data>' formatında olmalıdır. Görsel, soru metni yerine veya ona ek olarak sunulabilir."),
   userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
-  customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi (örn: 'default_gemini_flash', 'experimental_gemini_1_5_flash', 'experimental_gemini_2_5_flash_preview').")
+  customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi (örn: 'default_gemini_flash', 'experimental_gemini_1_5_flash', 'experimental_gemini_2_5_flash_preview')."),
+  // Boolean flags for Handlebars
+  isProUser: z.boolean().optional(),
+  isPremiumUser: z.boolean().optional(),
+  isGemini25PreviewSelected: z.boolean().optional(),
+  isCustomModelSelected: z.boolean().optional(),
 });
 export type SolveQuestionInput = z.infer<typeof SolveQuestionInputSchema>;
 
@@ -54,13 +59,12 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
   } catch (error: any) {
     console.error("[SolveQuestion Action] CRITICAL error during server action execution:", error);
     
-    let errorMessage = 'Bilinmeyen sunucu hatası oluştu.';
+    let errorMessage = 'Bilinmeyen bir sunucu hatası oluştu.';
     if (error instanceof Error) {
         errorMessage = error.message;
     } else if (typeof error === 'string') {
         errorMessage = error;
     } else {
-        // Attempt to stringify, but handle potential circular references or other issues
         try {
             errorMessage = JSON.stringify(error);
         } catch (stringifyError) {
@@ -69,8 +73,8 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
     }
     
     return {
-      solution: `Sunucu tarafında genel bir hata oluştu: ${errorMessage}. Geliştirici konsolunu kontrol edin.`,
-      relatedConcepts: ["Hata"],
+      solution: `Sunucu tarafında kritik bir hata oluştu: ${errorMessage}. Geliştirici konsolunu kontrol edin.`,
+      relatedConcepts: ["Kritik Hata"],
       examStrategyTips: ["Tekrar deneyin"],
     };
   }
@@ -81,25 +85,23 @@ const questionSolverPrompt = ai.definePrompt({
   name: 'questionSolverPrompt',
   input: {schema: SolveQuestionInputSchema},
   output: {schema: SolveQuestionOutputSchema},
-  // Removed default config from here
   prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilere her türlü akademik soruyu (Matematik, Geometri, Fizik, Kimya, Biyoloji, Türkçe, Edebiyat, Tarih, Coğrafya, Felsefe vb.) en karmaşık detaylarına kadar, temel prensiplerine indirgeyerek, adım adım, son derece anlaşılır, pedagojik değeri yüksek ve motive edici bir şekilde çözmede uzmanlaşmış kıdemli bir AI YKS uzman öğretmenisin.
 Amacın sadece doğru cevabı vermek değil, aynı zamanda sorunun çözüm mantığını, SATIR SATIR ve ADIM ADIM açıklamak, altında yatan temel prensipleri ve YKS'de sıkça sorulan püf noktalarını vurgulamak ve öğrencinin konuyu tam anlamıyla "öğrenmesini" sağlamaktır. Çözümün her bir aşaması, nedenleriyle birlikte, bir öğrenciye ders anlatır gibi sunulmalıdır. Öğrencinin bu soru tipini bir daha gördüğünde kendinden emin bir şekilde çözebilmesi için gereken her türlü bilgiyi ve stratejiyi sun. Çözümün olabildiğince açık ve anlaşılır olmasına, ancak gereksiz yere aşırı uzun olmamasına özen göster.
 Matematiksel ifadeleri ve denklemleri yazarken lütfen Markdown formatlamasına (örneğin, tek backtick \`denklem\` veya üçlü backtick ile kod blokları) dikkat edin ve formatlamayı doğru bir şekilde kapatın.
 Cevapların her zaman Türkçe olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
+{{#if isCustomModelSelected}}
 Kullanıcının seçtiği özel model (eğer varsa): {{{customModelIdentifier}}}.
-
-{{#if customModelIdentifier}}
 (Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.
-{{#if (eq customModelIdentifier "experimental_gemini_2_5_flash_preview")}}
+{{#if isGemini25PreviewSelected}}
 Özel Not (Gemini 2.5 Flash Preview için): Çözümü ana adımları ve kilit mantıksal çıkarımları vurgulayarak, olabildiğince öz ama anlaşılır olmalıdır. Aşırı detaydan kaçın, doğrudan ve net bir çözüm sun.
 {{/if}}
 {{/if}}
 
-{{#if (eq userPlan "pro")}}
+{{#if isProUser}}
 Pro kullanıcılar için: Çözümlerini en üst düzeyde akademik titizlikle, birden fazla çözüm yolunu (varsa) karşılaştırarak, konunun en derin ve karmaşık noktalarına değinerek sun. Sorunun çözümünde kullanılan her bir kavramı, formülü veya teoremine detaylıca açıkla. Sorunun YKS'deki genel stratejik önemini, benzer soru tiplerini ve bu tür sorulara yaklaşım stratejilerini derinlemesine tartış. Öğrencinin ufkunu açacak bağlantılar kur ve ileri düzey düşünme becerilerini tetikle. Her bir işlem adımını, mantıksal çıkarımı ve kullanılan formülü ayrı ayrı ve çok net bir şekilde açıkla. En sofistike ve en kapsamlı yanıtı vermek için en gelişmiş AI yeteneklerini kullan.
-{{else if (eq userPlan "premium")}}
+{{else if isPremiumUser}}
 Premium kullanıcılar için: Daha derinlemesine açıklamalar, varsa alternatif çözüm yolları ve konunun YKS'deki önemi hakkında daha detaylı bilgiler sunmaya özen göster. Standart kullanıcıya göre daha zengin ve öğretici bir deneyim sağla. Çözüm adımlarını netleştir.
 {{/if}}
 
@@ -125,7 +127,7 @@ Lütfen bu soruyu/soruları analiz et ve aşağıdaki formatta, öğretici bir y
     *   Soruyu sanki bir YKS öğrencisine ders anlatır gibi, ana adımları mantığıyla birlikte, açıklayarak çöz.
     *   Her bir matematiksel işlemi, mantıksal çıkarımı, kullanılan formülü veya kuralı ayrı ayrı ve net bir şekilde belirt ve nasıl uygulandığını göster.
     *   Çözümü olabildiğince parçalara ayırarak her bir adımı sindirilebilir kıl.
-    *   Eğer kullanıcının üyelik planı 'pro' ise veya seçilen özel model daha gelişmiş bir Google modeli ise (ve 'experimental_gemini_2_5_flash_preview' değilse), varsa alternatif çözüm yollarına da değin ve avantaj/dezavantajlarını kısaca belirt.
+    *   {{#if isProUser}} Eğer kullanıcının üyelik planı 'pro' ise veya seçilen özel model daha gelişmiş bir Google modeli ise (ve 'experimental_gemini_2_5_flash_preview' değilse), varsa alternatif çözüm yollarına da değin ve avantaj/dezavantajlarını kısaca belirt. {{/if}}
 3.  **Sonuç ve Kontrol**:
     *   Elde edilen sonucu net bir şekilde belirt.
     *   Mümkünse, sonucun mantıklı olup olmadığını veya nasıl kontrol edilebileceğini kısaca açıkla.
@@ -152,13 +154,21 @@ const questionSolverFlow = ai.defineFlow(
     inputSchema: SolveQuestionInputSchema,
     outputSchema: SolveQuestionOutputSchema,
   },
-  async (input): Promise<SolveQuestionOutput> => {
-    console.log("[QuestionSolver Flow] Flow started. Input received:", {
-      hasQuestionText: !!input.questionText,
-      hasImageDataUri: !!input.imageDataUri && input.imageDataUri.length > 30 ? input.imageDataUri.substring(0,30) + "..." : "No Image",
-      userPlan: input.userPlan,
-      customModelIdentifier: input.customModelIdentifier
+  async (rawInput): Promise<SolveQuestionOutput> => {
+    console.log("[QuestionSolver Flow] Flow started. Raw Input received:", {
+      hasQuestionText: !!rawInput.questionText,
+      hasImageDataUri: !!rawInput.imageDataUri && rawInput.imageDataUri.length > 30 ? rawInput.imageDataUri.substring(0,30) + "..." : "No Image",
+      userPlan: rawInput.userPlan,
+      customModelIdentifier: rawInput.customModelIdentifier
     });
+
+    const input: SolveQuestionInput = {
+      ...rawInput,
+      isProUser: rawInput.userPlan === 'pro',
+      isPremiumUser: rawInput.userPlan === 'premium',
+      isGemini25PreviewSelected: rawInput.customModelIdentifier === 'experimental_gemini_2_5_flash_preview',
+      isCustomModelSelected: !!rawInput.customModelIdentifier,
+    };
 
     try {
       if (!input.questionText && !input.imageDataUri) {
@@ -204,8 +214,7 @@ const questionSolverFlow = ai.defineFlow(
         console.log(`[QuestionSolver Flow] Using generationConfig for model ${modelToUse}:`, callOptions.config);
       } else {
         console.log(`[QuestionSolver Flow] NOT using generationConfig for preview model ${modelToUse}.`);
-        // Ensure config is explicitly empty or undefined if it was previously set
-        callOptions.config = {}; // Or delete callOptions.config;
+        callOptions.config = {};
       }
 
       console.log(`[QuestionSolver Flow] Calling Google prompt with model: ${callOptions.model} and options:`, callOptions);
