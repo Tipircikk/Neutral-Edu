@@ -1,13 +1,13 @@
 
 "use client";
 
+import React, { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { HelpCircle, Send, Loader2, AlertTriangle, UploadCloud, ImageIcon } from "lucide-react";
-import { useState, useEffect, useCallback, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { solveQuestion, type SolveQuestionOutput, type SolveQuestionInput } from "@/ai/flows/question-solver-flow";
@@ -69,7 +69,7 @@ export default function QuestionSolverPage() {
             messageIndex++;
           }
         }
-      }, 5000); // Check every 5 seconds for new message
+      }, 5000); 
     } else {
       if (loadingMessageIntervalRef.current) {
         clearInterval(loadingMessageIntervalRef.current);
@@ -89,7 +89,7 @@ export default function QuestionSolverPage() {
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      if (file.size > 5 * 1024 * 1024) { 
         toast({ title: "Dosya Boyutu Büyük", description: "Lütfen 5MB'den küçük bir görsel yükleyin.", variant: "destructive" });
         event.target.value = "";
         setImageFile(null);
@@ -141,7 +141,7 @@ export default function QuestionSolverPage() {
 
       if (result && typeof result.solution === 'string' && Array.isArray(result.relatedConcepts) && Array.isArray(result.examStrategyTips)) {
         setAnswer(result);
-        if (result.solution.startsWith("AI modeli") || result.solution.startsWith("Sunucu tarafında") || result.solution.startsWith("OpenRouter") || result.solution.includes("Hata:") || result.solution.includes("Error:")) {
+        if (result.solution.startsWith("AI modeli") || result.solution.startsWith("Sunucu tarafında") || result.solution.includes("Hata:") || result.solution.includes("Error:")) {
            toast({ title: "Çözüm Bilgisi", description: "Detaylar için çözüme bakın.", variant: "default" });
         } else {
            toast({ title: "Çözüm Hazır!", description: "Sorunuz için bir çözüm oluşturuldu." });
@@ -203,6 +203,67 @@ export default function QuestionSolverPage() {
   };
 
   const isSubmitDisabled = isSolving || (!questionText.trim() && !imageDataUri) || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
+
+  const parseInlineFormatting = (line: string | undefined | null): React.ReactNode[] => {
+    if (!line) return [];
+    const parts = line.split(/(\S+\^\S+|\S+_\d+)/g);
+    return parts.map((part, index) => {
+      if (part.includes('^')) {
+        const [base, exponent] = part.split('^');
+        return <Fragment key={index}>{base}<sup>{exponent}</sup></Fragment>;
+      } else if (part.match(/(\S+)_(\d+)/)) {
+        const match = part.match(/(\S+)_(\d+)(.*)/);
+        if (match) {
+          return <Fragment key={index}>{match[1]}<sub>{match[2]}</sub>{match[3]}</Fragment>;
+        }
+      }
+      return <Fragment key={index}>{part}</Fragment>;
+    });
+  };
+
+  const formatSolverOutputForDisplay = (text: string): JSX.Element[] => {
+    if (!text) return [];
+    const lines = text.split('\n');
+    const elements: JSX.Element[] = [];
+    let listItems: React.ReactNode[] = [];
+
+    const flushList = () => {
+      if (listItems.length > 0) {
+        elements.push(
+          <ul key={`ul-${elements.length}`} className="list-disc pl-5 my-2 space-y-1">
+            {listItems.map((itemContent, idx) => <li key={idx}>{itemContent}</li>)}
+          </ul>
+        );
+        listItems = [];
+      }
+    };
+
+    lines.forEach((line, index) => {
+      const trimmedLine = line.trim();
+      if (trimmedLine.startsWith('### ')) {
+        flushList();
+        elements.push(<h4 key={index} className="text-md font-semibold mt-3 mb-1 text-foreground">{parseInlineFormatting(trimmedLine.substring(4))}</h4>);
+      } else if (trimmedLine.startsWith('## ')) {
+        flushList();
+        elements.push(<h3 key={index} className="text-lg font-semibold mt-4 mb-2 text-foreground">{parseInlineFormatting(trimmedLine.substring(3))}</h3>);
+      } else if (trimmedLine.startsWith('Soru Analizi:') || trimmedLine.startsWith('Çözüm Yolu (Adım Adım):') || trimmedLine.startsWith('Sonuç:') || trimmedLine.startsWith('Kavramlar:') || trimmedLine.startsWith('YKS Strateji İpucu:')) {
+        flushList();
+        elements.push(<h3 key={index} className="text-lg font-semibold mt-4 mb-2 text-primary">{parseInlineFormatting(trimmedLine)}</h3>);
+      } else if (trimmedLine.startsWith('* ') || trimmedLine.startsWith('- ')) {
+        listItems.push(parseInlineFormatting(trimmedLine.substring(trimmedLine.indexOf(' ') + 1)));
+      } else if (trimmedLine === "") {
+        if (listItems.length > 0) {
+          flushList();
+        }
+        elements.push(<div key={index} className="h-2"></div>); 
+      } else {
+        flushList();
+        elements.push(<p key={index} className="mb-2 last:mb-0">{parseInlineFormatting(line)}</p>);
+      }
+    });
+    flushList(); 
+    return elements;
+  };
 
   if (userProfileLoading) {
     return (
@@ -313,30 +374,30 @@ export default function QuestionSolverPage() {
             <CardTitle>Yapay Zeka Çözümü</CardTitle>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-auto max-h-[500px] w-full rounded-md border p-4 bg-muted/30">
-                <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-line">
-                <h3 className="font-semibold text-foreground">Çözüm:</h3>
-                <p>{answer.solution}</p>
-                {answer.relatedConcepts && answer.relatedConcepts.length > 0 && (
-                    <>
-                    <h3 className="font-semibold text-foreground mt-4">İlgili Kavramlar:</h3>
-                    <ul className="list-disc pl-5">
-                        {answer.relatedConcepts.map((concept, index) => (
-                        <li key={index}>{concept}</li>
-                        ))}
-                    </ul>
-                    </>
-                )}
-                {answer.examStrategyTips && answer.examStrategyTips.length > 0 && (
-                    <>
-                    <h3 className="font-semibold text-foreground mt-4">Sınav Stratejisi İpuçları:</h3>
-                    <ul className="list-disc pl-5">
-                        {answer.examStrategyTips.map((tip, index) => (
-                        <li key={index}>{tip}</li>
-                        ))}
-                    </ul>
-                    </>
-                )}
+            <ScrollArea className="h-auto max-h-[600px] w-full rounded-md border p-4 bg-muted/30">
+                <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
+                  {formatSolverOutputForDisplay(answer.solution)}
+
+                  {answer.relatedConcepts && answer.relatedConcepts.length > 0 && (
+                      <>
+                      <h3 className="text-lg font-semibold mt-4 mb-2 text-primary">İlgili Kavramlar:</h3>
+                      <ul className="list-disc pl-5 space-y-1">
+                          {answer.relatedConcepts.map((concept, index) => (
+                          <li key={index}>{parseInlineFormatting(concept)}</li>
+                          ))}
+                      </ul>
+                      </>
+                  )}
+                  {answer.examStrategyTips && answer.examStrategyTips.length > 0 && (
+                      <>
+                      <h3 className="text-lg font-semibold mt-4 mb-2 text-primary">Sınav Stratejisi İpuçları:</h3>
+                      <ul className="list-disc pl-5 space-y-1">
+                          {answer.examStrategyTips.map((tip, index) => (
+                          <li key={index}>{parseInlineFormatting(tip)}</li>
+                          ))}
+                      </ul>
+                      </>
+                  )}
                 </div>
             </ScrollArea>
             <div className="mt-4 p-3 text-xs text-destructive-foreground bg-destructive/80 rounded-md flex items-center gap-2">
@@ -349,5 +410,3 @@ export default function QuestionSolverPage() {
     </div>
   );
 }
-
-    

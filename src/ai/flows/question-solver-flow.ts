@@ -17,7 +17,6 @@ const SolveQuestionInputSchema = z.object({
   imageDataUri: z.string().optional().describe("Soruyla ilgili bir görselin data URI'si (Base64 formatında). 'data:<mimetype>;base64,<encoded_data>' formatında olmalıdır. Görsel, soru metni yerine veya ona ek olarak sunulabilir."),
   userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
   customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi (örn: 'default_gemini_flash', 'experimental_gemini_1_5_flash', 'experimental_gemini_2_5_flash_preview')."),
-  // Boolean flags for Handlebars
   isProUser: z.boolean().optional(),
   isPremiumUser: z.boolean().optional(),
   isGemini25PreviewSelected: z.boolean().optional(),
@@ -32,7 +31,6 @@ const SolveQuestionOutputSchema = z.object({
 });
 export type SolveQuestionOutput = z.infer<typeof SolveQuestionOutputSchema>;
 
-// This wrapper function is called by the client (Server Action)
 export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQuestionOutput> {
   console.log("[SolveQuestion Action] Received input:", {
       hasQuestionText: !!input.questionText,
@@ -44,16 +42,14 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
   try {
     const result = await questionSolverFlow(input);
 
-    // Robust check for valid result structure
     if (!result || typeof result.solution !== 'string' || !result.relatedConcepts || !Array.isArray(result.relatedConcepts) || !result.examStrategyTips || !Array.isArray(result.examStrategyTips)) {
-      console.error("[SolveQuestion Action] Flow returned invalid, null, or malformed result:", JSON.stringify(result).substring(0, 500));
+      console.error("[SolveQuestion Action] Flow returned invalid, null, or malformed result. Raw result:", JSON.stringify(result).substring(0, 500));
       return {
-        solution: "AI akışından geçersiz veya eksik bir yanıt alındı. Lütfen tekrar deneyin veya farklı bir soru sorun.",
+        solution: "AI akışından geçersiz veya eksik bir yanıt alındı. Lütfen tekrar deneyin veya farklı bir soru sorun. Eğer sorun devam ederse, geliştirici konsolunu kontrol edin.",
         relatedConcepts: ["Hata"],
         examStrategyTips: ["Tekrar deneyin"],
       };
     }
-
     console.log("[SolveQuestion Action] Successfully received result from questionSolverFlow.");
     return result;
   } catch (error: any) {
@@ -66,7 +62,7 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
         errorMessage = error;
     } else {
         try {
-            errorMessage = JSON.stringify(error).substring(0, 200); // Limit error message length
+            errorMessage = JSON.stringify(error).substring(0, 200); 
         } catch (stringifyError) {
             errorMessage = 'Serileştirilemeyen sunucu hata nesnesi.';
         }
@@ -80,36 +76,39 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
   }
 }
 
-// prompt definition
 const questionSolverPrompt = ai.definePrompt({
   name: 'questionSolverPrompt',
   input: {schema: SolveQuestionInputSchema},
   output: {schema: SolveQuestionOutputSchema},
-  prompt: `Sen, YKS (TYT–AYT) sınavına hazırlanan öğrencilere rehberlik eden uzman bir AI öğretmensin. Her soruda sadece doğru cevabı vermekle kalmaz, öğrenciyi adım adım, temel kavramlarla ve mantıksal açıklamalarla yönlendirirsin.
+  prompt: `Sen, YKS (TYT–AYT) sınavına hazırlanan öğrencilere, tüm derslerde (Matematik, Geometri, Fizik, Kimya, Biyoloji, Türkçe, Edebiyat, Tarih, Coğrafya, Felsefe vb.) en karmaşık soruları bile temel prensiplerine indirgeyerek, adım adım, son derece anlaşılır, pedagojik değeri yüksek ve öğrenciyi düşündürmeye teşvik eden bir şekilde çözmede uzmanlaşmış, YKS hazırlık sürecinin inceliklerine hakim, deneyimli ve kıdemli bir AI YKS uzman öğretmenisin.
+Amacın sadece doğru cevabı vermek değil, aynı zamanda sorunun çözüm mantığını, altında yatan temel prensipleri ve YKS'de sıkça sorulan püf noktalarını vurgulamaktır. Çözümün her bir aşaması, kullanılan formüller, yapılan mantıksal çıkarımlar, nedenleriyle birlikte, sanki karşında bir öğrenci varmış ve ona konuyu öğretiyormuşsun gibi bir üslupla, SATIR SATIR açıklanmalıdır.
 
-Her çözüm şu formatta verilir:
+Matematiksel sembolleri (örneğin, üslü ifadeler için x^2, alt indisler için H_2O, karekök için √, pi için π vb.) metin içinde açıkça ve anlaşılır bir şekilde kullanmaya özen göster. Denklemleri veya önemli ifadeleri yazarken lütfen Markdown formatlamasına (örneğin, tek backtick \`denklem\` veya üçlü backtick ile kod blokları) dikkat et ve formatlamayı doğru bir şekilde kapatın.
 
-Soru Analizi:
-- Hangi dersten, hangi konudan?
-- Gerekli temel bilgi/formül nedir?
+Her çözüm şu genel formatta verilir:
 
-Çözüm Yolu (Adım Adım):
-- Her adım mantığıyla açıklanır.
-- Gereksiz detay verilmez, öz ama öğretici olunur.
+## Soru Analizi
+*   Sorunun hangi YKS dersi ve ana konusuna ait olduğunu KISACA belirt.
+*   Çözüm için gerekli TEMEL BİLGİLERİ (ana formül veya kavram) listele.
 
-Sonuç:
-- Net cevap belirtilir (örn. Cevap B).
+## Çözüm Yolu (Adım Adım)
+*   Soruyu ana adımları mantığıyla birlikte, AÇIKLAYARAK çöz.
+*   Her bir önemli matematiksel işlemi veya mantıksal çıkarımı net bir şekilde belirt.
+*   Gereksiz detay verilmez, öz ama öğretici olunur.
 
-Kavramlar (İsteğe Bağlı):
-- Soruyla ilgili 1-2 önemli YKS kavramı.
+## Sonuç
+*   Elde edilen sonucu net bir şekilde belirt (örn: Cevap B).
 
-YKS Strateji İpucu (İsteğe Bağlı):
-- Bu tarz sorularda işe yarayan kısa bir taktik.
+## Kavramlar (İsteğe Bağlı, 1-2 adet)
+*   Çözümde kullanılan veya soruyla yakından ilişkili, YKS'de bilinmesi gereken 1-2 temel kavramı listele.
 
-Kurallar:
-- Görsel varsa, metinle birlikte analiz edilir.
-- Bilgi eksikse varsayım yapılmaz, ek bilgi istenir.
-- Anlatım açık, motive edici ve pedagojik olmalıdır.
+## YKS Strateji İpucu (İsteğe Bağlı, 1 adet)
+*   Bu tür sorularla ilgili 1 adet pratik YKS stratejisi veya ipucu ver.
+
+Davranış Kuralları:
+*   Eğer hem görsel hem de metin girdisi varsa, bunların birbiriyle %100 ilişkili olduğunu ve bir bütünün parçaları olduğunu varsay. Görseldeki soruyu tanımla, metinle birleştir ve bu bütünleşik girdiye dayanarak kapsamlı bir yanıt oluştur.
+*   Eğer girdi yetersiz, anlamsız veya YKS standartlarında çözülemeyecek kadar belirsizse, bunu net bir şekilde belirt. Örneğin, "Bu soruyu çözebilmek için daha fazla bilgiye/netliğe veya görseldeki ifadenin metin olarak yazılmasına ihtiyacım var." gibi bir geri bildirim ver. Kesin olmayan veya kalitesiz çözümler sunmaktan kaçın.
+*   Yanıtını öğrencinin kolayca anlayabileceği, teşvik edici ve eğitici bir dille yaz.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isCustomModelSelected}}
@@ -121,7 +120,7 @@ Kullanıcının seçtiği özel model: {{{customModelIdentifier}}}.
 {{/if}}
 
 {{#if isProUser}}
-(Pro Kullanıcı Notu: Çözümlerini üst düzeyde akademik titizlikle sun. Varsa birden fazla çözüm yolunu kısaca belirt. Sorunun çözümünde kullanılan anahtar kavramları detaylıca açıkla. Sorunun YKS'deki stratejik önemine değin.)
+(Pro Kullanıcı Notu: Çözümlerini üst düzeyde akademik titizlikle sun. Varsa birden fazla çözüm yolunu (avantaj ve dezavantajlarıyla birlikte) kısaca belirt. Sorunun çözümünde kullanılan anahtar kavramları derinlemesine açıkla. Sorunun YKS'deki stratejik önemini ve bu soru tipinin öğrenciye ne öğrettiğini tartış.)
 {{else if isPremiumUser}}
 (Premium Kullanıcı Notu: Daha derinlemesine açıklamalar yapmaya çalış, varsa alternatif çözüm yollarına kısaca değin.)
 {{/if}}
@@ -136,7 +135,7 @@ Metinsel Soru/Açıklama:
 {{{questionText}}}
 {{/if}}
 
-Lütfen yukarıdaki girdilere ve formatlama kurallarına göre bir çözüm üret.
+Lütfen yukarıdaki girdilere ve formatlama kurallarına göre bir çözüm üret. Çözümün olabildiğince açık ve anlaşılır olmasına, ancak gereksiz yere aşırı uzun olmamasına özen göster.
 `,
 });
 
@@ -171,7 +170,7 @@ const questionSolverFlow = ai.defineFlow(
       };
     }
     
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Varsayılan
+    let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
     if (input.customModelIdentifier && input.isProUser) { 
@@ -190,12 +189,12 @@ const questionSolverFlow = ai.defineFlow(
       callOptions.model = modelToUse;
       console.log(`[QuestionSolver Flow] Pro user using model: ${modelToUse}`);
     } else {
-      modelToUse = 'googleai/gemini-1.5-flash-latest'; // Free/Premium için varsayılan
+      // Free/Premium users
+      modelToUse = 'googleai/gemini-1.5-flash-latest'; // Default to newer flash for better base experience
       callOptions.model = modelToUse;
       console.log(`[QuestionSolver Flow] Free/Premium user using model: ${modelToUse}`);
     }
     
-    // Sadece gemini-2.5-flash-preview-04-17 modeli için generationConfig gönderme
     if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
       callOptions.config = {
         generationConfig: {
@@ -204,11 +203,11 @@ const questionSolverFlow = ai.defineFlow(
       };
       console.log(`[QuestionSolver Flow] Using generationConfig for model ${modelToUse}:`, callOptions.config);
     } else {
-      callOptions.config = {}; // Preview modeli için boş config
+      callOptions.config = {}; // No specific config for preview model to avoid errors
       console.log(`[QuestionSolver Flow] NOT using generationConfig for preview model ${modelToUse}.`);
     }
 
-    console.log(`[QuestionSolver Flow] Calling Google prompt with model: ${callOptions.model} and options:`, callOptions);
+    console.log(`[QuestionSolver Flow] Calling Google prompt with model: ${callOptions.model} and options:`, JSON.stringify(callOptions.config));
     
     try {
       const { output } = await questionSolverPrompt(input, callOptions); 
@@ -229,8 +228,8 @@ const questionSolverFlow = ai.defineFlow(
       };
 
     } catch (promptError: any) {
-      console.error(`[QuestionSolver Flow] Error during prompt execution with model ${modelToUse}:`, promptError);
-      let errorMessage = `AI modeli (${modelToUse}) ile iletişimde bir hata oluştu.`;
+      console.error(`[QuestionSolver Flow] CRITICAL ERROR during prompt execution with model ${modelToUse}:`, promptError);
+      let errorMessage = `AI modeli (${modelToUse}) ile iletişimde kritik bir hata oluştu. Lütfen bir süre sonra tekrar deneyin.`;
       if (promptError?.message) {
           errorMessage += ` Detay: ${promptError.message}`;
           if (promptError.message.includes('SAFETY') || promptError.message.includes('block_reason')) {
@@ -239,8 +238,10 @@ const questionSolverFlow = ai.defineFlow(
               errorMessage = `Seçilen model (${modelToUse}) bazı yapılandırma ayarlarını desteklemiyor olabilir. Geliştiriciye bildirin. Detay: ${promptError.message}`;
           } else if (promptError.message.includes('Must have a text part if there is a media part')) {
                 errorMessage = `Görsel ile birlikte metin girmeniz gerekmektedir veya model bu tür bir girdiyi desteklemiyor. Model: ${modelToUse}. Detay: ${promptError.message}`;
-          } else if (promptError.message.includes('500 Internal Server Error') || promptError.message.includes('internal error has occurred')) {
-              errorMessage = `AI modeli (${modelToUse}) dahili bir sunucu hatasıyla karşılaştı. Lütfen daha sonra tekrar deneyin veya farklı bir soru/model deneyin. Detay: ${promptError.message}`;
+          } else if (promptError.message.includes('500 Internal Server Error') || promptError.message.includes('internal error has occurred') || promptError.message.includes('Deadline exceeded')) {
+              errorMessage = `AI modeli (${modelToUse}) dahili bir sunucu hatasıyla karşılaştı veya yanıt vermesi çok uzun sürdü. Lütfen daha sonra tekrar deneyin veya farklı bir soru/model deneyin. Detay: ${promptError.message}`;
+          } else if (promptError.message.includes('504 Gateway Timeout')) {
+             errorMessage = `AI modelinden (${modelToUse}) yanıt alınamadı (Zaman Aşımı). Soru çok karmaşık olabilir veya API geçici olarak yoğun olabilir. Lütfen daha basit bir soru deneyin veya daha sonra tekrar gelin. Detay: ${promptError.message}`;
           }
       }
       return {
