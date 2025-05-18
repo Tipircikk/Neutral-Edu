@@ -85,12 +85,17 @@ Cevapların her zaman Türkçe olmalıdır.
 Kullanıcının üyelik planı: {{{userPlan}}}.
 Kullanıcının seçtiği özel model (eğer varsa): {{{customModelIdentifier}}}.
 
-Eğer kullanıcının üyelik planı 'pro' ise: Çözümlerini en üst düzeyde akademik titizlikle, birden fazla çözüm yolunu (varsa) karşılaştırarak, konunun en derin ve karmaşık noktalarına değinerek sun. Sorunun çözümünde kullanılan her bir kavramı, formülü veya teoremine detaylıca açıkla. Sorunun YKS'deki genel stratejik önemini, benzer soru tiplerini ve bu tür sorulara yaklaşım stratejilerini derinlemesine tartış. Öğrencinin ufkunu açacak bağlantılar kur ve ileri düzey düşünme becerilerini tetikle. Her bir işlem adımını, mantıksal çıkarımı ve kullanılan formülü ayrı ayrı ve çok net bir şekilde açıkla. En sofistike ve en kapsamlı yanıtı vermek için en gelişmiş AI yeteneklerini kullan.
-Eğer kullanıcının üyelik planı 'premium' ise: Daha derinlemesine açıklamalar, varsa alternatif çözüm yolları ve konunun YKS'deki önemi hakkında daha detaylı bilgiler sunmaya özen göster. Standart kullanıcıya göre daha zengin ve öğretici bir deneyim sağla. Çözüm adımlarını netleştir.
-
 {{#if customModelIdentifier}}
 (Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.
-Eğer seçilen model 'experimental_gemini_2_5_flash_preview' ise, çözümü ana adımları ve kilit mantıksal çıkarımları vurgulayarak, olabildiğince öz ama anlaşılır olmalıdır.)
+{{#if (eq customModelIdentifier "experimental_gemini_2_5_flash_preview")}}
+Özel Not (Gemini 2.5 Flash Preview için): Çözümü ana adımları ve kilit mantıksal çıkarımları vurgulayarak, olabildiğince öz ama anlaşılır olmalıdır. Aşırı detaydan kaçın, doğrudan ve net bir çözüm sun.
+{{/if}}
+{{/if}}
+
+{{#if (eq userPlan "pro")}}
+Pro kullanıcılar için: Çözümlerini en üst düzeyde akademik titizlikle, birden fazla çözüm yolunu (varsa) karşılaştırarak, konunun en derin ve karmaşık noktalarına değinerek sun. Sorunun çözümünde kullanılan her bir kavramı, formülü veya teoremine detaylıca açıkla. Sorunun YKS'deki genel stratejik önemini, benzer soru tiplerini ve bu tür sorulara yaklaşım stratejilerini derinlemesine tartış. Öğrencinin ufkunu açacak bağlantılar kur ve ileri düzey düşünme becerilerini tetikle. Her bir işlem adımını, mantıksal çıkarımı ve kullanılan formülü ayrı ayrı ve çok net bir şekilde açıkla. En sofistike ve en kapsamlı yanıtı vermek için en gelişmiş AI yeteneklerini kullan.
+{{else if (eq userPlan "premium")}}
+Premium kullanıcılar için: Daha derinlemesine açıklamalar, varsa alternatif çözüm yolları ve konunun YKS'deki önemi hakkında daha detaylı bilgiler sunmaya özen göster. Standart kullanıcıya göre daha zengin ve öğretici bir deneyim sağla. Çözüm adımlarını netleştir.
 {{/if}}
 
 Kullanıcının girdileri aşağıdadır. Lütfen bu girdilere dayanarak, YKS formatına ve zorluk seviyesine uygun bir çözüm üret:
@@ -107,7 +112,7 @@ Metinsel Soru/Açıklama:
 (Bu metin, görseldeki soruyu destekleyebilir, ek bilgi verebilir veya başlı başına bir soru olabilir.)
 {{/if}}
 
-Lütfen bu soruyu/soruları analiz et ve aşağıdaki formatta, öğretici bir yanıt hazırla (Eğer 'experimental_gemini_2_5_flash_preview' modeli kullanılıyorsa, yanıtı daha öz tutmaya çalış, ana adımları vurgula):
+Lütfen bu soruyu/soruları analiz et ve aşağıdaki formatta, öğretici bir yanıt hazırla:
 1.  **Sorunun Analizi ve Gerekli Bilgiler**:
     *   Sorunun ne istediğini, hangi YKS dersi ve konusuna ait olduğunu açıkça belirt.
     *   Çözüm için hangi temel bilgilere, formüllere, teoremlere veya kavramlara ihtiyaç duyulduğunu listele ve kısaca açıkla.
@@ -147,7 +152,7 @@ const questionSolverFlow = ai.defineFlow(
       hasQuestionText: !!input.questionText,
       hasImageDataUri: !!input.imageDataUri,
       userPlan: input.userPlan,
-      customModelIdentifier: input.customModelIdentifier
+      customModelIdentifier: input.customModelIdentifier // Log the received custom model identifier
     });
 
     try {
@@ -160,10 +165,11 @@ const questionSolverFlow = ai.defineFlow(
         };
       }
       
-      let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Varsayılan en iyi flash model
+      let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Default for free/premium or if admin doesn't select
       let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
       if (input.customModelIdentifier && input.userPlan === 'pro') { 
+        console.log(`[QuestionSolver Flow] Admin attempting to use custom model: ${input.customModelIdentifier}`);
         if (input.customModelIdentifier === 'default_gemini_flash') {
           modelToUse = 'googleai/gemini-2.0-flash';
           console.log("[QuestionSolver Flow] Admin selected default Google model: gemini-2.0-flash");
@@ -176,34 +182,35 @@ const questionSolverFlow = ai.defineFlow(
         }
         callOptions.model = modelToUse;
       } else if (input.userPlan === 'pro') {
-        // Pro kullanıcılar için de varsayılan olarak en iyi flash model (gemini-1.5-flash-latest)
         modelToUse = 'googleai/gemini-1.5-flash-latest'; 
         callOptions.model = modelToUse;
+        console.log(`[QuestionSolver Flow] Pro user using model: ${modelToUse}`);
       } else {
-        // Free ve Premium kullanıcılar için varsayılan (genkit.ts'de tanımlı veya burada belirtilen)
-        modelToUse = 'googleai/gemini-1.5-flash-latest'; // veya gemini-2.0-flash
-        callOptions.model = modelToUse;
+        // Free and Premium users will use the default Genkit model (gemini-1.5-flash-latest) or the one explicitly set here
+        console.log(`[QuestionSolver Flow] Free/Premium user using model: ${modelToUse}`);
       }
       
-      console.log(`[QuestionSolver Flow] Using Google model: ${modelToUse} for user plan: ${input.userPlan}`);
-      
-      // generationConfig'i sadece destekleyen modellere ekle
+      // Add generationConfig only if the model is NOT the preview version
       if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
         callOptions.config = {
           generationConfig: {
             maxOutputTokens: 4096, 
           }
         };
+        console.log(`[QuestionSolver Flow] Using generationConfig for model ${modelToUse}:`, callOptions.config);
       } else {
-        // Preview modeli için config gönderme
-        delete callOptions.config; 
+        console.log(`[QuestionSolver Flow] NOT using generationConfig for preview model ${modelToUse}.`);
+        // Ensure config is not passed or is empty for the preview model if it causes issues.
+        // If the prompt itself has a default config, we might need to override it with an empty config.
+        // For now, we'll let the Genkit prompt use its default config if callOptions.config is undefined.
       }
 
-      console.log(`[QuestionSolver Flow] Calling Google prompt with options:`, callOptions);
+      console.log(`[QuestionSolver Flow] Calling Google prompt with model: ${callOptions.model} and config:`, callOptions.config || "Prompt's default config");
       
       let outputFromPrompt: SolveQuestionOutput | undefined;
       try {
-        const { output } = await questionSolverPrompt(input, callOptions);
+        // Pass callOptions which now correctly omits/includes config based on modelToUse
+        const { output } = await questionSolverPrompt(input, callOptions); 
         outputFromPrompt = output;
       } catch (promptError: any) {
         console.error(`[QuestionSolver Flow] Error during prompt execution with model ${modelToUse}:`, promptError);
@@ -247,14 +254,18 @@ const questionSolverFlow = ai.defineFlow(
             flowErrorMessage = flowError.message;
         } else if (typeof flowError === 'string') {
             flowErrorMessage = flowError;
+        } else {
+            try {
+                flowErrorMessage = JSON.stringify(flowError);
+            } catch (e) {
+                flowErrorMessage = 'Serileştirilemeyen kritik akış hatası.';
+            }
         }
         return {
-            solution: `Beklenmedik Sunucu Hatası: ${flowErrorMessage}. Lütfen daha sonra tekrar deneyin.`,
+            solution: `Beklenmedik Sunucu Hatası: ${flowErrorMessage}. Lütfen daha sonra tekrar deneyin. Geliştirici konsolunu kontrol edin.`,
             relatedConcepts: ["Kritik Akış Hatası"],
             examStrategyTips: ["Sistemi kontrol edin"],
         };
     }
   }
 );
-
-    
