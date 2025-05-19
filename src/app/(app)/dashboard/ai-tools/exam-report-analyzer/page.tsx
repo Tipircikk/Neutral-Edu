@@ -167,12 +167,17 @@ export default function ExamReportAnalyzerPage() {
          {userProfile?.isAdmin && (
               <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
                 <Label htmlFor="adminModelSelectExamReport" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
-                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled || isAnalyzing}>
-                  <SelectTrigger id="adminModelSelectExamReport"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>
+                <Select 
+                  value={adminSelectedModel} 
+                  onValueChange={setAdminSelectedModel} 
+                  disabled={isSubmitDisabled || isAnalyzing}
+                >
+                  <SelectTrigger id="adminModelSelectExamReport">
+                    <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
+                  </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Varsayılan Modeli Kullan</SelectItem>
-                    <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
-                    <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
+                    <SelectItem value="default_gemini_flash">Eski Varsayılan (Gemini 2.0 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_1_5_flash">Mevcut Varsayılan (Gemini 1.5 Flash)</SelectItem>
                     <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
                   </SelectContent>
                 </Select>
@@ -303,5 +308,3 @@ export default function ExamReportAnalyzerPage() {
     </div>
   );
 }
-
-    

@@ -289,14 +289,19 @@ export default function TestGeneratorPage() {
                 {userProfile?.isAdmin && (
                 <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
                     <Label htmlFor="adminModelSelectTestGen" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
-                    <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled || isGenerating}>
-                    <SelectTrigger id="adminModelSelectTestGen"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="">Varsayılan Modeli Kullan</SelectItem>
-                        <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
-                        <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
+                    <Select 
+                      value={adminSelectedModel} 
+                      onValueChange={setAdminSelectedModel} 
+                      disabled={isSubmitDisabled || isGenerating}
+                    >
+                      <SelectTrigger id="adminModelSelectTestGen">
+                        <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="default_gemini_flash">Eski Varsayılan (Gemini 2.0 Flash)</SelectItem>
+                        <SelectItem value="experimental_gemini_1_5_flash">Mevcut Varsayılan (Gemini 1.5 Flash)</SelectItem>
                         <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
-                    </SelectContent>
+                      </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz.</p>
                 </div>
@@ -482,5 +487,3 @@ export default function TestGeneratorPage() {
     </div>
   );
 }
-
-    

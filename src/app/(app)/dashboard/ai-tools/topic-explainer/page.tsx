@@ -46,39 +46,30 @@ export default function TopicExplainerPage() {
     if (!line) return [<React.Fragment key="empty-line"></React.Fragment>];
     
     const elements: React.ReactNode[] = [];
-    let currentText = "";
+    let currentSegment = "";
+    
+    // Regex to find patterns like text^number or text_number
+    const regex = /(\S+?)\_(\d+|\{\d+\})|(\S+?)\^(\d+|\{\d+\})/g;
+    let lastIndex = 0;
+    let match;
 
-    for (let i = 0; i < line.length; i++) {
-        if (line[i] === '^' && i + 1 < line.length && !isNaN(parseInt(line[i+1]))) {
-            if (currentText) elements.push(currentText);
-            currentText = "";
-            let supText = "";
-            i++; 
-            while(i < line.length && !isNaN(parseInt(line[i]))) {
-                supText += line[i];
-                i++;
-            }
-            elements.push(<sup key={`sup-${elements.length}-${Math.random()}`}>{supText}</sup>);
-            if (i < line.length) currentText += line[i]; 
-            else i--; 
-        } else if (line[i] === '_' && i + 1 < line.length && !isNaN(parseInt(line[i+1]))) {
-            if (currentText) elements.push(currentText);
-            currentText = "";
-            let subText = "";
-            i++;
-            while(i < line.length && !isNaN(parseInt(line[i]))) {
-                subText += line[i];
-                i++;
-            }
-            elements.push(<sub key={`sub-${elements.length}-${Math.random()}`}>{subText}</sub>);
-            if (i < line.length) currentText += line[i];
-            else i--;
-        } else {
-            currentText += line[i];
-        }
+    while ((match = regex.exec(line)) !== null) {
+      // Add text before the match
+      elements.push(line.substring(lastIndex, match.index));
+      
+      if (match[1] && match[2]) { // Subscript: text_number or text_{number}
+        elements.push(match[1]);
+        elements.push(<sub key={`sub-${match.index}-${Math.random()}`}>{match[2].replace(/[{}]/g, '')}</sub>);
+      } else if (match[3] && match[4]) { // Superscript: text^number or text^{number}
+        elements.push(match[3]);
+        elements.push(<sup key={`sup-${match.index}-${Math.random()}`}>{match[4].replace(/[{}]/g, '')}</sup>);
+      }
+      lastIndex = regex.lastIndex;
     }
-    if (currentText) elements.push(currentText);
-    return elements;
+    // Add any remaining text after the last match
+    elements.push(line.substring(lastIndex));
+    
+    return elements.filter(el => el !== ""); // Filter out empty strings that might result from splitting
   };
 
 
@@ -110,7 +101,7 @@ export default function TopicExplainerPage() {
       } else if (trimmedLine.startsWith('* ') || trimmedLine.startsWith('- ')) {
         listItems.push(parseInlineFormatting(trimmedLine.substring(trimmedLine.indexOf(' ') + 1)));
       } else if (trimmedLine === "") {
-         flushList(); // Flush list items before an empty line if needed, or let p handle spacing
+         flushList(); 
       } else {
         flushList();
         elements.push(<p key={index} className="mb-2 last:mb-0 text-muted-foreground">{parseInlineFormatting(line)}</p>);
@@ -191,7 +182,7 @@ export default function TopicExplainerPage() {
     toast({ title: "PDF Oluşturuluyor...", description: "Lütfen bekleyin."});
 
     try {
-      const { default: jsPDF } = await import('jspdf');
+      const { default: jsPDF } = await import('jspdf'); // Dynamic import
 
       const doc = new jsPDF({
         orientation: 'p',
@@ -220,7 +211,13 @@ export default function TopicExplainerPage() {
         doc.setFont('Helvetica', fontStyle); 
         doc.setTextColor(color);
 
-        const lines = doc.splitTextToSize(text.replace(/\^(\S+)/g, '$1').replace(/_(\d+)/g, '$1'), maxWidth); 
+        // Basic handling for superscripts (like x^2) and subscripts (like H_2O)
+        // This is a simplified version and won't handle complex LaTeX or MathML.
+        const cleanedText = text.replace(/(\S+)\^(\d+|\{\d+\})/g, '$1^$2') 
+                               .replace(/(\S+)_(\d+|\{\d+\})/g, '$1_$2'); 
+
+
+        const lines = doc.splitTextToSize(cleanedText, maxWidth); 
         
         lines.forEach((line: string, index: number) => {
           if (y + lineHeight > pageHeight - margin - 10) { 
@@ -323,12 +320,17 @@ export default function TopicExplainerPage() {
          {userProfile?.isAdmin && (
               <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
                 <Label htmlFor="adminModelSelectTopicExp" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
-                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled || isGenerating}>
-                  <SelectTrigger id="adminModelSelectTopicExp"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>
+                <Select 
+                  value={adminSelectedModel} 
+                  onValueChange={setAdminSelectedModel} 
+                  disabled={isSubmitDisabled || isGenerating}
+                >
+                  <SelectTrigger id="adminModelSelectTopicExp">
+                    <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
+                  </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Varsayılan Modeli Kullan</SelectItem>
-                    <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
-                    <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
+                    <SelectItem value="default_gemini_flash">Eski Varsayılan (Gemini 2.0 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_1_5_flash">Mevcut Varsayılan (Gemini 1.5 Flash)</SelectItem>
                     <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
                   </SelectContent>
                 </Select>
@@ -525,5 +527,3 @@ export default function TopicExplainerPage() {
     </div>
   );
 }
-
-    

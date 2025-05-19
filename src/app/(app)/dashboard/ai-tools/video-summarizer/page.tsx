@@ -10,7 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Youtube, Loader2, AlertTriangle, Brain, List, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
-import { summarizeVideo, type VideoSummarizerOutput, type VideoSummarizerInput } from "@/ai/flows/video-summarizer-flow"; // Artık tipleri buradan import etmiyoruz
+import { summarizeVideo } from "@/ai/flows/video-summarizer-flow"; 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { z } from "zod";
@@ -84,12 +84,12 @@ export default function VideoSummarizerPage() {
       if (!currentProfile?.plan) {
         throw new Error("Kullanıcı planı bulunamadı.");
       }
-      const input: VideoSummarizerInputInternal = { // Internal tipi kullan
+      const input: VideoSummarizerInputInternal = { 
         youtubeUrl,
         userPlan: currentProfile.plan,
         customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
       };
-      const result = await summarizeVideo(input); // Flow'a internal tipiyle uyumlu input gönder
+      const result = await summarizeVideo(input); 
       setSummaryOutput(result);
 
       if (result.summary || (result.keyPoints && result.keyPoints.length > 0)) {
@@ -148,11 +148,17 @@ export default function VideoSummarizerPage() {
          {userProfile?.isAdmin && (
               <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
                 <Label htmlFor="adminModelSelectVideoSum" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
-                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled}>
-                  <SelectTrigger id="adminModelSelectVideoSum"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>
+                <Select 
+                  value={adminSelectedModel} 
+                  onValueChange={setAdminSelectedModel} 
+                  disabled={isSubmitDisabled}
+                >
+                  <SelectTrigger id="adminModelSelectVideoSum">
+                    <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
+                  </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
-                    <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
+                    <SelectItem value="default_gemini_flash">Eski Varsayılan (Gemini 2.0 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_1_5_flash">Mevcut Varsayılan (Gemini 1.5 Flash)</SelectItem>
                     <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
                   </SelectContent>
                 </Select>
@@ -256,4 +262,3 @@ export default function VideoSummarizerPage() {
     </div>
   );
 }
-    

@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Presentation, Sparkles, FileTextIcon, HelpCircle, LayoutGrid, ClipboardCheck, CalendarDays, Wand2, FileUp, BotMessageSquare, BookOpenCheck, ArrowRight, Zap, Clock, Brain, ThumbsUp, Users } from "lucide-react";
+import { Presentation, HelpCircle, FileTextIcon, LayoutGrid, ClipboardCheck, CalendarDays, Wand2, FileUp, BotMessageSquare, BookOpenCheck, ArrowRight, Zap, Clock, Brain, ThumbsUp, Users } from "lucide-react";
 import LandingHeader from "@/components/layout/LandingHeader";
 import Footer from "@/components/layout/Footer";
 import { useState, useEffect, useRef } from "react";
@@ -17,9 +17,9 @@ const features = [
     description: "YKS konularını yapay zekadan detaylıca öğrenin veya uzun metinleri/PDF'leri saniyeler içinde anlaşılır özetlere dönüştürün. Farklı anlatım seviyeleri ve hoca tarzları seçin!",
   },
   {
-    icon: <HelpCircle className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />, // Changed from FileTextIcon to HelpCircle for Soru Çözücü
+    icon: <HelpCircle className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
     title: "AI Test Oluşturucu ve Soru Çözücü",
-    description: "Belirlediğiniz YKS konularından pratik testler oluşturun veya zorlandığınız sorulara adım adım çözümler alın.",
+    description: "Belirlediğiniz YKS konularından pratik testler oluşturun veya zorlandığınız sorulara adım adım çözümler alın. (Soru Çözücü Beta)",
   },
    {
     icon: <LayoutGrid className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
@@ -313,5 +313,3 @@ export default function LandingPage() {
     </div>
   );
 }
-
-    
