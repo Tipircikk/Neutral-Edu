@@ -4,13 +4,13 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ClipboardCheck, Loader2, AlertTriangle, UploadCloud, FileText, Wand2, Settings } from "lucide-react";
+import { ClipboardCheck, Loader2, AlertTriangle, UploadCloud, FileText as FileTextIcon, Wand2, Settings } from "lucide-react"; // Renamed FileText
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { extractTextFromPdf } from "@/lib/pdfUtils";
 import { analyzeExamReport, type ExamReportAnalyzerOutput, type ExamReportAnalyzerInput } from "@/ai/flows/exam-report-analyzer-flow";
-import { Input as ShadInput } from "@/components/ui/input"; // Renamed
+import { Input as ShadInput } from "@/components/ui/input"; 
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -226,7 +226,7 @@ export default function ExamReportAnalyzerPage() {
                 />
                 {currentFileName && (
                   <div className="mt-2 flex items-center text-sm text-muted-foreground bg-muted p-2 rounded-md">
-                    <FileText className="h-5 w-5 mr-2 text-primary" />
+                    <FileTextIcon className="h-5 w-5 mr-2 text-primary" />
                     Seçilen Dosya: {currentFileName}
                   </div>
                 )}

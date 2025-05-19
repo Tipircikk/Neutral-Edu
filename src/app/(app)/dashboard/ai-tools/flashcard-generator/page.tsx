@@ -321,7 +321,7 @@ export default function FlashcardGeneratorPage() {
           </CardContent>
         </Card>
       )}
-      {!isGenerating && !flashcardsOutput && !userProfileLoading && (
+      {!isGenerating && !flashcardsOutput && !userProfileLoading && (userProfile || !userProfile) &&(
          <Alert className="mt-6">
           <LayoutGrid className="h-4 w-4" />
           <AlertTitle>Kartlara Hazır!</AlertTitle>

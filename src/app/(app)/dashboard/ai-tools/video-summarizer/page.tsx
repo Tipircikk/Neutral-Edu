@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input as ShadInput } from "@/components/ui/input"; // Renamed
+import { Input as ShadInput } from "@/components/ui/input"; 
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Youtube, Loader2, AlertTriangle, Brain, List, Settings } from "lucide-react";
@@ -15,7 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { z } from "zod";
 
-// Tipleri ve şemaları sayfa içinde tanımla
+// Define types and schemas locally as they are not exported from the 'use server' flow file
 const VideoSummarizerInputSchemaInternal = z.object({
   youtubeUrl: z.string().url({ message: "Lütfen geçerli bir YouTube video URL'si girin." }).describe('Özetlenmesi istenen YouTube videosunun URL adresi.'),
   userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),

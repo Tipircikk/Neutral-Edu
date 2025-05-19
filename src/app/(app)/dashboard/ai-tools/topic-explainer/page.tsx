@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Presentation, Wand2, Loader2, AlertTriangle, Download, Settings } from "lucide-react";
 import { Label } from "@/components/ui/label";
-import { Input as ShadInput } from "@/components/ui/input"; // Renamed
+import { Input as ShadInput } from "@/components/ui/input"; 
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -258,7 +258,7 @@ export default function TopicExplainerPage() {
       console.error("PDF oluşturma hatası:", error);
       let descriptionMessage = "PDF oluşturulurken bir hata oluştu.";
        if (error.message && error.message.toLowerCase().includes("module not found") && error.message.toLowerCase().includes("jspdf")) {
-        descriptionMessage = "PDF oluşturma kütüphanesi ('jspdf') bulunamadı. Lütfen geliştiriciye bildirin veya paketin kurulu olduğundan emin olun.";
+        descriptionMessage = "PDF oluşturma kütüphanesi ('jspdf') bulunamadı. Lütfen geliştiriciye bildirin veya 'npm install jspdf' komutu ile paketi yükleyin.";
       } else if (error.message && error.message.toLowerCase().includes("jspdf")) {
         descriptionMessage = "PDF kütüphanesi ('jspdf') yüklenemedi veya bir sorun oluştu. İnternet bağlantınızı kontrol edin veya geliştiriciye bildirin.";
       }
@@ -385,7 +385,7 @@ export default function TopicExplainerPage() {
                   value={teacherPersona}
                   onValueChange={(value: ExplainTopicInput["teacherPersona"]) => {
                     setTeacherPersona(value);
-                    if (value !== "ozel") setCustomPersonaDescription(""); // Clear custom if another persona selected
+                    if (value !== "ozel") setCustomPersonaDescription(""); 
                   }}
                   disabled={isFormElementsDisabled}
                 >

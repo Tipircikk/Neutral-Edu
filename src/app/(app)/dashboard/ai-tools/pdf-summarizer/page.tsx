@@ -8,11 +8,11 @@ import { summarizePdfForStudent, type SummarizePdfForStudentOutput, type Summari
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Terminal, Loader2, AlertTriangle, FileScan, Settings, UploadCloud } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Terminal, Loader2, AlertTriangle, FileScan, Settings, UploadCloud, FileText as FileTextIcon } from "lucide-react"; // Renamed FileText to FileTextIcon
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input as ShadInput } from "@/components/ui/input"; // Renamed to avoid conflict
+import { Input as ShadInput } from "@/components/ui/input"; 
 import { Button } from "@/components/ui/button";
 
 const MAX_FILE_SIZE_MB = 10;
@@ -306,7 +306,7 @@ export default function PdfSummarizerPage() {
                     </div>
                     {currentFileName && (
                     <div className="mt-2 flex items-center text-sm text-muted-foreground bg-muted p-2 rounded-md">
-                        <FileText className="h-5 w-5 mr-2 text-primary" />
+                        <FileTextIcon className="h-5 w-5 mr-2 text-primary" />
                         Seçilen Dosya: {currentFileName}
                     </div>
                     )}

@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-// Card ve CardContent importları "Pro'ya Yükselt" kartı kaldırıldığı için silindi.
+import { Card, CardContent } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,7 +31,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Brain, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation, Timer, CalendarClock, ListChecks, Palette, Youtube, MessageSquare } from "lucide-react";
+import { Brain, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation, Timer, CalendarClock, ListChecks, Palette, Youtube } from "lucide-react";
 import Link from "next/link";
 import QuotaDisplay from "@/components/dashboard/QuotaDisplay";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
@@ -67,16 +67,28 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     "/dashboard/tools/pomodoro",
     "/dashboard/tools/countdown",
     "/dashboard/tools/goal-tracker",
-    // "/dashboard/tools/whiteboard", // Karalama tahtası kaldırıldı
+    // "/dashboard/tools/whiteboard", // Karalama tahtası kaldırılmıştı
   ];
 
   useEffect(() => {
-    if (aiToolPaths.some(path => pathname.startsWith(path))) {
-      setIsAiToolsSubmenuOpen(true);
+    let aiToolsActive = false;
+    for (const path of aiToolPaths) {
+      if (pathname.startsWith(path)) {
+        aiToolsActive = true;
+        break;
+      }
     }
-    if (helperToolPaths.some(path => pathname.startsWith(path))) {
-      setIsHelperToolsSubmenuOpen(true);
+    setIsAiToolsSubmenuOpen(aiToolsActive);
+
+    let helperToolsActive = false;
+    for (const path of helperToolPaths) {
+      if (pathname.startsWith(path)) {
+        helperToolsActive = true;
+        break;
+      }
     }
+    setIsHelperToolsSubmenuOpen(helperToolsActive);
+
   }, [pathname]);
 
 
@@ -293,6 +305,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                           <Link href="/dashboard/tools/goal-tracker"><ListChecks /><span>Hedef Takipçisi</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
+                      {/* Dijital Karalama Tahtası linki kaldırıldı */}
                     </SidebarMenuSub>
                   )}
                 </SidebarMenuItem>
@@ -319,13 +332,28 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               </SidebarMenu>
             </SidebarContent>
             <SidebarFooter className="p-2 mt-auto space-y-2">
-              {userProfile?.plan === 'free' && (
-                <div className="p-2 group-data-[collapsible=icon]:hidden text-center">
-                  <div style={{width: '100%', height: '100px', background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius)', fontSize: '0.8rem', border: '1px dashed hsl(var(--border))'}}>
-                    Reklam Alanı (120x100)
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">Reklamsız deneyim için <Link href="/pricing" className="underline text-primary">Pro'ya</Link> geçin.</p>
-                </div>
+              {(userProfile?.plan === 'free' || userProfile?.plan === 'premium') && (
+                <Card className="bg-gradient-to-br from-primary/20 to-accent/20 border-primary/50 my-2 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:border-none">
+                  <CardContent className="p-4 group-data-[collapsible=icon]:p-0">
+                    <div className="flex flex-col items-center text-center group-data-[collapsible=icon]:hidden">
+                      <Gem className="h-8 w-8 text-primary mb-2" />
+                      <p className="text-sm font-semibold text-foreground mb-1">
+                        {userProfile?.plan === 'free' ? "Premium'a Yükselt!" : "Pro'ya Yükselt!"}
+                      </p>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        Daha fazla özellik ve kota için yükseltin.
+                      </p>
+                      <Button variant="default" size="sm" asChild>
+                        <Link href="/pricing">Planları Gör</Link>
+                      </Button>
+                    </div>
+                    <div className="hidden group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-2">
+                       <Link href="/pricing" aria-label="Planları Gör">
+                         <Gem className="h-6 w-6 text-primary" />
+                       </Link>
+                    </div>
+                  </CardContent>
+                </Card>
               )}
               <SidebarMenu className="border-t border-sidebar-border/20 pt-2">
                 <SidebarMenuItem>
@@ -340,6 +368,14 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             </SidebarFooter>
           </Sidebar>
           <SidebarInset className="flex-1 overflow-y-auto bg-background">
+             {userProfile?.plan === 'free' && (
+                <div className="bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 p-3 text-center text-sm border-b border-yellow-600/30">
+                  <Link href="/pricing" className="hover:underline">
+                    <Gem size={16} className="inline mr-1 mb-0.5" />
+                    Sınırsız erişim ve reklamsız bir deneyim için <strong>Premium veya Pro</strong> plana yükseltin!
+                  </Link>
+                </div>
+              )}
             <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
               {children}
             </main>

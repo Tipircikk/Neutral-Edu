@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input as ShadInput } from "@/components/ui/input"; // Renamed
+import { Input as ShadInput } from "@/components/ui/input"; 
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { HelpCircle, Send, Loader2, AlertTriangle, UploadCloud, ImageIcon, Settings } from "lucide-react";
@@ -147,9 +147,9 @@ export default function QuestionSolverPage() {
       const trimmedLine = line.trim();
 
       if (trimmedLine.startsWith("```")) {
-          flushCodeBlock(); // Flush previous code block if any
-          inCodeBlock = !inCodeBlock; // Toggle code block state
-          if (inCodeBlock && lines[i+1] && lines[i+1].startsWith("```")) { // Handle empty block case
+          flushCodeBlock(); 
+          inCodeBlock = !inCodeBlock; 
+          if (inCodeBlock && lines[i+1] && lines[i+1].startsWith("```")) { 
              inCodeBlock = false; i++; 
           }
           continue;
@@ -176,7 +176,7 @@ export default function QuestionSolverPage() {
       if (trimmedLine.toLowerCase().startsWith("açıklama:")) {
         isExplanationSection = true;
         captureAnswer = false;
-        explanationSections.push({type: "paragraph", content: [<React.Fragment key={`desc-label-${keyCounter++}`}></React.Fragment>]}); // Placeholder for spacing if needed
+        explanationSections.push({type: "paragraph", content: [<React.Fragment key={`desc-label-${keyCounter++}`}></React.Fragment>]}); 
         continue;
       }
 

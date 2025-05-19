@@ -4,9 +4,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CalendarDays, Wand2, Loader2, AlertTriangle, Settings, UploadCloud, FileText } from "lucide-react";
+import { CalendarDays, Wand2, Loader2, AlertTriangle, Settings, UploadCloud, FileText as FileTextIcon } from "lucide-react"; // Renamed FileText
 import { Label } from "@/components/ui/label";
-import { Input as ShadInput } from "@/components/ui/input"; // Renamed
+import { Input as ShadInput } from "@/components/ui/input"; 
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -203,7 +203,7 @@ export default function StudyPlanGeneratorPage() {
       if (trimmedLine.startsWith("* ") || trimmedLine.startsWith("- ")) {
         return <li key={index} className="ml-4 list-disc text-muted-foreground">{trimmedLine.substring(line.indexOf(' ') + 1)}</li>;
       }
-      if (trimmedLine === "" && index < arr.length -1) { // Add space for empty lines between paragraphs
+      if (trimmedLine === "" && index < arr.length -1) { 
           return <div key={index} className="h-2"></div>;
       }
       return <p key={index} className="my-1 text-muted-foreground">{line || <>&nbsp;</>}</p>; 
@@ -335,7 +335,7 @@ export default function StudyPlanGeneratorPage() {
                 />
                 {pdfFileName && (
                   <div className="mt-2 flex items-center text-sm text-muted-foreground bg-muted p-2 rounded-md">
-                    <FileText className="h-5 w-5 mr-2 text-primary" />
+                    <FileTextIcon className="h-5 w-5 mr-2 text-primary" />
                     Yüklenen PDF: {pdfFileName} {isProcessingPdf && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
                   </div>
                 )}
