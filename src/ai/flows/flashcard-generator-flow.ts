@@ -13,7 +13,7 @@ import {z} from 'genkit';
 import type { UserProfile } from '@/types';
 
 const GenerateFlashcardsInputSchema = z.object({
-  textContent: z.string().min(50).describe('Bilgi kartlarına dönüştürülmesi istenen en az 50 karakterlik akademik metin, tanımlar veya anahtar noktalar.'),
+  textContent: z.string().min(20).describe('Bilgi kartlarına dönüştürülmesi istenen en az 20 karakterlik akademik metin, tanımlar veya anahtar noktalar.'),
   numFlashcards: z.number().min(3).max(15).optional().default(5).describe('Oluşturulması istenen bilgi kartı sayısı (3-15 arası).'),
   difficulty: z.enum(["easy", "medium", "hard"]).optional().default("medium").describe("Bilgi kartlarının YKS'ye göre zorluk seviyesi."),
   userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
@@ -111,7 +111,7 @@ const flashcardGeneratorFlow = ai.defineFlow(
     }),
     outputSchema: GenerateFlashcardsOutputSchema,
   },
-  async (enrichedInput: GenerateFlashcardsInput & {isProUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<GenerateFlashcardsOutput> => {
+  async (enrichedInput: z.infer<typeof GenerateFlashcardsInputSchema> & {isProUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<GenerateFlashcardsOutput> => {
     let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
@@ -135,7 +135,7 @@ const flashcardGeneratorFlow = ai.defineFlow(
     
     callOptions.model = modelToUse;
     
-    let maxTokensForOutput = enrichedInput.numFlashcards * 200; 
+    let maxTokensForOutput = (enrichedInput.numFlashcards || 5) * 200; 
     if (maxTokensForOutput > 8000) maxTokensForOutput = 8000; 
     if (maxTokensForOutput < 1024) maxTokensForOutput = 1024; 
 
@@ -174,5 +174,3 @@ const flashcardGeneratorFlow = ai.defineFlow(
     }
   }
 );
-
-    
