@@ -47,26 +47,26 @@ const yksTopics = {
 function getSubjectsForField(field?: "ea" | "sayisal" | "sozel" | "tyt"): string {
   if (!field || field === "tyt") {
       const allTytSubjects = Object.entries(yksTopics.tyt)
-        .map(([ders, konular]) => `${ders.charAt(0).toUpperCase() + ders.slice(1)} (TYT: ${konular.slice(0,2).join(', ')}...)`);
+        .map(([ders, konular]) => `${ders.charAt(0).toUpperCase() + ders.slice(1)} (TYT: ${Array.isArray(konular) ? konular.slice(0,2).join(', ') : 'Genel'})`);
       return "TYT Tüm Dersler: " + allTytSubjects.join(", ");
   }
 
   let subjects: string[] = [];
   const addTytCourses = (includeMathGeo: boolean = true, includeFenSos: boolean = true, includeFelsefeDin: boolean = true) => {
-    subjects.push("TYT Türkçe (" + yksTopics.tyt.turkce.slice(0, 2).join(', ') + "...)");
+    subjects.push("TYT Türkçe (" + (Array.isArray(yksTopics.tyt.turkce) ? yksTopics.tyt.turkce.slice(0, 2).join(', ') : 'Genel') + "...)");
     if (includeMathGeo) {
-      subjects.push("TYT Matematik (" + yksTopics.tyt.matematik.slice(0, 2).join(', ') + "...)");
-      subjects.push("TYT Geometri (" + yksTopics.tyt.geometri.slice(0, 2).join(', ') + "...)");
+      subjects.push("TYT Matematik (" + (Array.isArray(yksTopics.tyt.matematik) ? yksTopics.tyt.matematik.slice(0, 2).join(', ') : 'Genel') + "...)");
+      subjects.push("TYT Geometri (" + (Array.isArray(yksTopics.tyt.geometri) ? yksTopics.tyt.geometri.slice(0, 2).join(', ') : 'Genel') + "...)");
     }
     if (includeFenSos) {
-      subjects.push("TYT Fizik (" + yksTopics.tyt.fizik.slice(0, 1).join(', ') + "...)");
-      subjects.push("TYT Kimya (" + yksTopics.tyt.kimya.slice(0, 1).join(', ') + "...)");
-      subjects.push("TYT Biyoloji (" + yksTopics.tyt.biyoloji.slice(0, 1).join(', ') + "...)");
-      subjects.push("TYT Tarih (" + yksTopics.tyt.tarih.slice(0, 1).join(', ') + "...)");
-      subjects.push("TYT Coğrafya (" + yksTopics.tyt.cografya.slice(0, 1).join(', ') + "...)");
+      subjects.push("TYT Fizik (" + (Array.isArray(yksTopics.tyt.fizik) ? yksTopics.tyt.fizik.slice(0, 1).join(', ') : 'Genel') + "...)");
+      subjects.push("TYT Kimya (" + (Array.isArray(yksTopics.tyt.kimya) ? yksTopics.tyt.kimya.slice(0, 1).join(', ') : 'Genel') + "...)");
+      subjects.push("TYT Biyoloji (" + (Array.isArray(yksTopics.tyt.biyoloji) ? yksTopics.tyt.biyoloji.slice(0, 1).join(', ') : 'Genel') + "...)");
+      subjects.push("TYT Tarih (" + (Array.isArray(yksTopics.tyt.tarih) ? yksTopics.tyt.tarih.slice(0, 1).join(', ') : 'Genel') + "...)");
+      subjects.push("TYT Coğrafya (" + (Array.isArray(yksTopics.tyt.cografya) ? yksTopics.tyt.cografya.slice(0, 1).join(', ') : 'Genel') + "...)");
     }
     if (includeFelsefeDin) {
-        subjects.push("TYT Felsefe (" + yksTopics.tyt.felsefe.slice(0, 1).join(', ') + "...)");
+        subjects.push("TYT Felsefe (" + (Array.isArray(yksTopics.tyt.felsefe) ? yksTopics.tyt.felsefe.slice(0, 1).join(', ') : 'Genel') + "...)");
         subjects.push("TYT Din Kültürü ve Ahlak Bilgisi");
     }
   };
@@ -74,33 +74,32 @@ function getSubjectsForField(field?: "ea" | "sayisal" | "sozel" | "tyt"): string
   switch (field) {
     case "sayisal":
       addTytCourses(true, true, true);
-      subjects.push("AYT Matematik (" + yksTopics.ayt.matematik.slice(0, 2).join(', ') + "...)");
-      subjects.push("AYT Geometri (" + yksTopics.ayt.geometri.slice(0, 2).join(', ') + "...)");
-      subjects.push("AYT Fizik (" + yksTopics.ayt.fizik.slice(0, 2).join(', ') + "...)");
-      subjects.push("AYT Kimya (" + yksTopics.ayt.kimya.slice(0, 2).join(', ') + "...)");
-      subjects.push("AYT Biyoloji (" + yksTopics.ayt.biyoloji.slice(0, 2).join(', ') + "...)");
+      subjects.push("AYT Matematik (" + (Array.isArray(yksTopics.ayt.matematik) ? yksTopics.ayt.matematik.slice(0, 2).join(', ') : 'Genel') + "...)");
+      subjects.push("AYT Geometri (" + (Array.isArray(yksTopics.ayt.geometri) ? yksTopics.ayt.geometri.slice(0, 2).join(', ') : 'Genel') + "...)");
+      subjects.push("AYT Fizik (" + (Array.isArray(yksTopics.ayt.fizik) ? yksTopics.ayt.fizik.slice(0, 2).join(', ') : 'Genel') + "...)");
+      subjects.push("AYT Kimya (" + (Array.isArray(yksTopics.ayt.kimya) ? yksTopics.ayt.kimya.slice(0, 2).join(', ') : 'Genel') + "...)");
+      subjects.push("AYT Biyoloji (" + (Array.isArray(yksTopics.ayt.biyoloji) ? yksTopics.ayt.biyoloji.slice(0, 2).join(', ') : 'Genel') + "...)");
       break;
     case "ea":
-      addTytCourses(true, false, true); 
-      subjects.push("TYT Tarih (" + yksTopics.tyt.tarih.slice(0, 1).join(', ') + "...)");
-      subjects.push("TYT Coğrafya (" + yksTopics.tyt.cografya.slice(0, 1).join(', ') + "...)");
-      subjects.push("AYT Matematik (" + yksTopics.ayt.matematik.slice(0, 2).join(', ') + "...)");
-      subjects.push("AYT Geometri (" + yksTopics.ayt.geometri.slice(0, 2).join(', ') + "...)");
-      subjects.push("AYT Türk Dili ve Edebiyatı (" + yksTopics.ayt.turkDiliEdebiyati.slice(0, 2).join(', ') + "...)");
-      subjects.push("AYT Tarih-1 (" + yksTopics.ayt.tarih.slice(0, 1).join(', ') + "...)"); // AYT Tarih-1
-      subjects.push("AYT Coğrafya-1 (" + yksTopics.ayt.cografya.slice(0, 1).join(', ') + "...)"); // AYT Coğrafya-1
+      addTytCourses(true, false, true);
+      subjects.push("TYT Tarih (" + (Array.isArray(yksTopics.tyt.tarih) ? yksTopics.tyt.tarih.slice(0, 1).join(', ') : 'Genel') + "...)");
+      subjects.push("TYT Coğrafya (" + (Array.isArray(yksTopics.tyt.cografya) ? yksTopics.tyt.cografya.slice(0, 1).join(', ') : 'Genel') + "...)");
+      subjects.push("AYT Matematik (" + (Array.isArray(yksTopics.ayt.matematik) ? yksTopics.ayt.matematik.slice(0, 2).join(', ') : 'Genel') + "...)");
+      subjects.push("AYT Geometri (" + (Array.isArray(yksTopics.ayt.geometri) ? yksTopics.ayt.geometri.slice(0, 2).join(', ') : 'Genel') + "...)");
+      subjects.push("AYT Türk Dili ve Edebiyatı (" + (Array.isArray(yksTopics.ayt.turkDiliEdebiyati) ? yksTopics.ayt.turkDiliEdebiyati.slice(0, 2).join(', ') : 'Genel') + "...)");
+      subjects.push("AYT Tarih-1 (" + (Array.isArray(yksTopics.ayt.tarih) ? yksTopics.ayt.tarih.slice(0, 1).join(', ') : 'Genel') + "...)");
+      subjects.push("AYT Coğrafya-1 (" + (Array.isArray(yksTopics.ayt.cografya) ? yksTopics.ayt.cografya.slice(0, 1).join(', ') : 'Genel') + "...)");
       break;
     case "sozel":
-      addTytCourses(false, true, true); 
-      subjects.push("TYT Matematik (Temel Düzey)"); 
-      subjects.push("AYT Türk Dili ve Edebiyatı (" + yksTopics.ayt.turkDiliEdebiyati.slice(0, 2).join(', ') + "...)");
-      subjects.push("AYT Tarih-1 ve Tarih-2 (" + yksTopics.ayt.tarih.slice(0, 1).join(', ') + "...)"); 
-      subjects.push("AYT Coğrafya-1 ve Coğrafya-2 (" + yksTopics.ayt.cografya.slice(0, 1).join(', ') + "...)"); 
+      addTytCourses(false, true, true);
+      subjects.push("TYT Matematik (Temel Düzey)");
+      subjects.push("AYT Türk Dili ve Edebiyatı (" + (Array.isArray(yksTopics.ayt.turkDiliEdebiyati) ? yksTopics.ayt.turkDiliEdebiyati.slice(0, 2).join(', ') : 'Genel') + "...)");
+      subjects.push("AYT Tarih-1 ve Tarih-2 (" + (Array.isArray(yksTopics.ayt.tarih) ? yksTopics.ayt.tarih.slice(0, 1).join(', ') : 'Genel') + "...)");
+      subjects.push("AYT Coğrafya-1 ve Coğrafya-2 (" + (Array.isArray(yksTopics.ayt.cografya) ? yksTopics.ayt.cografya.slice(0, 1).join(', ') : 'Genel') + "...)");
       subjects.push("AYT Felsefe Grubu (Felsefe, Psikoloji, Sosyoloji, Mantık)");
       subjects.push("AYT Din Kültürü ve Ahlak Bilgisi");
       break;
   }
-  // Return only a few main courses for brevity in the prompt
   return subjects.slice(0, 6).join(", ") + (subjects.length > 6 ? " ve diğerleri..." : "");
 }
 
@@ -138,65 +137,114 @@ const GenerateStudyPlanOutputSchema = z.object({
 });
 export type GenerateStudyPlanOutput = z.infer<typeof GenerateStudyPlanOutputSchema>;
 
+const defaultErrorResponse: GenerateStudyPlanOutput = {
+  planTitle: "Plan Oluşturma Hatası",
+  introduction: "Çalışma planı oluşturulurken beklenmedik bir sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin veya destek ile iletişime geçin.",
+  weeklyPlans: [],
+  disclaimer: "Bir hata nedeniyle plan oluşturulamadı."
+};
 
 export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<GenerateStudyPlanOutput> {
-  const isProUser = input.userPlan === 'pro';
-  const isPremiumUser = input.userPlan === 'premium';
-  const isCustomModelSelected = !!input.customModelIdentifier;
-  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
-  
-  let subjectsToFocus: string;
-  if (input.customSubjectsInput && input.customSubjectsInput.trim() !== "") {
-    subjectsToFocus = input.customSubjectsInput.trim();
-    console.log(`[Study Plan Generator] Focusing on custom subjects: ${subjectsToFocus}`);
-  } else if (input.userField) {
-    subjectsToFocus = getSubjectsForField(input.userField);
-    console.log(`[Study Plan Generator] Focusing on field ${input.userField}, subjects: ${subjectsToFocus}`);
-  } else {
-    subjectsToFocus = "Genel YKS konuları (TYT ve AYT tüm dersler)";
-    console.log(`[Study Plan Generator] No specific field or custom subjects, focusing on general YKS.`);
-  }
+  console.log("[generateStudyPlan Action] Received input:", {
+      userField: input.userField,
+      hasCustomSubjects: !!input.customSubjectsInput,
+      studyDuration: input.studyDuration,
+      hoursPerDay: input.hoursPerDay,
+      userPlan: input.userPlan,
+      customModelIdentifier: input.customModelIdentifier,
+      pdfContextLength: input.pdfContextText?.length || 0,
+  });
 
-  const enrichedInputForPrompt = {
-    ...input,
-    subjects: subjectsToFocus, 
-    isProUser,
-    isPremiumUser,
-    isCustomModelSelected,
-    isGemini25PreviewSelected,
-  };
-  
-  let flowOutput: GenerateStudyPlanOutput;
   try {
-    flowOutput = await studyPlanGeneratorFlow(enrichedInputForPrompt);
-  } catch (error) {
-    console.error("[generateStudyPlan Wrapper] Error calling studyPlanGeneratorFlow:", error);
+    const isProUser = input.userPlan === 'pro';
+    const isPremiumUser = input.userPlan === 'premium';
+    const isCustomModelSelected = !!input.customModelIdentifier;
+    const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+
+    let subjectsToFocus: string;
+    if (input.customSubjectsInput && input.customSubjectsInput.trim() !== "") {
+      subjectsToFocus = input.customSubjectsInput.trim();
+    } else if (input.userField) {
+      subjectsToFocus = getSubjectsForField(input.userField);
+    } else {
+      subjectsToFocus = "Genel YKS konuları (TYT ve AYT tüm dersler)";
+    }
+    console.log(`[generateStudyPlan Action] Subjects to focus for AI: ${subjectsToFocus.substring(0, 200)}...`);
+
+    const enrichedInputForPrompt = {
+      ...input,
+      subjects: subjectsToFocus,
+      isProUser,
+      isPremiumUser,
+      isCustomModelSelected,
+      isGemini25PreviewSelected,
+    };
+
+    let flowOutput = await studyPlanGeneratorFlow(enrichedInputForPrompt);
+
+    if (!flowOutput || typeof flowOutput.planTitle !== 'string' || typeof flowOutput.introduction !== 'string' || !Array.isArray(flowOutput.weeklyPlans)) {
+      const errorDetail = !flowOutput ? "Flow returned undefined/null." :
+                          typeof flowOutput.planTitle !== 'string' ? "Missing or invalid planTitle." :
+                          typeof flowOutput.introduction !== 'string' ? "Missing or invalid introduction." :
+                          "Missing or invalid weeklyPlans array.";
+      console.error(`[generateStudyPlan Action] Flow returned invalid structure: ${errorDetail}. Raw output:`, JSON.stringify(flowOutput).substring(0, 500));
+      return {
+          planTitle: "Plan Oluşturma Başarısız",
+          introduction: `AI akışından beklenen yapıda bir yanıt alınamadı (${errorDetail}). Lütfen tekrar deneyin.`,
+          weeklyPlans: [],
+          disclaimer: "Bir hata nedeniyle plan oluşturulamadı."
+      };
+    }
+    
+    flowOutput.weeklyPlans = flowOutput.weeklyPlans.map((plan: any, index) => {
+      const correctedPlan: any = { 
+        week: index + 1, 
+        dailyTasks: [], 
+        weeklyGoal: (plan && typeof plan.weeklyGoal === 'string') ? plan.weeklyGoal : "" 
+      };
+      if (plan && typeof plan.week === 'number' && !isNaN(plan.week)) {
+        correctedPlan.week = plan.week;
+      } else if (plan) {
+         console.warn(`[generateStudyPlan Action Post-Processing] weeklyPlans[${index}] had invalid 'week': ${plan.week}. Corrected to: ${index + 1}`);
+      }
+
+      if (plan && Array.isArray(plan.dailyTasks)) {
+        correctedPlan.dailyTasks = plan.dailyTasks.map((task: any) => {
+          const correctedTask: any = { 
+            day: (task && typeof task.day === 'string') ? task.day : "Bilinmeyen Gün", 
+            focusTopics: (task && Array.isArray(task.focusTopics) && task.focusTopics.length > 0 && task.focusTopics.every((t: any) => typeof t === 'string')) ? task.focusTopics : ["Genel Tekrar / Boş Zaman"],
+            activities: (task && Array.isArray(task.activities)) ? task.activities : [], 
+            estimatedTime: (task && typeof task.estimatedTime === 'string') ? task.estimatedTime : "", 
+            notes: (task && typeof task.notes === 'string') ? task.notes : "" 
+          };
+          return correctedTask;
+        });
+      }
+      return correctedPlan;
+    });
+    
+    console.log("[generateStudyPlan Action] Successfully processed and validated study plan.");
+    return flowOutput;
+
+  } catch (error: any) {
+    console.error("[generateStudyPlan Action] CRITICAL error during server action execution:", error);
+    let errorMessage = 'Bilinmeyen bir sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.';
+    if (error instanceof Error) {
+        errorMessage = error.message;
+    } else if (typeof error === 'string') {
+        errorMessage = error;
+    } else {
+        try {
+            errorMessage = JSON.stringify(error).substring(0, 200);
+        } catch (stringifyError) {
+            errorMessage = 'Serileştirilemeyen sunucu hata nesnesi.';
+        }
+    }
     return {
-        planTitle: "Plan Oluşturma Hatası",
-        introduction: "Çalışma planı oluşturulurken beklenmedik bir sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.",
-        weeklyPlans: [],
-        disclaimer: "Bir hata nedeniyle plan oluşturulamadı."
+        ...defaultErrorResponse,
+        introduction: `Sunucu tarafında kritik bir hata oluştu: ${errorMessage}.`
     };
   }
-
-  if (flowOutput && Array.isArray(flowOutput.weeklyPlans)) {
-      flowOutput.weeklyPlans.forEach((plan: any, index) => { 
-          if (plan && (typeof plan.week !== 'number' || isNaN(plan.week))) {
-              console.warn(`Study Plan Generator (Wrapper): AI output for weeklyPlans[${index}] is missing or has an invalid 'week' number. Assigning index+1. Original plan object:`, JSON.stringify(plan).substring(0, 200));
-              plan.week = index + 1; 
-          }
-      });
-  } else if (flowOutput) {
-      console.warn("Study Plan Generator (Wrapper): AI output for weeklyPlans is not an array or is missing. Defaulting to empty array.");
-      flowOutput.weeklyPlans = [];
-      if (!flowOutput.planTitle) {
-          flowOutput.planTitle = "Hata: Haftalık Planlar Oluşturulamadı";
-      }
-      if (!flowOutput.introduction) {
-          flowOutput.introduction = "AI modeli, haftalık planları beklenen formatta oluşturamadı. Lütfen girdilerinizi kontrol edin veya daha sonra tekrar deneyin.";
-      }
-  }
-  return flowOutput;
 }
 
 const studyPlanGeneratorPrompt = ai.definePrompt({
@@ -213,10 +261,10 @@ const studyPlanGeneratorPrompt = ai.definePrompt({
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 Admin özel modeli seçilmiş mi: {{#if isCustomModelSelected}}Evet, model: '{{{customModelIdentifier}}}'{{else}}Hayır{{/if}}.
-{{#if isGemini25PreviewSelected}}(Gemini 2.5 Flash Preview Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla. JSON formatına HARFİYEN uy!){{/if}}
+{{#if isGemini25PreviewSelected}}(Gemini 2.5 Flash Preview Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla. JSON formatına HARFİYEN uy! Özellikle 'week' alanı her haftalık planda bir SAYI olarak bulunmalıdır.){{/if}}
 
 Öğrencinin Girdileri:
-Seçilen YKS Alanı (varsa): {{{userField}}}
+{{#if userField}}Seçilen YKS Alanı: {{{userField}}}{{/if}}
 Çalışılacak Ana Dersler/Konular: {{{subjects}}}
 Toplam Çalışma Süresi: {{{studyDuration}}}
 Günlük Ortalama Çalışma Saati: {{{hoursPerDay}}} saat
@@ -229,17 +277,17 @@ Ek Bağlam (Kullanıcının Yüklediği PDF Metni):
 Lütfen bu bilgilere göre, aşağıdaki JSON formatına HARFİYEN uyan bir çalışma planı taslağı oluştur. 'weeklyPlans' dizisindeki HER BİR obje, MUTLAKA 'week' (hafta numarası, SAYI olarak) alanını İÇERMELİDİR.
 
 İstenen Çıktı Bölümleri:
-1.  **Plan Başlığı (planTitle)**: Örneğin, "Kişiye Özel {{{userField}}} YKS Hazırlık Planı ({{{studyDuration}}})". ZORUNLUDUR.
+1.  **Plan Başlığı (planTitle)**: Örneğin, "Kişiye Özel {{#if userField}}{{{userField}}}{{else}}YKS{{/if}} Hazırlık Planı ({{{studyDuration}}})". ZORUNLUDUR.
 2.  **Giriş ve Genel Stratejiler (introduction)**: Plana genel bir giriş ve motivasyon mesajı. Ayrıca, kullanıcının planına göre farklılaşan GENEL STRATEJİLER ve YKS TAKTİKLERİ de BU BÖLÜMDE yer almalıdır.
     {{#if isProUser}}
-    (Pro Kullanıcı için Stratejiler: En kapsamlı ve derinlemesine YKS stratejileri, farklı öğrenme teknikleri (örn: Feynman, Pomodoro), etkili kaynak önerileri, deneme sınavı çözme taktikleri, stres yönetimi, zihinsel hazırlık ve motivasyon ipuçları, sık yapılan hatalardan kaçınma yolları gibi uzman seviyesinde bilgiler sun.)
+    (Pro Kullanıcı için Stratejiler: En kapsamlı YKS stratejileri, öğrenme teknikleri, kaynak önerileri, deneme sınavı taktikleri, stres yönetimi gibi uzman seviyesinde bilgiler sun. Cevabının bu kısmı daha detaylı ve uzun olabilir.)
     {{else if isPremiumUser}}
-    (Premium Kullanıcı için Stratejiler: Etkili konu tekrarı yöntemleri, çalışma verimliliğini artıracak ipuçları, genel motivasyon teknikleri, zaman yönetimi hakkında temel bilgiler ve önemli çalışma alışkanlıkları sun.)
+    (Premium Kullanıcı için Stratejiler: Etkili konu tekrarı yöntemleri, çalışma verimliliği ipuçları, genel motivasyon teknikleri ve zaman yönetimi hakkında bilgiler sun.)
     {{else}}
-    (Ücretsiz Kullanıcı için Stratejiler: Temel çalışma alışkanlıkları, mola vermenin önemi, düzenli çalışmanın faydaları gibi birkaç genel YKS tavsiyesi sun.)
+    (Ücretsiz Kullanıcı için Stratejiler: Temel çalışma alışkanlıkları, mola vermenin önemi gibi birkaç genel YKS tavsiyesi sun.)
     {{/if}}
 3.  **Haftalık Planlar (weeklyPlans)**: ÇOK ÖNEMLİ: Bu dizideki HER BİR obje, MUTLAKA 'week' adında bir SAYI (number) tipinde alana sahip olmalıdır. Her bir 'week' objesi, 'dailyTasks' adlı bir dizi içermelidir. Her bir 'dailyTask' objesi de 'day' (string) ve 'focusTopics' (string dizisi, en az bir eleman) alanlarını MUTLAKA içermelidir.
-    *   **Hafta Numarası (week)**: Örn: 1, 2... BU ALAN HER HAFTALIK PLAN OBJESİNDE ZORUNLUDUR VE SAYI OLMALIDIR.
+    *   **Hafta Numarası (week)**: Örn: 1, 2... BU ALAN HER HAFTALIK PLAN OBJESİNDE ZORUNLUDUR VE SAYI OLMALIDIR. AI, BU KURALA KESİNLİKLE UYMALIDIR.
     *   **Haftalık Hedef (weeklyGoal) (isteğe bağlı)**: Haftanın ana hedefi.
     *   **Günlük Görevler (dailyTasks)**: Her gün için:
         *   **Gün (day)**: Günün adı. ZORUNLUDUR.
@@ -251,7 +299,7 @@ Lütfen bu bilgilere göre, aşağıdaki JSON formatına HARFİYEN uyan bir çal
 4.  **Sorumluluk Reddi (disclaimer)**: Standart uyarı.
 
 Planlama İlkeleri:
-*   Mantıklı bir plan oluştur. {{{subjects}}} konularını ve YKS alanını ({{{userField}}}) dikkate al.
+*   Mantıklı bir plan oluştur. {{{subjects}}} konularını ve YKS alanını ({{#if userField}}{{{userField}}}{{else}}belirtilmemiş{{/if}}) dikkate al.
 *   Konuların zorluk seviyelerine ve YKS'deki ağırlıklarına dikkat et.
 *   Gerçekçi ve uygulanabilir ol. Süre kısaysa veya konu çoksa, bunu 'introduction' bölümünde nazikçe belirt ve planı en iyi şekilde optimize etmeye çalış veya daha odaklı bir plan öner.
 *   ŞEMADAKİ 'required' OLARAK İŞARETLENMİŞ TÜM ALANLARIN ÇIKTIDA BULUNDUĞUNDAN EMİN OL. ÖZELLİKLE 'weeklyPlans' İÇİNDEKİ HER BİR HAFTANIN 'week' NUMARASININ (SAYI OLARAK) VE 'dailyTasks' İÇİNDEKİ 'focusTopics'İN DOLU OLDUĞUNDAN MUTLAKA EMİN OL. AI, BU ŞARTLARA HARFİYEN UYMALIDIR. 'week' alanı her zaman bir sayı olmalıdır.
@@ -261,7 +309,7 @@ Planlama İlkeleri:
 const studyPlanGeneratorFlow = ai.defineFlow(
   {
     name: 'studyPlanGeneratorFlow',
-    inputSchema: GenerateStudyPlanInputSchema.extend({ 
+    inputSchema: GenerateStudyPlanInputSchema.extend({
         subjects: z.string().optional(),
         isProUser: z.boolean().optional(),
         isPremiumUser: z.boolean().optional(),
@@ -271,7 +319,9 @@ const studyPlanGeneratorFlow = ai.defineFlow(
     outputSchema: GenerateStudyPlanOutputSchema,
   },
   async (input: z.infer<typeof GenerateStudyPlanInputSchema> & {subjects?: string; isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<GenerateStudyPlanOutput> => {
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
+    console.log(`[Study Plan Generator Flow] Starting flow with input:`, { userPlan: input.userPlan, customModel: input.customModelIdentifier, studyDuration: input.studyDuration, hoursPerDay: input.hoursPerDay, subjects: input.subjects?.substring(0,100) + "...", pdfContextProvided: !!input.pdfContextText });
+
+    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Default for Pro, or if no custom model
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
     if (input.customModelIdentifier) {
@@ -288,10 +338,10 @@ const studyPlanGeneratorFlow = ai.defineFlow(
         default:
           console.warn(`[Study Plan Generator Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (input.isProUser) { 
-      modelToUse = 'googleai/gemini-1.5-flash-latest';
+    } else if (!input.isProUser) { // Free or Premium without custom model
+      modelToUse = 'googleai/gemini-2.0-flash';
     }
-    
+
     callOptions.model = modelToUse;
 
     if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
@@ -301,80 +351,100 @@ const studyPlanGeneratorFlow = ai.defineFlow(
         }
       };
     } else {
-        callOptions.config = {}; 
+        callOptions.config = {};
     }
-    
-    console.log(`[Study Plan Generator Flow] Using model: ${modelToUse} for plan: ${input.userPlan}, customModel: ${input.customModelIdentifier}, PDF context provided: ${!!input.pdfContextText}, User Field: ${input.userField}, Subjects sent to AI: ${input.subjects}`);
-    
-    let output: GenerateStudyPlanOutput | undefined;
+
+    console.log(`[Study Plan Generator Flow] Using model: ${modelToUse} with config:`, JSON.stringify(callOptions.config));
+
     try {
-        const result = await studyPlanGeneratorPrompt(input, callOptions); 
-        output = result.output;
+        const result = await studyPlanGeneratorPrompt(input, callOptions);
+        let output = result.output; // Make output mutable for post-processing
 
-        if (!output || !output.weeklyPlans || !output.introduction || !output.planTitle) {
-            const errorMsg = `AI Eğitim Koçu, belirtilen girdilerle bir çalışma planı (başlık, giriş veya haftalık planlar eksik) oluşturamadı. Model: ${modelToUse}.`;
-            console.error("Study Plan Generator: AI output is missing planTitle, weeklyPlans or introduction. Input:", JSON.stringify(input).substring(0, 200), "Raw Output:", JSON.stringify(output).substring(0,300));
-            throw new Error(errorMsg);
+        if (!output || typeof output.planTitle !== 'string' || typeof output.introduction !== 'string' || !Array.isArray(output.weeklyPlans)) {
+            const errorDetail = !output ? "AI returned null/undefined." :
+                              typeof output.planTitle !== 'string' ? "Missing or invalid planTitle." :
+                              typeof output.introduction !== 'string' ? "Missing or invalid introduction." :
+                              "Missing or invalid weeklyPlans array.";
+            console.error(`[Study Plan Generator Flow] AI output is missing critical fields or has invalid structure: ${errorDetail}. Raw Output:`, JSON.stringify(output).substring(0,500));
+            // Return a valid error structure immediately
+            return {
+                ...defaultErrorResponse,
+                introduction: `AI, beklenen temel plan yapısını (${errorDetail}) oluşturamadı. Model: ${modelToUse}.`
+            };
         }
+
+        // Robust post-processing for 'week' and 'focusTopics'
+        output.weeklyPlans = output.weeklyPlans.map((plan: any, index) => {
+            const correctedPlan: any = {
+                week: index + 1,
+                dailyTasks: [],
+                weeklyGoal: (plan && typeof plan.weeklyGoal === 'string') ? plan.weeklyGoal : ""
+            };
+
+            if (plan && typeof plan.week === 'number' && !isNaN(plan.week)) {
+                correctedPlan.week = plan.week;
+            } else if (plan) {
+                 console.warn(`[Study Plan Generator Flow - PostProcessing] weeklyPlans[${index}] had invalid 'week': ${plan?.week}. Corrected to: ${index + 1}`);
+            } else {
+                 console.warn(`[Study Plan Generator Flow - PostProcessing] weeklyPlans[${index}] was null/undefined. Default structure used.`);
+            }
+
+            if (plan && Array.isArray(plan.dailyTasks)) {
+                correctedPlan.dailyTasks = plan.dailyTasks.map((task: any) => {
+                    const correctedTask: any = {
+                        day: (task && typeof task.day === 'string') ? task.day : "Bilinmeyen Gün",
+                        focusTopics: (task && Array.isArray(task.focusTopics) && task.focusTopics.length > 0 && task.focusTopics.every((t: any) => typeof t === 'string')) ? task.focusTopics : ["Genel Tekrar / Boş Zaman"],
+                        activities: (task && Array.isArray(task.activities)) ? task.activities : [],
+                        estimatedTime: (task && typeof task.estimatedTime === 'string') ? task.estimatedTime : "",
+                        notes: (task && typeof task.notes === 'string') ? task.notes : ""
+                    };
+                    return correctedTask;
+                });
+            } else if (plan) {
+                console.warn(`[Study Plan Generator Flow - PostProcessing] weeklyPlans[${index}].dailyTasks was not an array or plan was null. Corrected.`);
+                 correctedPlan.dailyTasks = []; // Ensure it's an array
+            }
+            return correctedPlan;
+        });
         
-        if (Array.isArray(output.weeklyPlans)) {
-            output.weeklyPlans.forEach((plan: any, index) => { 
-                if (plan && (typeof plan.week !== 'number' || isNaN(plan.week))) { 
-                    console.warn(`Study Plan Generator Flow (Post-processing): AI output for weeklyPlans[${index}] is missing or has an invalid 'week' number. Assigning index+1. Original plan object:`, JSON.stringify(plan).substring(0, 200));
-                    plan.week = index + 1; 
-                }
-                if (plan && Array.isArray(plan.dailyTasks)) {
-                    plan.dailyTasks.forEach((task: any) => {
-                        if (task && (!Array.isArray(task.focusTopics) || task.focusTopics.length === 0)) {
-                            console.warn(`Study Plan Generator Flow (Post-processing): Daily task for day '${task.day}' in week ${plan.week} is missing 'focusTopics' or it's not an array. Assigning a default.`);
-                            task.focusTopics = ["Genel Tekrar / Boş Zaman"];
-                        }
-                    });
-                } else if (plan) {
-                    console.warn(`Study Plan Generator Flow (Post-processing): weeklyPlans[${index}] is missing 'dailyTasks' or it's not an array. Assigning empty array.`);
-                    plan.dailyTasks = [];
-                }
-            });
-        } else {
-            const errorMsg = `AI modeli haftalık planları dizi formatında oluşturamadı. Model: ${modelToUse}.`;
-            console.error("Study Plan Generator: AI output for weeklyPlans is not an array. Defaulting to empty. Input:", JSON.stringify(input).substring(0, 200), "Raw Output:", JSON.stringify(output).substring(0,300));
-            if(output) output.weeklyPlans = []; 
-            else throw new Error("Output is undefined after AI call, cannot set weeklyPlans.");
-            throw new Error(errorMsg);
+        if (typeof output.disclaimer !== 'string') {
+            console.warn(`[Study Plan Generator Flow - PostProcessing] Disclaimer was not a string. Setting default.`);
+            output.disclaimer = "Bu, yapay zeka tarafından oluşturulmuş bir taslak plandır. Kendi öğrenme hızınıza ve ihtiyaçlarınıza göre uyarlamanız önemlidir.";
         }
 
-        return output as GenerateStudyPlanOutput; 
+        console.log(`[Study Plan Generator Flow] Successfully generated and validated plan titled: ${output.planTitle}`);
+        return output;
+
     } catch (error: any) {
-        console.error(`[Study Plan Generator Flow] Error during generation with model ${modelToUse}:`, error);
-        let errorMessage = `AI modeli (${modelToUse}) ile çalışma planı oluşturulurken bir hata oluştu.`;
+        console.error(`[Study Plan Generator Flow] CRITICAL error during generation process or in post-processing with model ${modelToUse}:`, error);
+        let errorMessage = `AI modeli (${modelToUse}) ile çalışma planı oluşturulurken kritik bir hata oluştu.`;
         if (error.message) {
             if (error.name === 'GenkitError' && error.message.includes('Schema validation failed')) {
                 let zodErrors = "Şema Doğrulama Hatası.";
+                 // @ts-ignore
                 if (error.details && Array.isArray(error.details)) {
+                    // @ts-ignore
                     zodErrors = error.details.map((detail: any) => detail.message || JSON.stringify(detail)).join('; ');
                 }
                 errorMessage += ` Detay: ${zodErrors.substring(0, 300)}`;
                  if (zodErrors.toLowerCase().includes("week") || zodErrors.toLowerCase().includes("focustopics") || zodErrors.toLowerCase().includes("plantitle") || zodErrors.toLowerCase().includes("introduction")) {
-                   errorMessage += " (AI, haftalık planları, başlığı, girişi veya günlük odak konularını beklenen formatta oluşturamadı. Lütfen girdilerinizi kontrol edin veya farklı bir süre/alan deneyin.)";
+                   errorMessage += " (AI, haftalık planları, başlığı, girişi veya günlük odak konularını beklenen formatta oluşturamadı.)";
                  }
             } else if (error.message.includes('Invalid JSON payload') || error.message.includes('Unknown name "config"')) {
-                 errorMessage = `AI modeli (${modelToUse}) ile iletişimde bir yapılandırma sorunu oluştu (Invalid JSON payload or unknown config). Lütfen geliştiriciye bildirin.`;
-            } else {
-                 errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
-            }
-            if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
+                 errorMessage = `AI modeli (${modelToUse}) ile iletişimde bir yapılandırma sorunu oluştu (Invalid JSON payload or unknown config).`;
+            } else if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen girdilerinizi gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
+            } else {
+                 errorMessage += ` Detay: ${error.message.substring(0, 250)}`;
             }
         }
-        
+
         return {
-            planTitle: `Hata`,
-            introduction: errorMessage,
-            weeklyPlans: [],
-            disclaimer: "Lütfen girdilerinizi kontrol edin veya daha sonra tekrar deneyin."
+            ...defaultErrorResponse,
+            introduction: errorMessage
         };
     }
   }
 );
-
+    
     
