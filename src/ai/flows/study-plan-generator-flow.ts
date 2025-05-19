@@ -1,7 +1,8 @@
 
 'use server';
 /**
- * @fileOverview Kullanıcının YKS hedeflerine, seçtiği alana (EA, Sayısal, Sözel, TYT), konularına, çalışma süresine ve isteğe bağlı PDF bağlamına göre
+ * @fileOverview Kullanıcının YKS hedeflerine, seçtiği alana (EA, Sayısal, Sözel, TYT),
+ * girdiği özel konulara, çalışma süresine ve isteğe bağlı PDF bağlamına göre
  * kişiselleştirilmiş bir çalışma planı taslağı oluşturan AI aracı.
  *
  * - generateStudyPlan - Çalışma planı oluşturma işlemini yöneten fonksiyon.
@@ -12,55 +13,58 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-// TYT ve AYT Konu Listeleri
+// TYT ve AYT Konu Listeleri (Kısaltılmış Örnekler)
 const yksTopics = {
   tyt: {
     turkce: ["Sözcükte Anlam", "Cümlede Anlam", "Paragraf", "Ses Bilgisi", "Dil Bilgisi Genel", "Anlatım Bozuklukları", "Yazım Kuralları", "Noktalama İşaretleri"],
-    matematik: ["Temel Kavramlar", "Sayılar", "Bölme-Bölünebilme", "Asal Çarpanlar", "OBEB-OKEK", "Rasyonel Sayılar", "Basit Eşitsizlikler", "Mutlak Değer", "Üslü Sayılar", "Köklü Sayılar", "Çarpanlara Ayırma", "Denklem Çözme", "Oran-Orantı", "Problemler (Sayı, Kesir, Yaş, Yüzde, Kâr-Zarar, Faiz, Karışım, Hareket, Grafik)", "Kümeler", "Kartezyen Çarpım", "Mantık", "Sayma ve Olasılık", "Veri"],
-    geometri: ["Doğruda Açılar", "Üçgende Açılar", "Açıortay-Kenarortay", "Üçgende Alan", "Üçgende Açı-Kenar Bağıntıları", "Dik Üçgen", "İkizkenar-Çeşitkenar Üçgen", "Benzerlik", "Pisagor", "Öklid", "Çokgenler", "Dörtgenler (Yamuk, Paralelkenar, Dikdörtgen, Kare, Deltoid)", "Çember ve Daire", "Katı Cisimler", "Koordinat Sistemi", "Analitik Geometri Temel"],
+    matematik: ["Temel Kavramlar", "Sayılar", "Bölme-Bölünebilme", "OBEB-OKEK", "Rasyonel Sayılar", "Basit Eşitsizlikler", "Mutlak Değer", "Üslü Sayılar", "Köklü Sayılar", "Çarpanlara Ayırma", "Problemler", "Kümeler", "Mantık", "Olasılık"],
+    geometri: ["Doğruda Açılar", "Üçgende Açılar", "Çokgenler", "Dörtgenler", "Çember ve Daire", "Katı Cisimler", "Analitik Geometri Temel"],
     fizik: ["Fizik Bilimine Giriş", "Madde ve Özellikleri", "Hareket ve Kuvvet", "Enerji", "Isı ve Sıcaklık", "Elektrostatik"],
-    kimya: ["Kimya Bilimi", "Atom ve Periyodik Sistem", "Kimyasal Türler Arası Etkileşim", "Maddenin Halleri", "Doğa ve Kimya", "Kimyanın Temel Kanunları"],
-    biyoloji: ["Biyoloji Bilimi", "Canlıların Yapısında Bulunan Bileşikler", "Hücre", "Canlıların Temel Bileşenleri", "Hücre Zarından Madde Geçişi", "Canlıların Sınıflandırılması"],
-    tarih: ["Tarih ve Zaman", "İlk Uygarlıklar", "İslamiyet Öncesi Türk Tarihi", "İslam Tarihi ve Uygarlığı", "Türk-İslam Devletleri", "Türkiye Tarihi (Beylikten Devlete, Dünya Gücü Osmanlı)"],
-    cografya: ["Coğrafya: Doğa ve İnsan", "Coğrafi Konum", "Harita Bilgisi", "Atmosfer ve İklim", "Yer Şekilleri", "Beşeri Coğrafya", "Nüfus ve Yerleşme"],
-    felsefe: ["Felsefenin Konusu", "Bilgi Felsefesi", "Varlık Felsefesi", "Ahlak Felsefesi", "Sanat Felsefesi", "Din Felsefesi", "Siyaset Felsefesi"],
-    dinKulturu: ["İslam'da İnanç Esasları", "İbadetler", "Ahlak", "Hz. Muhammed'in Hayatı", "İslam Düşüncesinde Yorumlar", "Dinler Tarihi (Kısaca)"]
+    kimya: ["Kimya Bilimi", "Atom ve Periyodik Sistem", "Kimyasal Türler Arası Etkileşim", "Maddenin Halleri", "Doğa ve Kimya"],
+    biyoloji: ["Biyoloji Bilimi", "Canlıların Yapısında Bulunan Bileşikler", "Hücre", "Canlıların Sınıflandırılması"],
+    tarih: ["Tarih ve Zaman", "İlk Uygarlıklar", "İslamiyet Öncesi Türk Tarihi", "İslam Tarihi", "Türk-İslam Devletleri", "Osmanlı (Kuruluş-Yükselme)"],
+    cografya: ["Doğa ve İnsan", "Coğrafi Konum", "Harita Bilgisi", "Atmosfer ve İklim", "Yer Şekilleri", "Nüfus ve Yerleşme"],
+    felsefe: ["Felsefenin Konusu", "Bilgi Felsefesi", "Varlık Felsefesi", "Ahlak Felsefesi"],
+    dinKulturu: ["İslam'da İnanç Esasları", "İbadetler", "Ahlak", "Hz. Muhammed'in Hayatı"]
   },
   ayt: {
-    turkDiliEdebiyati: ["Anlam Bilgisi (AYT)", "Dil Bilgisi (AYT)", "Edebiyatın Tarihi Gelişimi", "Şiir Bilgisi", "Nazım Biçimleri", "Düz Yazı Türleri", "İslamiyet Öncesi Türk Edebiyatı", "Divan Edebiyatı", "Halk Edebiyatı", "Tanzimat Edebiyatı", "Servetifünun Edebiyatı", "Fecriati Edebiyatı", "Milli Edebiyat", "Cumhuriyet Edebiyatı", "Dünya Edebiyatı"],
-    matematik: ["Fonksiyonlar (İleri Düzey)", "Polinomlar", "2. Dereceden Denklemler", "Karmaşık Sayılar", "Binom", "Permütasyon ve Kombinasyon", "Olasılık (AYT)", "Trigonometri", "Logaritma", "Diziler", "Limit ve Süreklilik", "Türev", "İntegral"],
-    geometri: ["Üçgenler (AYT Detay)", "Çokgenler ve Dörtgenler (AYT Detay)", "Çember ve Daire (AYT Detay)", "Analitik Geometri (İleri Düzey)", "Katı Cisimler (AYT Detay)"],
-    fizik: ["Vektörler", "Kuvvet ve Hareket (Newton, İş-Güç-Enerji, Atışlar)", "Elektrik ve Manyetizma (AYT)", "Dalgalar (AYT)", "Optik (AYT)", "Atom Fiziği ve Modern Fizik"],
-    kimya: ["Atomun Yapısı (Modern)", "Periyodik Sistem (AYT)", "Kimyasal Türler Arası Etkileşim (AYT)", "Kimyasal Hesaplamalar (AYT)", "Gazlar", "Çözeltiler", "Kimyasal Tepkimelerde Enerji", "Tepkimelerde Hız", "Kimyasal Denge", "Asit-Baz Dengesi", "Elektrokimya", "Organik Kimya"],
-    biyoloji: ["Hücre (AYT Detay)", "Canlıların Sınıflandırılması (AYT Detay)", "Sistemler (Destek-Hareket, Dolaşım, Solunum, Sindirim, Boşaltım, Sinir, Endokrin)", "Duyu Organları", "Üreme ve Gelişme", "Kalıtım (İleri Düzey)", "Biyoteknoloji", "Ekosistem Ekolojisi", "Canlılar ve Çevre"],
-    tarih: ["Tarih Bilimi (AYT)", "İlk ve Orta Çağlarda Türkler (AYT)", "Osmanlı Kültür ve Medeniyeti", "Osmanlı Siyasi Gelişmeleri (Yükselme, Duraklama, Gerileme, Dağılma)", "19. Yüzyılda Osmanlı", "Kurtuluş Savaşı (Hazırlık, Cepheler)", "Cumhuriyetin İlanı ve Atatürk İlkeleri", "Çok Partili Hayat", "Türkiye’nin Dış Politikası"],
-    cografya: ["Türkiye’nin Yer Şekilleri", "Türkiye İklimi", "Türkiye Nüfusu", "Türkiye'de Tarım ve Hayvancılık", "Türkiye'de Maden ve Enerji Kaynakları", "Türkiye'de Sanayi ve Ulaşım", "Türkiye'de Ticaret ve Turizm", "Türkiye'nin Bölgesel Kalkınma Projeleri", "Doğal Afetler ve Türkiye", "Ekosistem ve Biyoçeşitlilik (AYT)"],
+    turkDiliEdebiyati: ["Anlam Bilgisi (AYT)", "Dil Bilgisi (AYT)", "Şiir Bilgisi", "Edebi Akımlar", "Divan Edebiyatı", "Halk Edebiyatı", "Tanzimat Edebiyatı", "Servetifünun Edebiyatı", "Milli Edebiyat", "Cumhuriyet Edebiyatı"],
+    matematik: ["Fonksiyonlar", "Polinomlar", "2. Dereceden Denklemler", "Karmaşık Sayılar", "Trigonometri", "Logaritma", "Diziler", "Limit ve Süreklilik", "Türev", "İntegral"],
+    geometri: ["Üçgenler (AYT)", "Çokgenler ve Dörtgenler (AYT)", "Çember ve Daire (AYT)", "Analitik Geometri (İleri)"],
+    fizik: ["Vektörler", "Kuvvet ve Hareket (Newton)", "Elektrik ve Manyetizma (AYT)", "Dalgalar (AYT)", "Optik (AYT)", "Modern Fizik"],
+    kimya: ["Modern Atom Teorisi", "Gazlar", "Çözeltiler", "Kimyasal Tepkimelerde Enerji", "Hız", "Denge", "Asit-Baz Dengesi", "Elektrokimya", "Organik Kimya"],
+    biyoloji: ["Sistemler (Destek-Hareket, Dolaşım, Solunum, Sindirim, Boşaltım, Sinir, Endokrin)", "Üreme ve Gelişme", "Kalıtım", "Ekosistem"],
+    tarih: ["Osmanlı (Kültür, Siyasi Gelişmeler)", "Kurtuluş Savaşı", "Atatürk İlkeleri", "Türkiye’nin Dış Politikası"],
+    cografya: ["Türkiye’nin Yer Şekilleri ve İklimi", "Türkiye Nüfusu ve Ekonomisi", "Doğal Afetler", "Ekosistem (AYT)"],
     felsefeGrubu: {
-      felsefe: ["Felsefeye Giriş (AYT)", "Bilgi Felsefesi (AYT)", "Varlık Felsefesi (AYT)", "Ahlak Felsefesi (AYT)", "Sanat Felsefesi (AYT)", "Din Felsefesi (AYT)", "Siyaset Felsefesi (AYT)", "Bilim Felsefesi"],
-      psikoloji: ["Psikolojinin Temel Süreçleri", "Gelişim Psikolojisi", "Öğrenme Psikolojisi", "Ruh Sağlığı"],
-      sosyoloji: ["Sosyolojiye Giriş", "Toplumsal Yapı", "Toplumsal Değişme ve Gelişme", "Kültür"],
-      mantik: ["Mantığa Giriş", "Klasik Mantık", "Modern Mantık"]
+      felsefe: ["Bilgi Felsefesi (AYT)", "Varlık Felsefesi (AYT)", "Ahlak Felsefesi (AYT)", "Bilim Felsefesi"],
+      psikoloji: ["Psikolojinin Temel Süreçleri", "Öğrenme Psikolojisi"],
+      sosyoloji: ["Sosyolojiye Giriş", "Toplumsal Yapı"],
+      mantik: ["Mantığa Giriş", "Klasik Mantık"]
     }
   }
 };
 
 function getSubjectsForField(field?: "ea" | "sayisal" | "sozel" | "tyt"): string {
-  if (!field) return "Genel YKS Konuları (Tüm Dersler)";
+  if (!field || field === "tyt") {
+      const allTytSubjects = Object.entries(yksTopics.tyt).map(([ders, konular]) => `${ders.charAt(0).toUpperCase() + ders.slice(1)} (TYT: ${konular.slice(0,2).join(', ')}...)`);
+      return "TYT Tüm Dersler: " + allTytSubjects.join(", ");
+  }
 
   let subjects: string[] = [];
   const addTytCourses = (includeMathGeo: boolean = true, includeFenSos: boolean = true) => {
-    subjects.push("TYT Türkçe (" + yksTopics.tyt.turkce.slice(0, 3).join(', ') + "...)");
+    subjects.push("TYT Türkçe (" + yksTopics.tyt.turkce.slice(0, 2).join(', ') + "...)");
     if (includeMathGeo) {
-      subjects.push("TYT Matematik (" + yksTopics.tyt.matematik.slice(0, 3).join(', ') + "...)");
+      subjects.push("TYT Matematik (" + yksTopics.tyt.matematik.slice(0, 2).join(', ') + "...)");
       subjects.push("TYT Geometri (" + yksTopics.tyt.geometri.slice(0, 2).join(', ') + "...)");
     }
     if (includeFenSos) {
-      subjects.push("TYT Fizik (" + yksTopics.tyt.fizik.slice(0, 2).join(', ') + "...)");
-      subjects.push("TYT Kimya (" + yksTopics.tyt.kimya.slice(0, 2).join(', ') + "...)");
-      subjects.push("TYT Biyoloji (" + yksTopics.tyt.biyoloji.slice(0, 2).join(', ') + "...)");
-      subjects.push("TYT Tarih (" + yksTopics.tyt.tarih.slice(0, 2).join(', ') + "...)");
-      subjects.push("TYT Coğrafya (" + yksTopics.tyt.cografya.slice(0, 2).join(', ') + "...)");
-      subjects.push("TYT Felsefe (" + yksTopics.tyt.felsefe.slice(0, 2).join(', ') + "...)");
+      subjects.push("TYT Fizik (" + yksTopics.tyt.fizik.slice(0, 1).join(', ') + "...)");
+      subjects.push("TYT Kimya (" + yksTopics.tyt.kimya.slice(0, 1).join(', ') + "...)");
+      subjects.push("TYT Biyoloji (" + yksTopics.tyt.biyoloji.slice(0, 1).join(', ') + "...)");
+      subjects.push("TYT Tarih (" + yksTopics.tyt.tarih.slice(0, 1).join(', ') + "...)");
+      subjects.push("TYT Coğrafya (" + yksTopics.tyt.cografya.slice(0, 1).join(', ') + "...)");
+      subjects.push("TYT Felsefe (" + yksTopics.tyt.felsefe.slice(0, 1).join(', ') + "...)");
       subjects.push("TYT Din Kültürü");
     }
   };
@@ -68,42 +72,38 @@ function getSubjectsForField(field?: "ea" | "sayisal" | "sozel" | "tyt"): string
   switch (field) {
     case "sayisal":
       addTytCourses();
-      subjects.push("AYT Matematik (" + yksTopics.ayt.matematik.slice(0, 3).join(', ') + "...)");
-      subjects.push("AYT Geometri (" + yksTopics.ayt.geometri.slice(0, 2).join(', ') + "...)");
-      subjects.push("AYT Fizik (" + yksTopics.ayt.fizik.slice(0, 2).join(', ') + "...)");
-      subjects.push("AYT Kimya (" + yksTopics.ayt.kimya.slice(0, 2).join(', ') + "...)");
-      subjects.push("AYT Biyoloji (" + yksTopics.ayt.biyoloji.slice(0, 2).join(', ') + "...)");
+      subjects.push("AYT Matematik (" + yksTopics.ayt.matematik.slice(0, 2).join(', ') + "...)");
+      subjects.push("AYT Geometri (" + yksTopics.ayt.geometri.slice(0, 1).join(', ') + "...)");
+      subjects.push("AYT Fizik (" + yksTopics.ayt.fizik.slice(0, 1).join(', ') + "...)");
+      subjects.push("AYT Kimya (" + yksTopics.ayt.kimya.slice(0, 1).join(', ') + "...)");
+      subjects.push("AYT Biyoloji (" + yksTopics.ayt.biyoloji.slice(0, 1).join(', ') + "...)");
       break;
     case "ea":
-      addTytCourses(true, false); // TYT Matematik ve Türkçe
-      subjects.push("TYT Sosyal Bilimler (Tarih, Coğrafya, Felsefe, Din K.)"); // TYT Sosyal Bilimler özet
-      subjects.push("AYT Matematik (" + yksTopics.ayt.matematik.slice(0, 3).join(', ') + "...)");
-      subjects.push("AYT Geometri (" + yksTopics.ayt.geometri.slice(0, 2).join(', ') + "...)");
-      subjects.push("AYT Türk Dili ve Edebiyatı (" + yksTopics.ayt.turkDiliEdebiyati.slice(0, 3).join(', ') + "...)");
-      subjects.push("AYT Tarih-1 (" + yksTopics.ayt.tarih.slice(0, 2).join(', ') + "...)");
-      subjects.push("AYT Coğrafya-1 (" + yksTopics.ayt.cografya.slice(0, 2).join(', ') + "...)");
+      addTytCourses(true, false); 
+      subjects.push("TYT Sosyal Bilimler (Tarih, Coğrafya, Felsefe, Din K.)");
+      subjects.push("AYT Matematik (" + yksTopics.ayt.matematik.slice(0, 2).join(', ') + "...)");
+      subjects.push("AYT Geometri (" + yksTopics.ayt.geometri.slice(0, 1).join(', ') + "...)");
+      subjects.push("AYT Türk Dili ve Edebiyatı (" + yksTopics.ayt.turkDiliEdebiyati.slice(0, 2).join(', ') + "...)");
+      subjects.push("AYT Tarih-1 (" + yksTopics.ayt.tarih.slice(0, 1).join(', ') + "...)");
+      subjects.push("AYT Coğrafya-1 (" + yksTopics.ayt.cografya.slice(0, 1).join(', ') + "...)");
       break;
     case "sozel":
-      addTytCourses(false, true); // TYT Türkçe ve Sosyal + Din
+      addTytCourses(false, true); 
       subjects.push("TYT Matematik (Temel Düzey)");
-      subjects.push("AYT Türk Dili ve Edebiyatı (" + yksTopics.ayt.turkDiliEdebiyati.slice(0, 3).join(', ') + "...)");
-      subjects.push("AYT Tarih-1 ve Tarih-2 (" + yksTopics.ayt.tarih.slice(0, 3).join(', ') + "...)");
-      subjects.push("AYT Coğrafya-1 ve Coğrafya-2 (" + yksTopics.ayt.cografya.slice(0, 3).join(', ') + "...)");
-      subjects.push("AYT Felsefe Grubu (Felsefe, Psikoloji, Sosyoloji, Mantık)");
+      subjects.push("AYT Türk Dili ve Edebiyatı (" + yksTopics.ayt.turkDiliEdebiyati.slice(0, 2).join(', ') + "...)");
+      subjects.push("AYT Tarih-1 ve Tarih-2 (" + yksTopics.ayt.tarih.slice(0, 2).join(', ') + "...)");
+      subjects.push("AYT Coğrafya-1 ve Coğrafya-2 (" + yksTopics.ayt.cografya.slice(0, 2).join(', ') + "...)");
+      subjects.push("AYT Felsefe Grubu");
       subjects.push("AYT Din Kültürü ve Ahlak Bilgisi");
       break;
-    case "tyt":
-      addTytCourses();
-      break;
-    default:
-      return "Genel YKS Konuları (Tüm Dersler)";
   }
   return subjects.join(", ");
 }
 
 
 const GenerateStudyPlanInputSchema = z.object({
-  userField: z.enum(["ea", "sayisal", "sozel", "tyt"]).optional().describe("Kullanıcının YKS alanı (Eşit Ağırlık, Sayısal, Sözel, Sadece TYT)."),
+  userField: z.enum(["ea", "sayisal", "sozel", "tyt"]).optional().describe("Kullanıcının YKS alanı (Eşit Ağırlık, Sayısal, Sözel, Sadece TYT). Boş bırakılırsa ve özel konu girilmemişse genel YKS planı istenir."),
+  customSubjectsInput: z.string().optional().describe("Kullanıcının odaklanmak istediği özel konular veya dersler. Bu alan doluysa, yukarıdaki 'userField' seçimi yerine bu konular önceliklendirilir."),
   studyDuration: z.string().describe("Toplam çalışma süresi (örn: '4_hafta', '3_ay', '6_ay')."),
   hoursPerDay: z.number().min(1).max(12).describe("Günlük ortalama çalışma saati."),
   userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
@@ -127,10 +127,10 @@ const WeeklyPlanSchema = z.object({
 });
 
 const GenerateStudyPlanOutputSchema = z.object({
-  planTitle: z.string().describe("Oluşturulan çalışma planı için bir başlık (örn: 'Kişiselleştirilmiş YKS Çalışma Planı')."),
+  planTitle: z.string().describe("Oluşturulan çalışma planı için bir başlık."),
   introduction: z.string().optional().describe("Plana genel bir giriş ve motivasyon mesajı."),
   weeklyPlans: z.array(WeeklyPlanSchema).describe("Haftalık olarak düzenlenmiş çalışma planı. Her bir haftalık plan objesi MUTLAKA 'week' (hafta numarası, SAYI olarak) alanını İÇERMELİDİR."),
-  generalTips: z.array(z.string()).optional().describe("Genel çalışma stratejileri, mola önerileri ve YKS için ipuçları."),
+  generalTips: z.array(z.string()).optional().describe("Genel çalışma stratejileri ve YKS için ipuçları."),
   disclaimer: z.string().default("Bu, yapay zeka tarafından oluşturulmuş bir taslak plandır. Kendi öğrenme hızınıza ve ihtiyaçlarınıza göre uyarlamanız önemlidir.").describe("Planın bir taslak olduğuna dair uyarı.")
 });
 export type GenerateStudyPlanOutput = z.infer<typeof GenerateStudyPlanOutputSchema>;
@@ -140,11 +140,18 @@ export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<
   const isCustomModelSelected = !!input.customModelIdentifier;
   const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
   
-  const subjectsToFocus = getSubjectsForField(input.userField);
+  let subjectsToFocus: string;
+  if (input.customSubjectsInput && input.customSubjectsInput.trim() !== "") {
+    subjectsToFocus = input.customSubjectsInput.trim();
+  } else if (input.userField) {
+    subjectsToFocus = getSubjectsForField(input.userField);
+  } else {
+    subjectsToFocus = "Genel YKS konuları (TYT ve AYT tüm dersler)";
+  }
 
   const enrichedInput = {
     ...input,
-    subjects: subjectsToFocus, // AI'ya gönderilecek konu listesi
+    subjects: subjectsToFocus, 
     isProUser,
     isCustomModelSelected,
     isGemini25PreviewSelected,
@@ -181,73 +188,54 @@ export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<
           flowOutput.introduction = "AI modeli, haftalık planları beklenen formatta oluşturamadı. Lütfen girdilerinizi kontrol edin veya daha sonra tekrar deneyin.";
       }
   }
-
   return flowOutput;
 }
 
-const prompt = ai.definePrompt({
+const studyPlanGeneratorPrompt = ai.definePrompt({
   name: 'studyPlanGeneratorPrompt',
   input: {schema: GenerateStudyPlanInputSchema.extend({
-    subjects: z.string().optional().describe("Çalışılması planlanan dersler ve ana konular (virgülle ayrılmış veya bölüm seçimine göre otomatik oluşturulmuş)."),
+    subjects: z.string().optional().describe("Çalışılması planlanan dersler ve ana konular."),
     isProUser: z.boolean().optional(),
     isCustomModelSelected: z.boolean().optional(),
     isGemini25PreviewSelected: z.boolean().optional(),
   })},
   output: {schema: GenerateStudyPlanOutputSchema},
-  prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) başta olmak üzere çeşitli sınavlara hazırlanan öğrencilere, onların hedeflerine, seçtikleri alana ({{{userField}}}), mevcut bilgilerine (belirtildiyse), çalışma sürelerine, günlük ayırabilecekleri zamana ve (varsa) sağladıkları ek PDF bağlamına göre son derece detaylı, kişiselleştirilmiş ve etkili çalışma planları tasarlayan, YKS hazırlık sürecinin her aşamasına hakim uzman bir AI eğitim koçu ve stratejistisin.
-Amacın, öğrencinin belirlediği veya seçtiği alana göre belirlenen konuları ({{{subjects}}}) {{{studyDuration}}} içinde, günde ortalama {{{hoursPerDay}}} saat çalışarak en verimli şekilde tamamlamasına yardımcı olacak, haftalık ve günlük bazda yapılandırılmış, gerçekçi bir yol haritası sunmaktır. Plan, YKS (veya {{{userField}}} alanına uygun sınavlar) formatına uygun olmalı ve öğrenciyi motive etmelidir. Cevapların her zaman Türkçe olmalıdır.
+  prompt: `Sen, YKS öğrencilerine yönelik, onların girdilerine göre kişiselleştirilmiş, haftalık ve günlük bazda yapılandırılmış, gerçekçi ve motive edici YKS çalışma planları tasarlayan uzman bir AI eğitim koçusun. Cevapların daima Türkçe olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
-{{#if isProUser}}
-(Pro Kullanıcı Notu: Planı, en karmaşık konuların bile nasıl parçalara ayrılarak çalışılabileceğini gösterecek şekilde, farklı öğrenme teknikleri (örn: Pomodoro, Feynman Tekniği) ve genel türde kaynak önerileriyle (spesifik kitap adı olmadan) zenginleştir. Öğrencinin potansiyel darboğazlarını, zaman yönetimi zorluklarını ve motivasyon düşüşlerini öngörerek proaktif çözümler ve alternatif yaklaşımlar sun. En kapsamlı ve stratejik planı oluştur.)
-{{else ifEquals userPlan "premium"}}
-(Premium Kullanıcı Notu: Haftalık hedefleri daha net belirle, günlük aktivitelere örnek soru çözüm sayıları veya tekrar stratejileri ekle. Motivasyonel ipuçlarını artır.)
-{{/if}}
-
-{{#if isCustomModelSelected}}
-(Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
-  {{#if isGemini25PreviewSelected}}
-  (Gemini 2.5 Flash Preview Özel Notu: Yanıtlarını olabildiğince ÖZ ama ANLAŞILIR tut. HIZLI yanıt vermesi önemlidir.)
-  {{/if}}
-{{/if}}
+{{#if isProUser}}(Pro Kullanıcı Notu: Planı, farklı öğrenme teknikleri ve genel kaynak önerileriyle (spesifik kitap adı olmadan) zenginleştir. Kapsamlı ve stratejik bir plan oluştur.){{/if}}
+{{#if isCustomModelSelected}}(Admin Notu: '{{{customModelIdentifier}}}' modeli kullanılıyor.{{#if isGemini25PreviewSelected}} (Gemini 2.5 Flash Preview Özel Notu: Yanıtlarını ÖZ ama ANLAŞILIR tut. HIZLI yanıtla.){{/if}}){{/if}}
 
 Öğrencinin Girdileri:
-YKS Alanı: {{{userField}}}
+YKS Alanı (Seçildiyse): {{{userField}}}
 Çalışılacak Ana Dersler/Konular (Bu listeye göre planı oluştur): {{{subjects}}}
 Toplam Çalışma Süresi: {{{studyDuration}}}
 Günlük Ortalama Çalışma Saati: {{{hoursPerDay}}}
-
-{{#if pdfContextText}}
-Öğrenci Tarafından Sağlanan Ek Bağlam (PDF'ten çıkarılan metin):
-{{{pdfContextText}}}
-Lütfen bu ek bağlamı, öğrencinin özellikle odaklanmak istediği veya eksik olduğu konuları belirlerken ve planı kişiselleştirirken dikkate al. Bu metin, öğrencinin mevcut bilgi seviyesi veya çalışma materyalleri hakkında ipuçları içerebilir.
+{{#if pdfContextText}}Ek Bağlam (PDF'ten): {{{pdfContextText}}} (Bu metni, öğrencinin odaklanmak istediği konuları belirlerken dikkate al.)
 {{/if}}
 
-Lütfen bu bilgilere göre, aşağıdaki formatta bir çalışma planı taslağı oluştur: Çıktı, JSON şemasına HARFİYEN uymalıdır. Özellikle 'weeklyPlans' dizisindeki her bir obje, 'week' (hafta numarası, SAYI olarak), 'weeklyGoal' (isteğe bağlı) ve 'dailyTasks' (günlük görevler dizisi) alanlarını içermelidir. 'dailyTasks' içindeki her obje de 'day', 'focusTopics' ve isteğe bağlı diğer alanları içermelidir. Şemada 'required' olarak belirtilen tüm alanlar MUTLAKA çıktıda bulunmalıdır. HER BİR HAFTALIK PLAN OBJESİ 'week' ANAHTARINA SAHİP OLMALI VE BU ANAHTARIN DEĞERİ BİR SAYI (NUMBER) OLMALIDIR. Örneğin: { "week": 1, ... }, { "week": 2, ... } gibi.
+Lütfen bu bilgilere göre, aşağıdaki formatta bir çalışma planı taslağı oluştur. Çıktı, JSON şemasına HARFİYEN uymalıdır. Özellikle 'weeklyPlans' dizisindeki HER BİR obje, MUTLAKA 'week' (hafta numarası, SAYI olarak) alanını İÇERMELİDİR.
 
 1.  **Plan Başlığı (planTitle)**: Örneğin, "Kişiye Özel {{{userField}}} Hazırlık Planı ({{{studyDuration}}})". Bu alan ZORUNLUDUR.
-2.  **Giriş (introduction) (isteğe bağlı)**: Öğrenciyi motive eden, planın genel mantığını açıklayan kısa bir giriş. "PRO İPUCU:" veya "Not:" gibi etiketlerle önemli noktaları vurgulayabilirsin.
-3.  **Haftalık Planlar (weeklyPlans)**: ÇOK ÖNEMLİ: Bu dizideki HER BİR obje, MUTLAKA 'week' adında bir alana sahip olmalı ve bu alanın değeri bir SAYI (örneğin 1, 2, 3...) olmalıdır. Çalışma süresine göre haftalara bölünmüş planlar. Her hafta için:
-    *   **Hafta Numarası (week)**: Örneğin, 1, 2, 3... Bu alan HER HAFTALIK PLAN OBJESİNDE ZORUNLUDUR VE MUTLAKA BİR SAYI OLMALIDIR. Bu değerin kesinlikle bir sayı olduğundan ve her haftalık plan için mevcut olduğundan emin ol.
-    *   **Haftalık Hedef (weeklyGoal) (isteğe bağlı)**: O haftanın ana odak noktası veya bitirilmesi hedeflenen genel konu başlıkları.
-    *   **Günlük Görevler (dailyTasks)**: Haftanın her günü için (Pazartesi-Pazar veya 1. Gün - 7. Gün):
-        *   **Gün (day)**: Günün adı. Bu alan ZORUNLUDUR.
-        *   **Odak Konular (focusTopics)**: O gün çalışılacak ana konular veya dersler. Günlük çalışma saatine göre konu sayısı dengeli olmalı. Bu alan ZORUNLUDUR.
-        *   **Tahmini Süre (estimatedTime) (isteğe bağlı)**: Her bir odak konuya ayrılması önerilen süre (örn: "Matematik - Türev: 2 saat").
-        *   **Aktiviteler (activities) (isteğe bağlı)**: "Konu anlatımı dinleme/okuma", "{{{hoursPerDay}}} soru çözümü", "Kısa tekrar", "Yanlış analizi" gibi spesifik görevler.
-        *   **Notlar (notes) (isteğe bağlı)**: O güne özel motivasyon, mola önerisi veya önemli bir ipucu. "PRO İPUCU:" veya "Not:" gibi etiketlerle önemli noktaları vurgulayabilirsin.
-    Bu 'weeklyPlans' dizisi ZORUNLUDUR. Her bir elemanının yukarıdaki şemaya uyduğundan emin ol, özellikle 'week' alanının bir sayı olarak varlığından.
-4.  **Genel İpuçları (generalTips) (isteğe bağlı)**: Zaman yönetimi, verimli ders çalışma teknikleri, sınav stresiyle başa çıkma gibi genel YKS hazırlık önerileri. "PRO İPUCU:" veya "Not:" gibi etiketlerle önemli noktaları vurgulayabilirsin.
-5.  **Sorumluluk Reddi (disclaimer)**: "Bu, yapay zeka tarafından oluşturulmuş bir taslak plandır..." şeklinde standart bir uyarı.
+2.  **Giriş (introduction) (isteğe bağlı)**: Öğrenciyi motive eden, planın genel mantığını açıklayan kısa bir giriş.
+3.  **Haftalık Planlar (weeklyPlans)**: ÇOK ÖNEMLİ: Bu dizideki HER BİR obje, MUTLAKA 'week' adında bir SAYI (number) tipinde alana sahip olmalıdır.
+    *   **Hafta Numarası (week)**: Örneğin, 1, 2, 3... BU ALAN HER HAFTALIK PLAN OBJESİNDE ZORUNLUDUR VE SAYI OLMALIDIR.
+    *   **Haftalık Hedef (weeklyGoal) (isteğe bağlı)**: O haftanın ana odak noktası.
+    *   **Günlük Görevler (dailyTasks)**: Haftanın her günü için:
+        *   **Gün (day)**: Günün adı. ZORUNLUDUR.
+        *   **Odak Konular (focusTopics)**: O gün çalışılacak ana konular/dersler. ZORUNLUDUR.
+        *   **Tahmini Süre (estimatedTime) (isteğe bağlı)**: Her odak konuya ayrılacak süre.
+        *   **Aktiviteler (activities) (isteğe bağlı)**: "Konu anlatımı", "{{{hoursPerDay}}} soru çözümü", "Tekrar" gibi görevler.
+        *   **Notlar (notes) (isteğe bağlı)**: O güne özel motivasyon, mola önerisi veya ipucu.
+    Bu 'weeklyPlans' dizisi ZORUNLUDUR ve her elemanın şemaya uyduğundan, özellikle 'week' alanının bir SAYI olduğundan emin ol.
+4.  **Genel İpuçları (generalTips) (isteğe bağlı)**: Zaman yönetimi, verimli ders çalışma teknikleri gibi genel YKS önerileri.
+5.  **Sorumluluk Reddi (disclaimer)**: Standart uyarı metni.
 
-Planlama Prensipleri:
-*   AI, kendisine verilen {{{userField}}} alanına ve {{{subjects}}} listesindeki konulara göre, {{{studyDuration}}} süresince, günde ortalama {{{hoursPerDay}}} saat çalışmayı dikkate alarak mantıklı bir plan oluşturmalıdır.
-*   Konuların zorluk seviyelerine ve birbirleriyle bağlantılarına dikkat et.
-*   Tekrar ve soru çözümünü plana dahil et.
-*   Öğrencinin sıkılmaması için çeşitlilik sağlamaya çalış.
-*   Gerçekçi ve uygulanabilir bir plan oluştur.
-*   Eğer verilen süre çok kısaysa veya konu sayısı çok fazlaysa, bu durumu nazikçe belirt ve planı en iyi şekilde optimize etmeye çalış veya daha odaklı bir plan öner.
-*   Çıktının JSON şemasına HARFİYEN uyduğundan emin ol. Özellikle, 'weeklyPlans' dizisindeki HER BİR haftalık plan objesinin 'week' anahtarını içerdiğinden ve bu anahtarın değerinin bir SAYI olduğundan KESİNLİKLE emin ol. Çıktıyı oluşturmadan önce bunu son kez kontrol et. 'week' alanı kesinlikle eksik olmamalıdır.
+Planlama İlkeleri:
+*   Verilen {{{userField}}} ve/veya {{{subjects}}} listesine göre, {{{studyDuration}}} süresince, günde ortalama {{{hoursPerDay}}} saat çalışmayı dikkate alarak mantıklı bir plan oluştur.
+*   Konuların zorluk seviyelerine ve bağlantılarına dikkat et. Tekrar ve soru çözümünü dahil et.
+*   Gerçekçi ve uygulanabilir bir plan sun. Süre çok kısaysa veya konu sayısı çok fazlaysa, bunu belirt ve planı optimize et.
+*   Çıktının JSON şemasına HARFİYEN uyduğundan emin ol. Özellikle, 'weeklyPlans' içindeki her haftalık plan objesinin 'week' anahtarını içerdiğinden ve bu anahtarın değerinin bir SAYI olduğundan KESİNLİKLE emin ol.
 `,
 });
 
@@ -308,6 +296,7 @@ const studyPlanGeneratorFlow = ai.defineFlow(
             throw new Error("AI Eğitim Koçu, belirtilen girdilerle bir çalışma planı oluşturamadı. Lütfen bilgilerinizi kontrol edin.");
         }
         
+        // Ensure every weekly plan has a 'week' number
         if (Array.isArray(output.weeklyPlans)) {
             output.weeklyPlans.forEach((plan: any, index) => { 
                 if (plan && (plan.week === undefined || typeof plan.week !== 'number' || isNaN(plan.week))) {
@@ -346,3 +335,5 @@ const studyPlanGeneratorFlow = ai.defineFlow(
     }
   }
 );
+
+    

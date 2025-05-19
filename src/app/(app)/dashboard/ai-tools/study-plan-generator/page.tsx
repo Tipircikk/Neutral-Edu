@@ -7,6 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CalendarDays, Wand2, Loader2, AlertTriangle, Settings, UploadCloud, FileText } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import React, { useState, useEffect, useCallback } from "react";
@@ -19,7 +20,8 @@ const MAX_PDF_SIZE_MB = 5;
 const MAX_PDF_SIZE_BYTES = MAX_PDF_SIZE_MB * 1024 * 1024;
 
 export default function StudyPlanGeneratorPage() {
-  const [userField, setUserField] = useState<GenerateStudyPlanInput["userField"]>("sayisal");
+  const [userField, setUserField] = useState<GenerateStudyPlanInput["userField"] | undefined>(undefined);
+  const [customSubjectsInput, setCustomSubjectsInput] = useState("");
   const [studyDuration, setStudyDuration] = useState("4_hafta");
   const [hoursPerDay, setHoursPerDay] = useState(4);
   const [planOutput, setPlanOutput] = useState<GenerateStudyPlanOutput | null>(null);
@@ -41,12 +43,14 @@ export default function StudyPlanGeneratorPage() {
   }, [checkAndResetQuota, userProfile]);
 
   useEffect(() => {
-    if (userProfile) {
-      memoizedCheckAndResetQuota().then(updatedProfile => {
-        setCanProcess((updatedProfile?.dailyRemainingQuota ?? 0) > 0);
-      });
-    } else if (!userProfileLoading && !userProfile) {
-      setCanProcess(false);
+    if (!userProfileLoading) {
+      if (userProfile) {
+        memoizedCheckAndResetQuota().then(updatedProfile => {
+          setCanProcess((updatedProfile?.dailyRemainingQuota ?? 0) > 0);
+        });
+      } else {
+         setCanProcess(false);
+      }
     }
   }, [userProfile, userProfileLoading, memoizedCheckAndResetQuota]);
 
@@ -56,7 +60,7 @@ export default function StudyPlanGeneratorPage() {
       if (file.type !== "application/pdf") {
         toast({ title: "Geçersiz Dosya Türü", description: "Lütfen bir PDF dosyası yükleyin.", variant: "destructive" });
         setPdfFile(null); setPdfFileName(null); setPdfContextText(null);
-        event.target.value = ""; 
+        event.target.value = "";
         return;
       }
       if (file.size > MAX_PDF_SIZE_BYTES) {
@@ -65,14 +69,23 @@ export default function StudyPlanGeneratorPage() {
         event.target.value = "";
         return;
       }
+      
+      const confirmUpload = window.confirm(`"${file.name}" adlı dosyayı yüklemek istediğinize emin misiniz? Bu işlem dosya boyutuna göre zaman alabilir.`);
+      if (!confirmUpload) {
+        event.target.value = ""; // Clear the file input
+        setPdfFile(null); setPdfFileName(null); setPdfContextText(null);
+        return;
+      }
+      
       setPdfFile(file);
       setPdfFileName(file.name);
+      setPlanOutput(null); // Clear previous plan if a new PDF is uploaded
       setIsProcessingPdf(true);
       toast({ title: "PDF İşleniyor...", description: "Lütfen bekleyin." });
       try {
         const text = await extractTextFromPdf(file);
         setPdfContextText(text);
-        toast({ title: "PDF İşlendi", description: "PDF içeriği çalışma planı için hazır." });
+        toast({ title: "PDF İşlendi", description: "PDF içeriği çalışma planı için ek bağlam olarak kullanılmaya hazır." });
       } catch (error: any) {
         console.error("PDF metin çıkarma hatası:", error);
         toast({ title: "PDF İşleme Hatası", description: error.message || "PDF'ten metin çıkarılırken bir hata oluştu.", variant: "destructive" });
@@ -88,8 +101,8 @@ export default function StudyPlanGeneratorPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userField) {
-      toast({ title: "Alan Seçimi Gerekli", description: "Lütfen çalışma planı oluşturmak için bir alan (EA, Sayısal, Sözel, TYT) seçin.", variant: "destructive" });
+    if (!userField && !customSubjectsInput.trim()) {
+      toast({ title: "Girdi Gerekli", description: "Lütfen bir YKS alanı seçin veya odaklanmak istediğiniz konuları girin.", variant: "destructive" });
       return;
     }
     if (hoursPerDay < 1 || hoursPerDay > 12) {
@@ -114,7 +127,8 @@ export default function StudyPlanGeneratorPage() {
         throw new Error("Kullanıcı planı bulunamadı.");
       }
       const input: GenerateStudyPlanInput = {
-        userField,
+        userField: userField || undefined, // Pass undefined if not selected
+        customSubjectsInput: customSubjectsInput.trim() || undefined,
         studyDuration,
         hoursPerDay,
         userPlan: currentProfile.plan,
@@ -124,7 +138,12 @@ export default function StudyPlanGeneratorPage() {
       const result = await generateStudyPlan(input);
 
       if (result && result.planTitle && result.weeklyPlans) {
-        setPlanOutput(result);
+        // Ensure week numbers are present, this should ideally be handled in the flow or by the AI
+        const validatedWeeklyPlans = result.weeklyPlans.map((plan, index) => ({
+          ...plan,
+          week: typeof plan.week === 'number' ? plan.week : index + 1,
+        }));
+        setPlanOutput({ ...result, weeklyPlans: validatedWeeklyPlans });
         toast({ title: "Çalışma Planı Hazır!", description: "Kişiselleştirilmiş çalışma planınız oluşturuldu." });
         if (decrementQuota) {
             await decrementQuota(currentProfile);
@@ -162,7 +181,7 @@ export default function StudyPlanGeneratorPage() {
   const isSubmitButtonDisabled = 
     isGenerating || 
     isProcessingPdf || 
-    !userField ||
+    (!userField && !customSubjectsInput.trim()) ||
     (hoursPerDay < 1 || hoursPerDay > 12) || 
     (!userProfileLoading && userProfile && !canProcess);
   
@@ -188,6 +207,15 @@ export default function StudyPlanGeneratorPage() {
     });
   };
 
+  if (userProfileLoading && !userProfile) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-20rem)]">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">AI Çalışma Planı Oluşturucu yükleniyor...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <Card className="shadow-sm">
@@ -197,7 +225,7 @@ export default function StudyPlanGeneratorPage() {
             <CardTitle className="text-2xl">AI Çalışma Planı Oluşturucu</CardTitle>
           </div>
           <CardDescription>
-            YKS alanınızı, toplam çalışma sürenizi ve günlük çalışma saatinizi girin. İsteğe bağlı olarak, konularınızı veya notlarınızı içeren bir PDF yükleyerek AI'nın daha kişisel bir plan oluşturmasına yardımcı olabilirsiniz.
+            YKS alanınızı, toplam çalışma sürenizi ve günlük çalışma saatinizi girin. İsteğe bağlı olarak, konularınızı veya notlarınızı içeren bir PDF yükleyerek ya da özel konular belirterek AI'nın daha kişisel bir plan oluşturmasına yardımcı olabilirsiniz.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -224,7 +252,7 @@ export default function StudyPlanGeneratorPage() {
         </CardContent>
       </Card>
 
-      {!canProcess && !isGenerating && !isProcessingPdf && userProfile && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
+      {!userProfileLoading && userProfile && !canProcess && !isGenerating && !isProcessingPdf && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
          <Alert variant="destructive" className="shadow-md">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Günlük Kota Doldu</AlertTitle>
@@ -242,10 +270,10 @@ export default function StudyPlanGeneratorPage() {
           <CardContent className="pt-6 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <Label htmlFor="userField">YKS Alanınız / Bölümünüz</Label>
+                    <Label htmlFor="userField">YKS Alanınız / Bölümünüz (isteğe bağlı)</Label>
                     <Select value={userField} onValueChange={(value: GenerateStudyPlanInput["userField"]) => setUserField(value)} disabled={isFormElementsDisabled}>
                         <SelectTrigger id="userField" className="mt-1">
-                            <SelectValue placeholder="Alan seçin" />
+                            <SelectValue placeholder="Genel bir plan için boş bırakın veya alan seçin" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="sayisal">Sayısal</SelectItem>
@@ -256,7 +284,7 @@ export default function StudyPlanGeneratorPage() {
                     </Select>
                 </div>
                 <div>
-                    <Label htmlFor="studyDuration">Çalışma Süresi</Label>
+                    <Label htmlFor="studyDuration">Toplam Çalışma Süresi</Label>
                     <Select value={studyDuration} onValueChange={setStudyDuration} disabled={isFormElementsDisabled} className="mt-1">
                         <SelectTrigger id="studyDuration">
                             <SelectValue placeholder="Süre seçin" />
@@ -271,6 +299,19 @@ export default function StudyPlanGeneratorPage() {
                         </SelectContent>
                     </Select>
                 </div>
+            </div>
+            <div>
+                <Label htmlFor="customSubjectsInput">Veya Odaklanmak İstediğiniz Özel Konular/Dersler (isteğe bağlı)</Label>
+                <Textarea
+                    id="customSubjectsInput"
+                    placeholder="Örn: Sadece Kimya - Organik Kimya ve Çözeltiler konuları için bir plan istiyorum."
+                    value={customSubjectsInput}
+                    onChange={(e) => setCustomSubjectsInput(e.target.value)}
+                    rows={3}
+                    className="mt-1"
+                    disabled={isFormElementsDisabled}
+                />
+                <p className="text-xs text-muted-foreground mt-1">Bu alanı doldurursanız, yukarıdaki alan seçimi yerine buradaki konular önceliklendirilir.</p>
             </div>
              <div>
                 <Label htmlFor="hoursPerDay">Günlük Ortalama Çalışma Saati (1-12)</Label>
@@ -311,7 +352,7 @@ export default function StudyPlanGeneratorPage() {
               <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
               <p className="text-lg font-medium text-foreground">Çalışma Planı Oluşturuluyor...</p>
               <p className="text-sm text-muted-foreground">
-                Yapay zeka sizin için en uygun planı hazırlıyor...
+                Yapay zeka sizin için en uygun planı hazırlıyor... Bu işlem biraz zaman alabilir.
               </p>
             </div>
           </CardContent>
@@ -393,3 +434,5 @@ export default function StudyPlanGeneratorPage() {
     </div>
   );
 }
+
+    
