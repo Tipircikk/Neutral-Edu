@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview Kullanıcının YKS hedeflerine, konularına ve çalışma süresine göre
+ * @fileOverview Kullanıcının YKS hedeflerine, konularına, çalışma süresine ve isteğe bağlı PDF bağlamına göre
  * kişiselleştirilmiş bir çalışma planı taslağı oluşturan AI aracı.
  *
  * - generateStudyPlan - Çalışma planı oluşturma işlemini yöneten fonksiyon.
@@ -20,6 +20,7 @@ const GenerateStudyPlanInputSchema = z.object({
   hoursPerDay: z.number().min(1).max(12).describe("Günlük ortalama çalışma saati."),
   userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
   customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi."),
+  pdfContextText: z.string().optional().describe("Kullanıcının yüklediği PDF'ten çıkarılan, çalışma planı oluşturulurken ek bağlam olarak kullanılacak metin."),
 });
 export type GenerateStudyPlanInput = z.infer<typeof GenerateStudyPlanInputSchema>;
 
@@ -57,7 +58,44 @@ export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<
     isCustomModelSelected,
     isGemini25PreviewSelected,
   };
-  return studyPlanGeneratorFlow(enrichedInput);
+  
+  let flowOutput: GenerateStudyPlanOutput;
+  try {
+    flowOutput = await studyPlanGeneratorFlow(enrichedInput);
+  } catch (error) {
+    console.error("[generateStudyPlan Wrapper] Error calling studyPlanGeneratorFlow:", error);
+    // Return a structured error in case the flow itself throws an unhandled exception
+    // that wasn't caught by Genkit's internal error handling for schema validation.
+    return {
+        planTitle: "Plan Oluşturma Hatası",
+        introduction: "Çalışma planı oluşturulurken beklenmedik bir sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.",
+        weeklyPlans: [],
+        generalTips: ["Girdilerinizi kontrol edin.", "Tekrar deneyin."],
+        disclaimer: "Bir hata nedeniyle plan oluşturulamadı."
+    };
+  }
+
+  // Ensure weeklyPlans array exists and each item has a week number
+  if (flowOutput && Array.isArray(flowOutput.weeklyPlans)) {
+      flowOutput.weeklyPlans.forEach((plan: any, index) => { 
+          if (plan && (plan.week === undefined || typeof plan.week !== 'number' || isNaN(plan.week))) {
+              console.warn(`Study Plan Generator: AI output for weeklyPlans[${index}] is missing or has an invalid 'week' number. Assigning index+1. Original plan object:`, JSON.stringify(plan).substring(0, 200));
+              plan.week = index + 1; 
+          }
+      });
+  } else if (flowOutput) {
+      // If weeklyPlans is not an array or doesn't exist, create an empty one to satisfy the schema.
+      console.warn("Study Plan Generator: AI output for weeklyPlans is not an array or is missing. Defaulting to empty array. Input:", JSON.stringify(enrichedInput).substring(0,200));
+      flowOutput.weeklyPlans = [];
+      if (!flowOutput.planTitle) {
+          flowOutput.planTitle = "Hata: Haftalık Planlar Oluşturulamadı";
+      }
+      if (!flowOutput.introduction) {
+          flowOutput.introduction = "AI modeli, haftalık planları beklenen formatta oluşturamadı. Lütfen girdilerinizi kontrol edin veya daha sonra tekrar deneyin.";
+      }
+  }
+
+  return flowOutput;
 }
 
 const prompt = ai.definePrompt({
@@ -68,7 +106,7 @@ const prompt = ai.definePrompt({
     isGemini25PreviewSelected: z.boolean().optional(),
   })},
   output: {schema: GenerateStudyPlanOutputSchema},
-  prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) başta olmak üzere çeşitli sınavlara hazırlanan öğrencilere, onların hedeflerine, mevcut bilgilerine (belirtildiyse), çalışma sürelerine ve günlük ayırabilecekleri zamana göre son derece detaylı, kişiselleştirilmiş ve etkili çalışma planları tasarlayan, YKS hazırlık sürecinin her aşamasına hakim uzman bir AI eğitim koçu ve stratejistisin.
+  prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) başta olmak üzere çeşitli sınavlara hazırlanan öğrencilere, onların hedeflerine, mevcut bilgilerine (belirtildiyse), çalışma sürelerine, günlük ayırabilecekleri zamana ve (varsa) sağladıkları ek PDF bağlamına göre son derece detaylı, kişiselleştirilmiş ve etkili çalışma planları tasarlayan, YKS hazırlık sürecinin her aşamasına hakim uzman bir AI eğitim koçu ve stratejistisin.
 Amacın, öğrencinin belirlediği konuları {{{studyDuration}}} içinde, günde ortalama {{{hoursPerDay}}} saat çalışarak en verimli şekilde tamamlamasına yardımcı olacak, haftalık ve günlük bazda yapılandırılmış, gerçekçi bir yol haritası sunmaktır. Plan, YKS (veya {{{targetExam}}}) formatına uygun olmalı ve öğrenciyi motive etmelidir. Cevapların her zaman Türkçe olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
@@ -91,10 +129,16 @@ Hedef Sınav: {{{targetExam}}}
 Toplam Çalışma Süresi: {{{studyDuration}}}
 Günlük Ortalama Çalışma Saati: {{{hoursPerDay}}}
 
+{{#if pdfContextText}}
+Öğrenci Tarafından Sağlanan Ek Bağlam (PDF'ten çıkarılan metin):
+{{{pdfContextText}}}
+Lütfen bu ek bağlamı, öğrencinin özellikle odaklanmak istediği veya eksik olduğu konuları belirlerken ve planı kişiselleştirirken dikkate al. Bu metin, öğrencinin mevcut bilgi seviyesi veya çalışma materyalleri hakkında ipuçları içerebilir.
+{{/if}}
+
 Lütfen bu bilgilere göre, aşağıdaki formatta bir çalışma planı taslağı oluştur: Çıktı, JSON şemasına HARFİYEN uymalıdır. Özellikle 'weeklyPlans' dizisindeki her bir obje, 'week' (hafta numarası, SAYI olarak), 'weeklyGoal' (isteğe bağlı) ve 'dailyTasks' (günlük görevler dizisi) alanlarını içermelidir. 'dailyTasks' içindeki her obje de 'day', 'focusTopics' ve isteğe bağlı diğer alanları içermelidir. Şemada 'required' olarak belirtilen tüm alanlar MUTLAKA çıktıda bulunmalıdır. HER BİR HAFTALIK PLAN OBJESİ 'week' ANAHTARINA SAHİP OLMALI VE BU ANAHTARIN DEĞERİ BİR SAYI (NUMBER) OLMALIDIR. Örneğin: { "week": 1, ... }, { "week": 2, ... } gibi.
 
 1.  **Plan Başlığı (planTitle)**: Örneğin, "Kişiye Özel {{{targetExam}}} Hazırlık Planı ({{{studyDuration}}})". Bu alan ZORUNLUDUR.
-2.  **Giriş (introduction) (isteğe bağlı)**: Öğrenciyi motive eden, planın genel mantığını açıklayan kısa bir giriş.
+2.  **Giriş (introduction) (isteğe bağlı)**: Öğrenciyi motive eden, planın genel mantığını açıklayan kısa bir giriş. "PRO İPUCU:" veya "Not:" gibi etiketlerle önemli noktaları vurgulayabilirsin.
 3.  **Haftalık Planlar (weeklyPlans)**: ÇOK ÖNEMLİ: Bu dizideki HER BİR obje, MUTLAKA 'week' adında bir alana sahip olmalı ve bu alanın değeri bir SAYI (örneğin 1, 2, 3...) olmalıdır. Çalışma süresine göre haftalara bölünmüş planlar. Her hafta için:
     *   **Hafta Numarası (week)**: Örneğin, 1, 2, 3... Bu alan HER HAFTALIK PLAN OBJESİNDE ZORUNLUDUR VE MUTLAKA BİR SAYI OLMALIDIR. Bu değerin kesinlikle bir sayı olduğundan ve her haftalık plan için mevcut olduğundan emin ol.
     *   **Haftalık Hedef (weeklyGoal) (isteğe bağlı)**: O haftanın ana odak noktası veya bitirilmesi hedeflenen genel konu başlıkları.
@@ -103,19 +147,19 @@ Lütfen bu bilgilere göre, aşağıdaki formatta bir çalışma planı taslağ�
         *   **Odak Konular (focusTopics)**: O gün çalışılacak ana konular veya dersler. Günlük çalışma saatine göre konu sayısı dengeli olmalı. Bu alan ZORUNLUDUR.
         *   **Tahmini Süre (estimatedTime) (isteğe bağlı)**: Her bir odak konuya ayrılması önerilen süre (örn: "Matematik - Türev: 2 saat").
         *   **Aktiviteler (activities) (isteğe bağlı)**: "Konu anlatımı dinleme/okuma", "{{{hoursPerDay}}} soru çözümü", "Kısa tekrar", "Yanlış analizi" gibi spesifik görevler.
-        *   **Notlar (notes) (isteğe bağlı)**: O güne özel motivasyon, mola önerisi veya önemli bir ipucu.
+        *   **Notlar (notes) (isteğe bağlı)**: O güne özel motivasyon, mola önerisi veya önemli bir ipucu. "PRO İPUCU:" veya "Not:" gibi etiketlerle önemli noktaları vurgulayabilirsin.
     Bu 'weeklyPlans' dizisi ZORUNLUDUR. Her bir elemanının yukarıdaki şemaya uyduğundan emin ol, özellikle 'week' alanının bir sayı olarak varlığından.
-4.  **Genel İpuçları (generalTips) (isteğe bağlı)**: Zaman yönetimi, verimli ders çalışma teknikleri, sınav stresiyle başa çıkma gibi genel YKS hazırlık önerileri.
+4.  **Genel İpuçları (generalTips) (isteğe bağlı)**: Zaman yönetimi, verimli ders çalışma teknikleri, sınav stresiyle başa çıkma gibi genel YKS hazırlık önerileri. "PRO İPUCU:" veya "Not:" gibi etiketlerle önemli noktaları vurgulayabilirsin.
 5.  **Sorumluluk Reddi (disclaimer)**: "Bu, yapay zeka tarafından oluşturulmuş bir taslak plandır..." şeklinde standart bir uyarı.
 
 Planlama Prensipleri:
-*   {{{subjects}}} listesindeki konuları {{{studyDuration}}} içine mantıklı bir şekilde dağıt. {{{hoursPerDay}}} saatlik günlük çalışmayı göz önünde bulundur.
+*   {{{subjects}}} listesindeki konuları ve (varsa) {{{pdfContextText}}} içeriğindeki öğrenci odaklarını {{{studyDuration}}} içine mantıklı bir şekilde dağıt. {{{hoursPerDay}}} saatlik günlük çalışmayı göz önünde bulundur.
 *   Konuların zorluk seviyelerine ve birbirleriyle bağlantılarına dikkat et.
 *   Tekrar ve soru çözümünü plana dahil et.
 *   Öğrencinin sıkılmaması için çeşitlilik sağlamaya çalış.
 *   Gerçekçi ve uygulanabilir bir plan oluştur.
 *   Eğer verilen süre çok kısaysa veya konu sayısı çok fazlaysa, bu durumu nazikçe belirt ve planı en iyi şekilde optimize etmeye çalış veya daha odaklı bir plan öner.
-*   Çıktının JSON şemasına HARFİYEN uyduğundan emin ol. Özellikle, 'weeklyPlans' dizisindeki HER BİR haftalık plan objesinin 'week' anahtarını içerdiğinden ve bu anahtarın değerinin bir SAYI olduğundan KESİNLİKLE emin ol. Çıktıyı oluşturmadan önce bunu son kez kontrol et.
+*   Çıktının JSON şemasına HARFİYEN uyduğundan emin ol. Özellikle, 'weeklyPlans' dizisindeki HER BİR haftalık plan objesinin 'week' anahtarını içerdiğinden ve bu anahtarın değerinin bir SAYI olduğundan KESİNLİKLE emin ol. Çıktıyı oluşturmadan önce bunu son kez kontrol et. 'week' alanı kesinlikle eksik olmamalıdır.
 `,
 });
 
@@ -163,39 +207,43 @@ const studyPlanGeneratorFlow = ai.defineFlow(
         callOptions.config = {}; 
     }
     
-    console.log(`[Study Plan Generator Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}`);
+    console.log(`[Study Plan Generator Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}, PDF context provided: ${!!enrichedInput.pdfContextText}`);
     
+    let output: GenerateStudyPlanOutput | undefined;
     try {
-        const {output} = await prompt(enrichedInput, callOptions);
+        const result = await prompt(enrichedInput, callOptions);
+        output = result.output;
 
         if (!output || !output.weeklyPlans) {
-        throw new Error("AI Eğitim Koçu, belirtilen girdilerle bir çalışma planı oluşturamadı. Lütfen bilgilerinizi kontrol edin.");
+            console.error("Study Plan Generator: AI output is missing weeklyPlans or output is null. Input:", JSON.stringify(enrichedInput).substring(0, 200), "Raw Output:", JSON.stringify(output).substring(0,300));
+            throw new Error("AI Eğitim Koçu, belirtilen girdilerle bir çalışma planı oluşturamadı. Lütfen bilgilerinizi kontrol edin.");
         }
         
+        // Ensure 'week' property is present and a number for all weekly plans
         if (Array.isArray(output.weeklyPlans)) {
             output.weeklyPlans.forEach((plan: any, index) => { 
-                if (plan.week === undefined || typeof plan.week !== 'number' || isNaN(plan.week)) {
-                    console.warn(`Study Plan Generator: AI output for weeklyPlans[${index}] is missing or has an invalid 'week' number. Assigning index+1. Original plan object:`, JSON.stringify(plan).substring(0, 200));
+                if (plan && (plan.week === undefined || typeof plan.week !== 'number' || isNaN(plan.week))) {
+                    console.warn(`Study Plan Generator Flow (Post-processing): AI output for weeklyPlans[${index}] is missing or has an invalid 'week' number. Assigning index+1. Original plan object:`, JSON.stringify(plan).substring(0, 200));
                     plan.week = index + 1; 
                 }
             });
         } else {
-            console.error("Study Plan Generator: AI output for weeklyPlans is not an array or is empty. Input:", JSON.stringify(enrichedInput).substring(0, 200));
-             return {
-                planTitle: "Hata: Haftalık Planlar Oluşturulamadı",
-                weeklyPlans: [], 
-                introduction: "AI modeli, haftalık planları beklenen formatta oluşturamadı. Lütfen girdilerinizi kontrol edin veya daha sonra tekrar deneyin.",
-                generalTips: [],
-                disclaimer: "Bir hata nedeniyle plan oluşturulamadı."
-            };
+            console.error("Study Plan Generator: AI output for weeklyPlans is not an array. Defaulting to empty. Input:", JSON.stringify(enrichedInput).substring(0, 200), "Raw Output:", JSON.stringify(output).substring(0,300));
+            output.weeklyPlans = []; // Ensure it's an array to prevent further errors
         }
 
-        return output as GenerateStudyPlanOutput; 
+        return output as GenerateStudyPlanOutput; // Cast to ensure type compliance after potential modifications
     } catch (error: any) {
         console.error(`[Study Plan Generator Flow] Error during generation with model ${modelToUse}:`, error);
         let errorMessage = `AI modeli (${modelToUse}) ile çalışma planı oluşturulurken bir hata oluştu.`;
         if (error.message) {
-            errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
+            // Check if the error is a GenkitError and has schema validation details
+            if (error.name === 'GenkitError' && error.details && Array.isArray(error.details)) {
+                const validationErrors = error.details.map((detail: any) => detail.message || JSON.stringify(detail)).join('; ');
+                errorMessage += ` Şema Doğrulama Hatası: ${validationErrors.substring(0, 300)}`;
+            } else {
+                 errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
+            }
             if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen girdilerinizi gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
             }
@@ -211,5 +259,3 @@ const studyPlanGeneratorFlow = ai.defineFlow(
     }
   }
 );
-
-    
