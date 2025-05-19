@@ -18,7 +18,8 @@ const ExplainTopicInputSchema = z.object({
   explanationLevel: z.enum(["temel", "orta", "detayli"]).optional().default("orta").describe("İstenen anlatımın YKS'ye göre zorluk ve detay seviyesi (temel, orta, detaylı)."),
   teacherPersona: z.enum(["samimi", "eglenceli", "ciddi", "ozel"]).optional().default("samimi").describe("İstenen hoca anlatım tarzı: 'samimi', 'eglenceli', 'ciddi' veya 'ozel' (kullanıcı tanımlı)."),
   customPersonaDescription: z.string().optional().describe("Eğer 'teacherPersona' olarak 'ozel' seçildiyse, kullanıcının istediği hoca kişiliğinin detaylı açıklaması."),
-  userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı.")
+  userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
+  customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi."),
 });
 export type ExplainTopicInput = z.infer<typeof ExplainTopicInputSchema>;
 
@@ -47,10 +48,14 @@ Matematiksel ifadeleri (örn: x^2 için x^2, H_2O için H_2O, karekök için √
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#ifEquals userPlan "pro"}}
-Pro kullanıcılar için: Anlatımını en üst düzeyde akademik zenginlikle, konunun felsefi temellerine, diğer disiplinlerle bağlantılarına ve YKS'deki en zorlayıcı soru tiplerine odaklanarak yap. {{{explanationLevel}}} seviyesini "detayli" kabul et ve buna ek olarak daha derinlemesine, analitik ve eleştirel düşünmeyi teşvik eden bir bakış açısı sun. Öğrencinin sadece bilgi edinmesini değil, aynı zamanda konuyu derinlemesine sorgulamasını ve analitik düşünme becerilerini geliştirmesini sağla. En gelişmiş AI yeteneklerini kullanarak, adeta bir başyapıt niteliğinde bir konu anlatımı sun. Seçilen hoca tarzını bu derinlikle birleştir.
+(Pro Kullanıcı Notu: Anlatımını en üst düzeyde akademik zenginlikle, konunun felsefi temellerine, diğer disiplinlerle bağlantılarına ve YKS'deki en zorlayıcı soru tiplerine odaklanarak yap. {{{explanationLevel}}} seviyesini "detayli" kabul et ve buna ek olarak daha derinlemesine, analitik ve eleştirel düşünmeyi teşvik eden bir bakış açısı sun. Öğrencinin sadece bilgi edinmesini değil, aynı zamanda konuyu derinlemesine sorgulamasını ve analitik düşünme becerilerini geliştirmesini sağla. En gelişmiş AI yeteneklerini kullanarak, adeta bir başyapıt niteliğinde bir konu anlatımı sun. Seçilen hoca tarzını bu derinlikle birleştir.)
 {{else ifEquals userPlan "premium"}}
-Premium kullanıcılar için: {{{explanationLevel}}} seviyesine ve seçilen hoca tarzına uygun olarak, anlatımına daha fazla örnek, YKS'de çıkmış benzer sorulara atıflar ve konunun püf noktalarını içeren ekstra ipuçları ekle. Öğrencinin konuyu farklı açılardan görmesini sağla.
+(Premium Kullanıcı Notu: {{{explanationLevel}}} seviyesine ve seçilen hoca tarzına uygun olarak, anlatımına daha fazla örnek, YKS'de çıkmış benzer sorulara atıflar ve konunun püf noktalarını içeren ekstra ipuçları ekle. Öğrencinin konuyu farklı açılardan görmesini sağla.)
 {{/ifEquals}}
+
+{{#if customModelIdentifier}}
+(Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
+{{/if}}
 
 Hoca Tarzı ({{{teacherPersona}}}):
 {{#ifEquals teacherPersona "ozel"}}
@@ -58,7 +63,7 @@ Hoca Tarzı ({{{teacherPersona}}}):
 Kullanıcının Tanımladığı Özel Kişilik: "{{{customPersonaDescription}}}"
 Lütfen anlatımını bu özel tanıma göre, YKS uzmanlığını ve seçilen anlatım seviyesini koruyarak şekillendir. Kullanıcının istediği hoca gibi davran.
   {{else}}
-Varsayılan Samimi ve Destekleyici Hoca Tarzı: Öğrenciyle empati kuran, onu motive eden, karmaşık konuları bile sabırla ve anlaşılır örneklerle açıklayan bir öğretmen gibi davran.
+(Özel kişilik tanımı boş, varsayılan samimi tarza geçiliyor.) Samimi ve Destekleyici Hoca Tarzı: Öğrenciyle empati kuran, onu motive eden, karmaşık konuları bile sabırla ve anlaşılır örneklerle açıklayan bir öğretmen gibi davran.
   {{/if}}
 {{else ifEquals teacherPersona "samimi"}}
 Samimi ve Destekleyici Hoca Tarzı: Öğrenciyle empati kuran, onu motive eden, karmaşık konuları bile sabırla ve anlaşılır örneklerle açıklayan bir öğretmen gibi davran. "Anladın mı canım?", "Bak şimdi burası çok önemli..." gibi samimi ifadeler kullanabilirsin.
@@ -106,17 +111,74 @@ const topicExplainerFlow = ai.defineFlow(
     inputSchema: ExplainTopicInputSchema,
     outputSchema: ExplainTopicOutputSchema,
   },
-  async (input) => {
-    let modelToUse = 'googleai/gemini-2.0-flash';
-    if (input.userPlan === 'pro') {
-      // modelToUse = 'googleai/gemini-1.5-flash-latest'; // Şimdilik API kotası nedeniyle aynı model
-      modelToUse = 'googleai/gemini-2.0-flash';
+  async (input: ExplainTopicInput): Promise<ExplainTopicOutput> => {
+    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Varsayılan
+    let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
+
+    const isCustomModelSelected = !!input.customModelIdentifier;
+    const isProUser = input.userPlan === 'pro';
+    const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+
+    const enrichedInput = {
+      ...input,
+      isProUser,
+      isCustomModelSelected,
+      isGemini25PreviewSelected,
+    };
+
+    if (input.customModelIdentifier) {
+      switch (input.customModelIdentifier) {
+        case 'default_gemini_flash':
+          modelToUse = 'googleai/gemini-2.0-flash';
+          break;
+        case 'experimental_gemini_1_5_flash':
+          modelToUse = 'googleai/gemini-1.5-flash-latest';
+          break;
+        case 'experimental_gemini_2_5_flash_preview':
+          modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
+          break;
+        default:
+          console.warn(`[Topic Explainer Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting to ${modelToUse}`);
+      }
+    } else if (input.userPlan === 'pro') {
+      modelToUse = 'googleai/gemini-1.5-flash-latest';
     }
     
-    const {output} = await prompt(input, { model: modelToUse });
-    if (!output || !output.explanation) {
-      throw new Error("AI YKS Süper Öğretmeni, belirtilen konu için bir anlatım oluşturamadı. Lütfen konuyu ve ayarları kontrol edin.");
+    callOptions.model = modelToUse;
+    
+    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
+      callOptions.config = {
+        generationConfig: {
+          maxOutputTokens: input.explanationLevel === 'detayli' ? 8000 : input.explanationLevel === 'orta' ? 4096 : 2048,
+        }
+      };
+    } else {
+        callOptions.config = {};
     }
-    return output;
+
+    console.log(`[Topic Explainer Flow] Using model: ${modelToUse} for plan: ${input.userPlan}, customModel: ${input.customModelIdentifier}, level: ${input.explanationLevel}, persona: ${input.teacherPersona}`);
+    
+    try {
+        const {output} = await prompt(enrichedInput, callOptions);
+        if (!output || !output.explanation) {
+        throw new Error("AI YKS Süper Öğretmeni, belirtilen konu için bir anlatım oluşturamadı. Lütfen konuyu ve ayarları kontrol edin.");
+        }
+        return output;
+    } catch (error: any) {
+        console.error(`[Topic Explainer Flow] Error during generation with model ${modelToUse}:`, error);
+        let errorMessage = `AI modeli (${modelToUse}) ile konu anlatımı oluşturulurken bir hata oluştu.`;
+        if (error.message) {
+            errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
+        }
+        return {
+            explanationTitle: `Hata: ${errorMessage}`,
+            explanation: "Bir hata nedeniyle konu anlatımı oluşturulamadı.",
+            keyConcepts: [],
+            commonMistakes: [],
+            yksTips: [],
+            activeRecallQuestions: []
+        };
+    }
   }
 );
+    

@@ -4,15 +4,16 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ClipboardCheck, Loader2, AlertTriangle, UploadCloud, FileText, Wand2 } from "lucide-react";
+import { ClipboardCheck, Loader2, AlertTriangle, UploadCloud, FileText, Wand2, Settings } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { extractTextFromPdf } from "@/lib/pdfUtils";
 import { analyzeExamReport, type ExamReportAnalyzerOutput, type ExamReportAnalyzerInput } from "@/ai/flows/exam-report-analyzer-flow";
-import { Input } from "@/components/ui/input"; // For PDF upload
-import { Label } from "@/components/ui/label"; // For PDF upload
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const MAX_FILE_SIZE_MB = 5;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
@@ -23,6 +24,7 @@ export default function ExamReportAnalyzerPage() {
   const [pdfTextContent, setPdfTextContent] = useState<string | null>(null);
   const [currentFileName, setCurrentFileName] = useState<string | undefined>(undefined);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [adminSelectedModel, setAdminSelectedModel] = useState<string | undefined>(undefined);
 
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
@@ -60,8 +62,8 @@ export default function ExamReportAnalyzerPage() {
         }
         setSelectedFile(file);
         setCurrentFileName(file.name);
-        setPdfTextContent(null); // Reset text content when new file is selected
-        setAnalysisOutput(null); // Reset previous analysis
+        setPdfTextContent(null); 
+        setAnalysisOutput(null); 
     } else {
         setSelectedFile(null);
         setCurrentFileName(undefined);
@@ -105,7 +107,8 @@ export default function ExamReportAnalyzerPage() {
       }
       const input: ExamReportAnalyzerInput = {
         reportTextContent: text,
-        userPlan: currentProfile.plan
+        userPlan: currentProfile.plan,
+        customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
       };
       const result = await analyzeExamReport(input);
 
@@ -120,7 +123,7 @@ export default function ExamReportAnalyzerPage() {
           setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
         }
       } else {
-        throw new Error("Yapay zeka bir analiz üretemedi veya format hatalı.");
+        throw new Error(result?.overallFeedback || "Yapay zeka bir analiz üretemedi veya format hatalı.");
       }
     } catch (error: any) {
       console.error("Sınav raporu analiz hatası:", error);
@@ -157,6 +160,22 @@ export default function ExamReportAnalyzerPage() {
             YKS deneme sınavı raporunuzun PDF'ini yükleyin. Yapay zeka, zayıf olduğunuz konuları, genel performansınızı ve gelişim alanlarınızı analiz ederek size özel geri bildirimler ve çalışma önerileri sunsun.
           </CardDescription>
         </CardHeader>
+        <CardContent>
+         {userProfile?.isAdmin && (
+              <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
+                <Label htmlFor="adminModelSelectExamReport" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
+                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled}>
+                  <SelectTrigger id="adminModelSelectExamReport"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
+                  </SelectContent>
+                </Select>
+                 <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz.</p>
+              </div>
+            )}
+        </CardContent>
       </Card>
 
       {!canProcess && !isAnalyzing && userProfile && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
@@ -280,3 +299,4 @@ export default function ExamReportAnalyzerPage() {
     </div>
   );
 }
+    

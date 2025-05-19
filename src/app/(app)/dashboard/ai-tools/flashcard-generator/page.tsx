@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LayoutGrid, Wand2, Loader2, AlertTriangle } from "lucide-react"; 
+import { LayoutGrid, Wand2, Loader2, AlertTriangle, Settings } from "lucide-react"; 
 import { Label } from "@/components/ui/label";
 import { Input as ShadInput } from "@/components/ui/input"; 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -16,10 +16,12 @@ import { generateFlashcards, type GenerateFlashcardsOutput, type GenerateFlashca
 
 export default function FlashcardGeneratorPage() {
   const [inputText, setInputText] = useState("");
-  const [numFlashcards, setNumFlashcards] = useState<number>(5); // Changed type to number for direct input
+  const [numFlashcards, setNumFlashcards] = useState<number>(5);
   const [difficulty, setDifficulty] = useState<GenerateFlashcardsInput["difficulty"]>("medium");
   const [flashcardsOutput, setFlashcardsOutput] = useState<GenerateFlashcardsOutput | null>(null); 
   const [isGenerating, setIsGenerating] = useState(false);
+  const [adminSelectedModel, setAdminSelectedModel] = useState<string | undefined>(undefined);
+
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
   const [canProcess, setCanProcess] = useState(false);
@@ -72,7 +74,8 @@ export default function FlashcardGeneratorPage() {
         textContent: inputText,
         numFlashcards,
         difficulty,
-        userPlan: currentProfile.plan
+        userPlan: currentProfile.plan,
+        customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
       }; 
       const result = await generateFlashcards(input); 
 
@@ -87,7 +90,7 @@ export default function FlashcardGeneratorPage() {
           setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
         }
       } else {
-        throw new Error("Yapay zeka bilgi kartı üretemedi veya format hatalı.");
+        throw new Error(result?.summaryTitle || "Yapay zeka bilgi kartı üretemedi veya format hatalı.");
       }
     } catch (error: any) {
       console.error("Bilgi kartı oluşturma hatası:", error);
@@ -101,7 +104,7 @@ export default function FlashcardGeneratorPage() {
     }
   };
   
-  const isSubmitDisabled = isGenerating || !inputText.trim() || inputText.trim().length < 50 || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
+  const isSubmitDisabled = isGenerating || !inputText.trim() || inputText.trim().length < 50 || (numFlashcards < 3 || numFlashcards > 15) || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
 
   if (userProfileLoading) {
     return (
@@ -124,6 +127,22 @@ export default function FlashcardGeneratorPage() {
             Öğrenmek istediğiniz metni girin (en az 50 karakter), yapay zeka sizin için önemli kavramlardan etkileşimli bilgi kartları (flashcards) oluştursun.
           </CardDescription>
         </CardHeader>
+         <CardContent>
+          {userProfile?.isAdmin && (
+              <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
+                <Label htmlFor="adminModelSelectFlashcard" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
+                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled}>
+                  <SelectTrigger id="adminModelSelectFlashcard"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz.</p>
+              </div>
+            )}
+        </CardContent>
       </Card>
 
       {!canProcess && !isGenerating && userProfile && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
@@ -156,8 +175,7 @@ export default function FlashcardGeneratorPage() {
                         value={numFlashcards}
                         onChange={(e) => {
                             const val = parseInt(e.target.value, 10);
-                            // Allow any number to be typed, validation happens on submit
-                            setNumFlashcards(isNaN(val) ? 3 : val); // Default to 3 if NaN
+                            setNumFlashcards(isNaN(val) ? 3 : val);
                         }}
                         className="w-full p-2 border rounded-md bg-input border-border"
                         disabled={isGenerating || !canProcess}
@@ -239,5 +257,4 @@ export default function FlashcardGeneratorPage() {
     </div>
   );
 }
-
     

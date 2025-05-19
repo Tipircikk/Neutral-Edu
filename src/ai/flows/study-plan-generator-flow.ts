@@ -18,7 +18,8 @@ const GenerateStudyPlanInputSchema = z.object({
   subjects: z.string().min(5).describe("Çalışılması planlanan dersler ve ana konular (virgülle ayrılmış)."),
   studyDuration: z.string().describe("Toplam çalışma süresi (örn: '4_hafta', '3_ay', '6_ay')."),
   hoursPerDay: z.number().min(1).max(12).describe("Günlük ortalama çalışma saati."),
-  userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı.")
+  userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
+  customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi."),
 });
 export type GenerateStudyPlanInput = z.infer<typeof GenerateStudyPlanInputSchema>;
 
@@ -58,10 +59,14 @@ Amacın, öğrencinin belirlediği konuları {{{studyDuration}}} içinde, günde
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#ifEquals userPlan "pro"}}
-Pro kullanıcılar için: Planı, en karmaşık konuların bile nasıl parçalara ayrılarak çalışılabileceğini gösterecek şekilde, farklı öğrenme teknikleri (örn: Pomodoro, Feynman Tekniği) ve genel türde kaynak önerileriyle (spesifik kitap adı olmadan) zenginleştir. Öğrencinin potansiyel darboğazlarını, zaman yönetimi zorluklarını ve motivasyon düşüşlerini öngörerek proaktif çözümler ve alternatif yaklaşımlar sun. En kapsamlı ve stratejik planı oluştur.
+(Pro Kullanıcı Notu: Planı, en karmaşık konuların bile nasıl parçalara ayrılarak çalışılabileceğini gösterecek şekilde, farklı öğrenme teknikleri (örn: Pomodoro, Feynman Tekniği) ve genel türde kaynak önerileriyle (spesifik kitap adı olmadan) zenginleştir. Öğrencinin potansiyel darboğazlarını, zaman yönetimi zorluklarını ve motivasyon düşüşlerini öngörerek proaktif çözümler ve alternatif yaklaşımlar sun. En kapsamlı ve stratejik planı oluştur.)
 {{else ifEquals userPlan "premium"}}
-Premium kullanıcılar için: Haftalık hedefleri daha net belirle, günlük aktivitelere örnek soru çözüm sayıları veya tekrar stratejileri ekle. Motivasyonel ipuçlarını artır.
+(Premium Kullanıcı Notu: Haftalık hedefleri daha net belirle, günlük aktivitelere örnek soru çözüm sayıları veya tekrar stratejileri ekle. Motivasyonel ipuçlarını artır.)
 {{/ifEquals}}
+
+{{#if customModelIdentifier}}
+(Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
+{{/if}}
 
 Öğrencinin Girdileri:
 Hedef Sınav: {{{targetExam}}}
@@ -103,31 +108,87 @@ const studyPlanGeneratorFlow = ai.defineFlow(
     inputSchema: GenerateStudyPlanInputSchema,
     outputSchema: GenerateStudyPlanOutputSchema,
   },
-  async (input) => {
-    const modelToUse = 'googleai/gemini-2.0-flash'; 
-    
-    const {output} = await prompt(input, { model: modelToUse });
+  async (input: GenerateStudyPlanInput): Promise<GenerateStudyPlanOutput> => {
+    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Varsayılan
+    let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
-    if (!output || !output.weeklyPlans) {
-      throw new Error("AI Eğitim Koçu, belirtilen girdilerle bir çalışma planı oluşturamadı. Lütfen bilgilerinizi kontrol edin.");
+    const isCustomModelSelected = !!input.customModelIdentifier;
+    const isProUser = input.userPlan === 'pro';
+    const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+
+    const enrichedInput = {
+      ...input,
+      isProUser,
+      isCustomModelSelected,
+      isGemini25PreviewSelected,
+    };
+
+    if (input.customModelIdentifier) {
+      switch (input.customModelIdentifier) {
+        case 'default_gemini_flash':
+          modelToUse = 'googleai/gemini-2.0-flash';
+          break;
+        case 'experimental_gemini_1_5_flash':
+          modelToUse = 'googleai/gemini-1.5-flash-latest';
+          break;
+        case 'experimental_gemini_2_5_flash_preview':
+          modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
+          break;
+        default:
+          console.warn(`[Study Plan Generator Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting to ${modelToUse}`);
+      }
+    } else if (input.userPlan === 'pro') {
+      modelToUse = 'googleai/gemini-1.5-flash-latest';
     }
     
-    // AI'nın 'week' alanını eklemeyi unuttuğu veya yanlış formatta eklediği durumlar için ek kontrol ve düzeltme
-    if (Array.isArray(output.weeklyPlans)) {
-      output.weeklyPlans.forEach((plan, index) => {
-        // typeof plan.week !== 'number' kontrolü, plan.week undefined ise de doğru çalışır.
-        // isNaN(plan.week) kontrolü ise, plan.week bir sayıya çevrilemiyorsa (örn: string ise veya NaN ise) true döner.
-        if (plan.week === undefined || typeof plan.week !== 'number' || isNaN(plan.week)) {
-          console.warn(`Study Plan Generator: AI output for weeklyPlans[${index}] is missing or has an invalid 'week' number. Assigning index+1. Original plan:`, JSON.stringify(plan));
-          plan.week = index + 1; // Dizideki sırasına göre bir hafta numarası ata
+    callOptions.model = modelToUse;
+
+    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
+      callOptions.config = {
+        generationConfig: {
+          maxOutputTokens: 8000, // Planlar uzun olabilir
         }
-      });
+      };
     } else {
-      console.error("Study Plan Generator: AI output for weeklyPlans is not an array or is empty. Input:", JSON.stringify(input));
-      throw new Error("AI Eğitim Koçu, haftalık planları doğru formatta oluşturamadı.");
+        callOptions.config = {};
     }
+    
+    console.log(`[Study Plan Generator Flow] Using model: ${modelToUse} for plan: ${input.userPlan}, customModel: ${input.customModelIdentifier}`);
+    
+    try {
+        const {output} = await prompt(enrichedInput, callOptions);
 
-    return output;
+        if (!output || !output.weeklyPlans) {
+        throw new Error("AI Eğitim Koçu, belirtilen girdilerle bir çalışma planı oluşturamadı. Lütfen bilgilerinizi kontrol edin.");
+        }
+        
+        if (Array.isArray(output.weeklyPlans)) {
+        output.weeklyPlans.forEach((plan, index) => {
+            if (plan.week === undefined || typeof plan.week !== 'number' || isNaN(plan.week)) {
+            console.warn(`Study Plan Generator: AI output for weeklyPlans[${index}] is missing or has an invalid 'week' number. Assigning index+1. Original plan:`, JSON.stringify(plan));
+            plan.week = index + 1; 
+            }
+        });
+        } else {
+        console.error("Study Plan Generator: AI output for weeklyPlans is not an array or is empty. Input:", JSON.stringify(input));
+        throw new Error("AI Eğitim Koçu, haftalık planları doğru formatta oluşturamadı.");
+        }
+
+        return output;
+    } catch (error: any) {
+        console.error(`[Study Plan Generator Flow] Error during generation with model ${modelToUse}:`, error);
+        let errorMessage = `AI modeli (${modelToUse}) ile çalışma planı oluşturulurken bir hata oluştu.`;
+        if (error.message) {
+            errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
+        }
+        return {
+            planTitle: `Hata: ${errorMessage}`,
+            weeklyPlans: [],
+            introduction: "Bir hata nedeniyle plan oluşturulamadı.",
+            generalTips: [],
+            disclaimer: "Lütfen girdilerinizi kontrol edin veya daha sonra tekrar deneyin."
+        };
+    }
   }
 );
-
+    

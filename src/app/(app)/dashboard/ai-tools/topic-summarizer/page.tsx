@@ -5,13 +5,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Lightbulb, Brain, Loader2, AlertTriangle } from "lucide-react";
+import { Lightbulb, Brain, Loader2, AlertTriangle, Settings } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { summarizeTopic, type SummarizeTopicOutput, type SummarizeTopicInput } from "@/ai/flows/topic-summarizer-flow";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function TopicSummarizerPage() {
   const [topicOrText, setTopicOrText] = useState("");
@@ -19,6 +20,8 @@ export default function TopicSummarizerPage() {
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [summaryLength, setSummaryLength] = useState<SummarizeTopicInput["summaryLength"]>("medium");
   const [outputFormat, setOutputFormat] = useState<SummarizeTopicInput["outputFormat"]>("paragraph");
+  const [adminSelectedModel, setAdminSelectedModel] = useState<string | undefined>(undefined);
+
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
   const [canProcess, setCanProcess] = useState(false);
@@ -63,7 +66,8 @@ export default function TopicSummarizerPage() {
         inputText: topicOrText, 
         summaryLength, 
         outputFormat,
-        userPlan: currentProfile.plan 
+        userPlan: currentProfile.plan,
+        customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
       };
       const result = await summarizeTopic(input);
 
@@ -71,14 +75,14 @@ export default function TopicSummarizerPage() {
         setSummaryOutput(result);
         toast({ title: "Özet Hazır!", description: "Konu veya metin başarıyla özetlendi." });
         if (decrementQuota) {
-            await decrementQuota(currentProfile); // Pass currentProfile
+            await decrementQuota(currentProfile);
         }
         const updatedProfileAgain = await memoizedCheckAndResetQuota();
         if (updatedProfileAgain) {
           setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
         }
       } else {
-        throw new Error("Yapay zeka bir özet üretemedi.");
+        throw new Error(result?.topicSummary || "Yapay zeka bir özet üretemedi.");
       }
     } catch (error: any) {
       console.error("Konu özetleme hatası:", error);
@@ -116,6 +120,20 @@ export default function TopicSummarizerPage() {
           </CardDescription>
         </CardHeader>
          <CardContent>
+          {userProfile?.isAdmin && (
+              <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
+                <Label htmlFor="adminModelSelectTopicSum" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
+                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled}>
+                  <SelectTrigger id="adminModelSelectTopicSum"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
+                  </SelectContent>
+                </Select>
+                 <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz.</p>
+              </div>
+            )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
             <div>
                 <Label htmlFor="summaryLength" className="mb-1 block">Özet Uzunluğu</Label>
@@ -203,29 +221,31 @@ export default function TopicSummarizerPage() {
             <CardTitle>Konu Özeti</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-line">
-              <p>{summaryOutput.topicSummary}</p>
-              {summaryOutput.keyConcepts && summaryOutput.keyConcepts.length > 0 && (
-                <>
-                  <h3 className="font-semibold text-foreground mt-4">Anahtar Kavramlar:</h3>
-                  <ul className="list-disc pl-5">
-                    {summaryOutput.keyConcepts.map((concept, index) => (
-                      <li key={index}>{concept}</li>
-                    ))}
-                  </ul>
-                </>
-              )}
-               {summaryOutput.yksConnections && summaryOutput.yksConnections.length > 0 && (
-                <>
-                  <h3 className="font-semibold text-foreground mt-4">YKS Bağlantıları:</h3>
-                  <ul className="list-disc pl-5">
-                    {summaryOutput.yksConnections.map((connection, index) => (
-                      <li key={index}>{connection}</li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </div>
+            <ScrollArea className="h-auto max-h-[500px] w-full rounded-md border p-4 bg-muted/30">
+                <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-line">
+                <p>{summaryOutput.topicSummary}</p>
+                {summaryOutput.keyConcepts && summaryOutput.keyConcepts.length > 0 && (
+                    <>
+                    <h3 className="font-semibold text-foreground mt-4">Anahtar Kavramlar:</h3>
+                    <ul className="list-disc pl-5">
+                        {summaryOutput.keyConcepts.map((concept, index) => (
+                        <li key={index}>{concept}</li>
+                        ))}
+                    </ul>
+                    </>
+                )}
+                {summaryOutput.yksConnections && summaryOutput.yksConnections.length > 0 && (
+                    <>
+                    <h3 className="font-semibold text-foreground mt-4">YKS Bağlantıları:</h3>
+                    <ul className="list-disc pl-5">
+                        {summaryOutput.yksConnections.map((connection, index) => (
+                        <li key={index}>{connection}</li>
+                        ))}
+                    </ul>
+                    </>
+                )}
+                </div>
+            </ScrollArea>
              {summaryOutput.sourceReliability && (
                 <p className="text-xs text-muted-foreground mt-3 italic">Kaynak Güvenilirliği/Not: {summaryOutput.sourceReliability}</p>
             )}
@@ -239,3 +259,4 @@ export default function TopicSummarizerPage() {
     </div>
   );
 }
+    

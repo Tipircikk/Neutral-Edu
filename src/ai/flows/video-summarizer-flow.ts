@@ -14,7 +14,8 @@ import type { UserProfile } from '@/types';
 
 export const VideoSummarizerInputSchema = z.object({
   youtubeUrl: z.string().url({ message: "Lütfen geçerli bir YouTube video URL'si girin." }).describe('Özetlenmesi istenen YouTube videosunun URL adresi.'),
-  userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı.")
+  userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
+  customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi."),
 });
 export type VideoSummarizerInput = z.infer<typeof VideoSummarizerInputSchema>;
 
@@ -39,10 +40,14 @@ Görevin, verilen YouTube video URL'sindeki içeriği (başlık, açıklama ve e
 
 Kullanıcının Üyelik Planı: {{{userPlan}}}
 {{#ifEquals userPlan "pro"}}
-Pro Kullanıcılar İçin: Özetini, videonun en derin ve nüanslı noktalarını yakalayacak şekilde, konular arası bağlantıları da dikkate alarak yap. Öğrencinin videodan maksimum faydayı sağlaması için en kapsamlı ve stratejik içgörüleri sun.
+(Pro Kullanıcılar İçin: Özetini, videonun en derin ve nüanslı noktalarını yakalayacak şekilde, konular arası bağlantıları da dikkate alarak yap. Öğrencinin videodan maksimum faydayı sağlaması için en kapsamlı ve stratejik içgörüleri sun.)
 {{else ifEquals userPlan "premium"}}
-Premium Kullanıcılar İçin: Daha detaylı bir özet, ek örnekler ve videonun farklı açılardan değerlendirilmesini sunmaya özen göster.
+(Premium Kullanıcılar İçin: Daha detaylı bir özet, ek örnekler ve videonun farklı açılardan değerlendirilmesini sunmaya özen göster.)
 {{/ifEquals}}
+
+{{#if customModelIdentifier}}
+(Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
+{{/if}}
 
 İşlenecek YouTube Video URL'si:
 {{{youtubeUrl}}}
@@ -64,21 +69,61 @@ const videoSummarizerFlow = ai.defineFlow(
     inputSchema: VideoSummarizerInputSchema,
     outputSchema: VideoSummarizerOutputSchema,
   },
-  async (input) => {
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Varsayılan model
-    // Pro kullanıcılar için daha gelişmiş bir model kullanılabilir (eğer varsa ve API limiti izin veriyorsa)
-    // if (input.userPlan === 'pro') {
-    //   modelToUse = 'googleai/gemini-1.5-pro-latest';
-    // }
+  async (input: VideoSummarizerInput): Promise<VideoSummarizerOutput> => {
+    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Varsayılan
+    let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
+
+    const isCustomModelSelected = !!input.customModelIdentifier;
+    const isProUser = input.userPlan === 'pro';
+    const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+
+    const enrichedInput = {
+      ...input,
+      isProUser,
+      isCustomModelSelected,
+      isGemini25PreviewSelected,
+    };
+
+    if (input.customModelIdentifier) {
+      switch (input.customModelIdentifier) {
+        case 'default_gemini_flash':
+          modelToUse = 'googleai/gemini-2.0-flash';
+          break;
+        case 'experimental_gemini_1_5_flash':
+          modelToUse = 'googleai/gemini-1.5-flash-latest';
+          break;
+        case 'experimental_gemini_2_5_flash_preview':
+          modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
+          break;
+        default:
+          console.warn(`[Video Summarizer Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting to ${modelToUse}`);
+      }
+    } else if (input.userPlan === 'pro') {
+      modelToUse = 'googleai/gemini-1.5-flash-latest';
+    }
+
+    callOptions.model = modelToUse;
+
+    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
+      callOptions.config = {
+        generationConfig: {
+          maxOutputTokens: 4096,
+        }
+      };
+    } else {
+        callOptions.config = {};
+    }
+    
+    console.log(`[Video Summarizer Flow] Using model: ${modelToUse} for plan: ${input.userPlan}, customModel: ${input.customModelIdentifier}`);
 
     try {
-      const {output} = await prompt(input, { model: modelToUse });
+      const {output} = await prompt(enrichedInput, callOptions);
       if (!output) {
         return {
           warnings: ["Yapay zeka modelinden bir yanıt alınamadı."]
         };
       }
-      if (!output.summary && !output.keyPoints && (!output.warnings || output.warnings.length === 0)) {
+      if (!output.summary && (!output.keyPoints || output.keyPoints.length === 0) && (!output.warnings || output.warnings.length === 0)) {
          return {
           ...output,
           warnings: [...(output.warnings || []), "Video içeriği özetlenemedi veya erişilemedi. Lütfen URL'yi kontrol edin veya farklı bir video deneyin."]
@@ -86,10 +131,10 @@ const videoSummarizerFlow = ai.defineFlow(
       }
       return output;
     } catch (error: any) {
-      console.error("[VideoSummarizer Flow] CRITICAL error during prompt execution:", error);
+      console.error(`[Video Summarizer Flow] CRITICAL error during prompt execution with model ${modelToUse}:`, error);
       let errorMessage = "Video özetlenirken sunucu tarafında beklenmedik bir hata oluştu.";
       if (error.message) {
-        errorMessage += ` Detay: ${error.message}`;
+        errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
       }
       return {
         warnings: [errorMessage]
@@ -97,3 +142,4 @@ const videoSummarizerFlow = ai.defineFlow(
     }
   }
 );
+    

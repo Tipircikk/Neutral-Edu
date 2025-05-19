@@ -1,11 +1,11 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback, Fragment } from "react"; // Added React for Fragment
+import React, { useState, useEffect, useCallback, Fragment } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Presentation, Wand2, Loader2, AlertTriangle, Download } from "lucide-react";
+import { Presentation, Wand2, Loader2, AlertTriangle, Download, Settings } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,8 +15,6 @@ import { useUser } from "@/hooks/useUser";
 import { explainTopic, type ExplainTopicOutput, type ExplainTopicInput } from "@/ai/flows/topic-explainer-flow";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-// PDF Dışa Aktarma için jsPDF'i dinamik olarak import edeceğiz.
-
 export default function TopicExplainerPage() {
   const [topicName, setTopicName] = useState("");
   const [explanationLevel, setExplanationLevel] = useState<ExplainTopicInput["explanationLevel"]>("orta");
@@ -25,6 +23,7 @@ export default function TopicExplainerPage() {
   const [explanationOutput, setExplanationOutput] = useState<ExplainTopicOutput | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [adminSelectedModel, setAdminSelectedModel] = useState<string | undefined>(undefined);
 
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
@@ -45,13 +44,12 @@ export default function TopicExplainerPage() {
 
   const parseInlineFormatting = (line: string | undefined | null): React.ReactNode[] => {
     if (!line) return [];
-    // Regex to find patterns like text^number or text_number (digits only for subscript)
     const parts = line.split(/(\S+\^\S+|\S+_\d+)/g);
     return parts.map((part, index) => {
       if (part.includes('^')) {
         const [base, exponent] = part.split('^');
         return <Fragment key={index}>{base}<sup>{exponent}</sup></Fragment>;
-      } else if (part.match(/(\S+)_(\d+)/)) { // Match text_digits
+      } else if (part.match(/(\S+)_(\d+)/)) {
         const match = part.match(/(\S+)_(\d+)(.*)/);
         if (match) {
             return <Fragment key={index}>{match[1]}<sub>{match[2]}</sub>{match[3]}</Fragment>;
@@ -70,7 +68,7 @@ export default function TopicExplainerPage() {
     const flushList = () => {
       if (listItems.length > 0) {
         elements.push(
-          <ul key={`ul-${elements.length}`} className="list-disc pl-5 my-2 space-y-1 text-muted-foreground">
+          <ul key={`ul-${elements.length}-${Math.random()}`} className="list-disc pl-5 my-2 space-y-1 text-muted-foreground">
             {listItems.map((itemContent, idx) => <li key={idx}>{itemContent}</li>)}
           </ul>
         );
@@ -89,7 +87,7 @@ export default function TopicExplainerPage() {
         listItems.push(parseInlineFormatting(line.substring(line.indexOf(' ') + 1)));
       } else if (line.trim() === "") {
         flushList();
-        elements.push(<div key={index} className="h-2"></div>);
+        // elements.push(<div key={index} className="h-2"></div>); // Omit empty lines if preferred
       } else {
         flushList();
         elements.push(<p key={index} className="mb-2 last:mb-0 text-muted-foreground">{parseInlineFormatting(line)}</p>);
@@ -131,7 +129,8 @@ export default function TopicExplainerPage() {
         explanationLevel,
         teacherPersona,
         customPersonaDescription: teacherPersona === "ozel" ? customPersonaDescription : undefined,
-        userPlan: currentProfile.plan
+        userPlan: currentProfile.plan,
+        customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
       };
       const result = await explainTopic(input);
 
@@ -146,7 +145,7 @@ export default function TopicExplainerPage() {
           setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
         }
       } else {
-        throw new Error("Yapay zeka bir konu anlatımı üretemedi.");
+        throw new Error(result?.explanationTitle || "Yapay zeka bir konu anlatımı üretemedi.");
       }
     } catch (error: any) {
       console.error("Konu anlatımı oluşturma hatası:", error);
@@ -186,7 +185,7 @@ export default function TopicExplainerPage() {
       const headingFontSize = 12;
       const textFontSize = 10;
 
-      const addWrappedText = (text: string | undefined, options: { x?: number, y?: number, fontSize?: number, fontStyle?: "normal" | "bold" | "italic" | "bolditalic", maxWidth?: number, isTitle?: boolean, isListItem?: boolean, color?: string }) => {
+      const addWrappedText = (text: string | undefined | null, options: { x?: number, y?: number, fontSize?: number, fontStyle?: "normal" | "bold" | "italic" | "bolditalic", maxWidth?: number, isTitle?: boolean, isListItem?: boolean, color?: string }) => {
         if (!text) return;
         const { x = margin, fontSize = textFontSize, fontStyle = 'normal', maxWidth = contentWidth, isTitle = false, isListItem = false, color = "#000000" } = options;
         let { y = currentY } = options;
@@ -203,7 +202,7 @@ export default function TopicExplainerPage() {
             y = margin; 
           }
           const lineText = isListItem && index === 0 ? `• ${line}` : line;
-          const xOffset = isTitle ? (pageWidth - doc.getTextWidth(lineText)) / 2 : (isListItem ? 2 : 0); // Center align titles
+          const xOffset = isTitle ? (pageWidth - doc.getTextWidth(lineText)) / 2 : (isListItem ? 2 : 0);
           doc.text(lineText, x + xOffset, y);
           y += lineHeight; 
         });
@@ -253,8 +252,10 @@ export default function TopicExplainerPage() {
     } catch (error: any) {
       console.error("PDF oluşturma hatası:", error);
       let descriptionMessage = "PDF oluşturulurken bir hata oluştu.";
-      if (error.message && error.message.includes("jspdf")) {
-        descriptionMessage = "PDF kütüphanesi ('jspdf') yüklenemedi. Lütfen 'npm install jspdf' komutunu çalıştırıp tekrar deneyin veya internet bağlantınızı kontrol edin.";
+       if (error.message && error.message.toLowerCase().includes("module not found") && error.message.toLowerCase().includes("jspdf")) {
+        descriptionMessage = "PDF oluşturma kütüphanesi ('jspdf') yüklenemedi. Lütfen 'npm install jspdf' komutunu çalıştırıp tekrar deneyin veya geliştiriciye bildirin.";
+      } else if (error.message && error.message.includes("jspdf")) {
+        descriptionMessage = "PDF kütüphanesi ('jspdf') yüklenemedi veya bir sorun oluştu. İnternet bağlantınızı kontrol edin veya geliştiriciye bildirin.";
       }
       toast({
         title: "PDF Oluşturma Hatası",
@@ -289,6 +290,22 @@ export default function TopicExplainerPage() {
             Öğrenmek istediğiniz YKS konusunu, anlatım detay seviyesini ve hoca tarzını girin. Yapay zeka sizin için konuyu detaylıca anlatsın, anahtar kavramları, YKS ipuçlarını ve aktif hatırlama sorularını versin.
           </CardDescription>
         </CardHeader>
+         <CardContent>
+         {userProfile?.isAdmin && (
+              <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
+                <Label htmlFor="adminModelSelectTopicExp" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
+                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled}>
+                  <SelectTrigger id="adminModelSelectTopicExp"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
+                  </SelectContent>
+                </Select>
+                 <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz.</p>
+              </div>
+            )}
+        </CardContent>
       </Card>
 
       {!canProcess && !isGenerating && userProfile && (userProfile.dailyRemainingQuota ?? 0) <= 0 && (
@@ -478,3 +495,4 @@ export default function TopicExplainerPage() {
     </div>
   );
 }
+    

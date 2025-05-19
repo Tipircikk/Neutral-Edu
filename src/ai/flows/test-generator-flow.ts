@@ -18,7 +18,8 @@ const GenerateTestInputSchema = z.object({
   numQuestions: z.number().min(3).max(20).default(5).describe('Testte olması istenen soru sayısı (YKS\'deki gibi genellikle çoktan seçmeli).'),
   questionTypes: z.array(z.enum(["multiple_choice", "true_false", "short_answer"])).optional().default(["multiple_choice"]).describe("İstenen soru tipleri. YKS formatı için 'multiple_choice' ağırlıklı olmalıdır."),
   difficulty: z.enum(["easy", "medium", "hard"]).optional().default("medium").describe("Testin YKS'ye göre zorluk seviyesi: 'easy' (temel bilgi ve hatırlama), 'medium' (anlama, yorumlama, uygulama), 'hard' (analiz, sentez, ileri düzey problem çözme)."),
-  userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı.")
+  userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
+  customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi."),
 });
 export type GenerateTestInput = z.infer<typeof GenerateTestInputSchema>;
 
@@ -50,10 +51,14 @@ Rolün, sadece soru yazmak değil, aynı zamanda öğrenmeyi teşvik eden, eleş
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#ifEquals userPlan "pro"}}
-Pro kullanıcılar için: En sofistike, en düşündürücü ve en kapsamlı YKS sorularını oluştur. Sorular, birden fazla konuyu birleştiren, derin analitik beceriler gerektiren ve öğrencinin bilgi düzeyini en üst seviyede test eden nitelikte olsun. Açıklamaların, bir ders kitabı kadar detaylı ve aydınlatıcı olmalı. Her bir yanlış seçeneğin neden hatalı olduğunu adım adım açıkla. Bu kullanıcılar için en gelişmiş AI yeteneklerini kullan.
+(Pro Kullanıcı Notu: En sofistike, en düşündürücü ve en kapsamlı YKS sorularını oluştur. Sorular, birden fazla konuyu birleştiren, derin analitik beceriler gerektiren ve öğrencinin bilgi düzeyini en üst seviyede test eden nitelikte olsun. Açıklamaların, bir ders kitabı kadar detaylı ve aydınlatıcı olmalı. Her bir yanlış seçeneğin neden hatalı olduğunu adım adım açıkla. Bu kullanıcılar için en gelişmiş AI yeteneklerini kullan.)
 {{else ifEquals userPlan "premium"}}
-Premium kullanıcılar için: Soruların çeşitliliğini, açıklamaların derinliğini ve YKS'ye uygunluğunu artırarak daha zengin bir deneyim sunmaya çalış. Sorular, konunun farklı yönlerini kapsamalı ve öğrencileri zorlayıcı olmalıdır. Yanlış seçeneklerin nedenlerini de açıkla.
+(Premium Kullanıcı Notu: Soruların çeşitliliğini, açıklamaların derinliğini ve YKS'ye uygunluğunu artırarak daha zengin bir deneyim sunmaya çalış. Sorular, konunun farklı yönlerini kapsamalı ve öğrencileri zorlayıcı olmalıdır. Yanlış seçeneklerin nedenlerini de açıkla.)
 {{/ifEquals}}
+
+{{#if customModelIdentifier}}
+(Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
+{{/if}}
 
 Kullanıcının İstekleri:
 Konu: {{{topic}}}
@@ -89,26 +94,77 @@ const testGeneratorFlow = ai.defineFlow(
     inputSchema: GenerateTestInputSchema,
     outputSchema: GenerateTestOutputSchema,
   },
-  async (input) => {
+  async (input: GenerateTestInput): Promise<GenerateTestOutput> => {
     // Force question type to multiple_choice for YKS focus
-    const adjustedInput = { ...input, questionTypes: ["multiple_choice"] as Array<"multiple_choice" | "true_false" | "short_answer"> };
+    const adjustedInput = { 
+      ...input, 
+      questionTypes: ["multiple_choice"] as Array<"multiple_choice" | "true_false" | "short_answer">,
+      isProUser: input.userPlan === 'pro',
+      isPremiumUser: input.userPlan === 'premium',
+      isCustomModelSelected: !!input.customModelIdentifier,
+      isGemini25PreviewSelected: input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview',
+    };
     
-    const modelToUse = 'googleai/gemini-2.0-flash'; 
-    
-    // Temperature ayarı eklenerek farklı sorular üretilmesi hedeflenir.
-    // 0.7 civarı bir değer genellikle iyi bir denge sunar (deterministiklik ve çeşitlilik arasında).
-    const {output} = await prompt(adjustedInput, { model: modelToUse, config: { temperature: 0.8 } });
-    if (!output || !output.questions || output.questions.length === 0) {
-      throw new Error("AI YKS Test Uzmanı, belirtilen konu için YKS standartlarında bir test oluşturamadı. Lütfen konu ve ayarları kontrol edin.");
-    }
-    output.questions.forEach(q => {
-      q.questionType = "multiple_choice"; // Ensure questionType is correctly set post-generation
-      if (!q.options || q.options.length !== 5) {
-        console.warn(`Multiple choice question "${q.questionText.substring(0,50)}..." for topic "${input.topic}" was expected to have 5 options, but received ${q.options?.length || 0}. Ensure prompt forces 5 options.`);
+    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Varsayılan
+    let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
+
+
+    if (input.customModelIdentifier) {
+      switch (input.customModelIdentifier) {
+        case 'default_gemini_flash':
+          modelToUse = 'googleai/gemini-2.0-flash';
+          break;
+        case 'experimental_gemini_1_5_flash':
+          modelToUse = 'googleai/gemini-1.5-flash-latest';
+          break;
+        case 'experimental_gemini_2_5_flash_preview':
+          modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
+          break;
+        default:
+          console.warn(`[Test Generator Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    });
-    return output;
+    } else if (input.userPlan === 'pro') {
+      modelToUse = 'googleai/gemini-1.5-flash-latest';
+    }
+
+    callOptions.model = modelToUse;
+    callOptions.config = { temperature: 0.8 }; // Farklı sorular üretmek için
+
+    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
+       // maxOutputTokens, sorunun karmaşıklığına ve sayısına göre ayarlanabilir
+       callOptions.config.generationConfig = { 
+         maxOutputTokens: input.numQuestions * 500 > 8000 ? 8000 : input.numQuestions * 500 
+        }; // Her soru için ortalama 500 token (soru+seçenekler+açıklama)
+    }
+    
+    console.log(`[Test Generator Flow] Using model: ${modelToUse} for plan: ${input.userPlan}, customModel: ${input.customModelIdentifier}`);
+    
+    try {
+        const {output} = await prompt(adjustedInput, callOptions);
+        if (!output || !output.questions || output.questions.length === 0) {
+        throw new Error("AI YKS Test Uzmanı, belirtilen konu için YKS standartlarında bir test oluşturamadı. Lütfen konu ve ayarları kontrol edin.");
+        }
+        output.questions.forEach(q => {
+        q.questionType = "multiple_choice"; // Ensure questionType is correctly set post-generation
+        if (!q.options || q.options.length !== 5) {
+            console.warn(`Multiple choice question "${q.questionText.substring(0,50)}..." for topic "${input.topic}" was expected to have 5 options, but received ${q.options?.length || 0}. Prompt may need adjustment.`);
+        }
+        });
+        return output;
+    } catch (error: any) {
+        console.error(`[Test Generator Flow] Error during generation with model ${modelToUse}:`, error);
+        let errorMessage = `AI modeli (${modelToUse}) ile test oluşturulurken bir hata oluştu.`;
+        if (error.message) {
+            errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
+        }
+        // Hata durumunda boş bir test döndürmek yerine, bir hata nesnesi fırlatmak daha iyi olabilir
+        // veya kullanıcıya UI'da gösterilecek bir hata mesajı içeren bir yapı döndürülebilir.
+        // Şimdilik, akışın çökmemesi için boş bir test döndürüyoruz ama bu UI'da "test oluşturulamadı" mesajı ile desteklenmeli.
+        return {
+            testTitle: `Hata: ${errorMessage}`,
+            questions: []
+        };
+    }
   }
 );
-
     

@@ -5,11 +5,11 @@ import { useState, useEffect, useCallback } from "react";
 import PdfUploadForm from "@/components/dashboard/PdfUploadForm";
 import SummaryDisplay from "@/components/dashboard/SummaryDisplay";
 import { extractTextFromPdf } from "@/lib/pdfUtils";
-import { summarizePdfForStudent, type SummarizePdfForStudentOutput, type SummarizePdfForStudentInput } from "@/ai/flows/summarize-pdf-flow"; // Flow adı güncellendi
+import { summarizePdfForStudent, type SummarizePdfForStudentOutput, type SummarizePdfForStudentInput } from "@/ai/flows/summarize-pdf-flow";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Terminal, Loader2, AlertTriangle, FileScan } from "lucide-react";
+import { Terminal, Loader2, AlertTriangle, FileScan, Settings } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,6 +26,7 @@ export default function PdfSummarizerPage() {
   const [keywords, setKeywords] = useState<string>("");
   const [pageRange, setPageRange] = useState<string>("");
   const [outputDetail, setOutputDetail] = useState<SummarizePdfForStudentInput["outputDetail"]>("full");
+  const [adminSelectedModel, setAdminSelectedModel] = useState<string | undefined>(undefined);
 
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
@@ -63,7 +64,7 @@ export default function PdfSummarizerPage() {
     if (!currentProfile || (currentProfile.dailyRemainingQuota ?? 0) <= 0) {
       toast({
         title: "Kota Aşıldı",
-        description: "Bugünkü özet hakkınızı doldurdunuz. Lütfen yarın tekrar deneyin.",
+        description: "Bugünkü anlatım hakkınızı doldurdunuz. Lütfen yarın tekrar deneyin.",
         variant: "destructive",
       });
       setIsSummarizing(false);
@@ -89,13 +90,14 @@ export default function PdfSummarizerPage() {
         keywords: keywords.trim() || undefined,
         pageRange: pageRange.trim() || undefined,
         outputDetail,
-        userPlan: currentProfile.plan 
+        userPlan: currentProfile.plan,
+        customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
       };
-      const result = await summarizePdfForStudent(input); // Flow adı güncellendi
+      const result = await summarizePdfForStudent(input);
       
       if (result && result.formattedStudyOutput) { 
         setSummaryOutput(result); 
-        toast({ title: "Konu Anlatımı Oluşturuldu!", description: "PDF içeriğiniz için detaylı anlatım hazır." }); // Mesaj güncellendi
+        toast({ title: "Konu Anlatımı Oluşturuldu!", description: "PDF içeriğiniz için detaylı anlatım hazır." });
         if (decrementQuota) {
             await decrementQuota(currentProfile); 
         }
@@ -105,13 +107,13 @@ export default function PdfSummarizerPage() {
         }
 
       } else {
-        throw new Error("Yapay zeka bir anlatım oluşturamadı veya format hatalı."); // Mesaj güncellendi
+        throw new Error(result?.summary || "Yapay zeka bir anlatım üretemedi veya format hatalı.");
       }
     } catch (error: any) {
-      console.error("Detaylı anlatım oluşturma hatası:", error); // Mesaj güncellendi
+      console.error("Detaylı anlatım oluşturma hatası:", error);
       toast({
-        title: "Anlatım Oluşturma Hatası", // Mesaj güncellendi
-        description: error.message || "Anlatım oluşturulurken beklenmedik bir hata oluştu.", // Mesaj güncellendi
+        title: "Anlatım Oluşturma Hatası",
+        description: error.message || "Anlatım oluşturulurken beklenmedik bir hata oluştu.",
         variant: "destructive",
       });
       setSummaryOutput(null); 
@@ -145,6 +147,20 @@ export default function PdfSummarizerPage() {
           </CardDescription>
         </CardHeader>
          <CardContent className="space-y-4 md:space-y-6">
+            {userProfile?.isAdmin && (
+              <div className="space-y-2 p-4 border rounded-md bg-muted/50">
+                <Label htmlFor="adminModelSelectPdf" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
+                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isProcessingDisabled}>
+                  <SelectTrigger id="adminModelSelectPdf"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz. Seçim yapılmazsa kullanıcının planına göre varsayılan model kullanılır.</p>
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <Label htmlFor="summaryLength" className="mb-1 block text-sm">Anlatım Uzunluğu</Label>
@@ -251,5 +267,4 @@ export default function PdfSummarizerPage() {
     </div>
   );
 }
-
     

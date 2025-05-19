@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CalendarDays, Wand2, Loader2, AlertTriangle } from "lucide-react";
+import { CalendarDays, Wand2, Loader2, AlertTriangle, Settings } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,6 +22,7 @@ export default function StudyPlanGeneratorPage() {
   const [hoursPerDay, setHoursPerDay] = useState(4);
   const [planOutput, setPlanOutput] = useState<GenerateStudyPlanOutput | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [adminSelectedModel, setAdminSelectedModel] = useState<string | undefined>(undefined);
 
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
@@ -77,7 +78,8 @@ export default function StudyPlanGeneratorPage() {
         subjects,
         studyDuration,
         hoursPerDay,
-        userPlan: currentProfile.plan
+        userPlan: currentProfile.plan,
+        customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
       };
       const result = await generateStudyPlan(input);
 
@@ -92,7 +94,7 @@ export default function StudyPlanGeneratorPage() {
           setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
         }
       } else {
-        throw new Error("Yapay zeka bir çalışma planı üretemedi veya format hatalı.");
+        throw new Error(result?.planTitle || "Yapay zeka bir çalışma planı üretemedi veya format hatalı.");
       }
     } catch (error: any) {
       console.error("Çalışma planı oluşturma hatası:", error);
@@ -106,7 +108,7 @@ export default function StudyPlanGeneratorPage() {
     }
   };
   
-  const isSubmitDisabled = isGenerating || !subjects.trim() || subjects.trim().length < 5 || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
+  const isSubmitDisabled = isGenerating || !subjects.trim() || subjects.trim().length < 5 || (hoursPerDay < 1 || hoursPerDay > 12) || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
 
   if (userProfileLoading) {
     return (
@@ -129,6 +131,22 @@ export default function StudyPlanGeneratorPage() {
             Hedef sınavınızı, çalışmak istediğiniz konuları, süreyi ve günlük çalışma saatinizi girin. Yapay zeka sizin için kişiselleştirilmiş bir YKS çalışma planı taslağı oluştursun.
           </CardDescription>
         </CardHeader>
+        <CardContent>
+         {userProfile?.isAdmin && (
+              <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
+                <Label htmlFor="adminModelSelectStudyPlan" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
+                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled}>
+                  <SelectTrigger id="adminModelSelectStudyPlan"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz.</p>
+              </div>
+            )}
+        </CardContent>
       </Card>
 
       {!canProcess && !isGenerating && userProfile && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
@@ -272,3 +290,4 @@ export default function StudyPlanGeneratorPage() {
     </div>
   );
 }
+    

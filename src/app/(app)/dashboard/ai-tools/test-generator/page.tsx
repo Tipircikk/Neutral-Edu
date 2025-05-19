@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input as ShadInput } from "@/components/ui/input"; 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { FileTextIcon, Wand2, Loader2, AlertTriangle, ChevronLeft, ChevronRight, CheckCircle, XCircle, Eye, RotateCcw, History } from "lucide-react";
+import { FileTextIcon, Wand2, Loader2, AlertTriangle, ChevronLeft, ChevronRight, CheckCircle, XCircle, Eye, RotateCcw, History, Settings } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect, useCallback } from "react";
@@ -32,6 +32,8 @@ export default function TestGeneratorPage() {
   const [difficulty, setDifficulty] = useState<GenerateTestInput["difficulty"]>("medium");
   const [testOutput, setTestOutput] = useState<GenerateTestOutput | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [adminSelectedModel, setAdminSelectedModel] = useState<string | undefined>(undefined);
+
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
   const [canProcess, setCanProcess] = useState(false);
@@ -44,15 +46,10 @@ export default function TestGeneratorPage() {
 
 
   const memoizedCheckAndResetQuota = useCallback(async () => {
-    // Ensure userProfile is accessed correctly after authLoading check
-    if (!authLoading && !userProfile) return null; 
     if (checkAndResetQuota) return checkAndResetQuota();
     return Promise.resolve(userProfile);
-  }, [checkAndResetQuota, userProfile, userProfileLoading]); // Added userProfileLoading to dependencies
+  }, [checkAndResetQuota, userProfile]);
   
-  const { loading: authLoading } = useUser();
-
-
   useEffect(() => {
     if (userProfile) {
       memoizedCheckAndResetQuota().then(updatedProfile => {
@@ -68,10 +65,6 @@ export default function TestGeneratorPage() {
     setShowExplanations({});
     setTestOutput(null);
     setIsTestFinished(false);
-    // Optionally, clear form fields if desired
-    // setTopic("");
-    // setNumQuestions(5);
-    // setDifficulty("medium");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -105,7 +98,8 @@ export default function TestGeneratorPage() {
         topic, 
         numQuestions, 
         difficulty, 
-        userPlan: currentProfile.plan 
+        userPlan: currentProfile.plan,
+        customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
       };
       const result = await generateTest(input);
 
@@ -120,7 +114,7 @@ export default function TestGeneratorPage() {
           setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
         }
       } else {
-        throw new Error("Yapay zeka bir test üretemedi veya format hatalı.");
+        throw new Error(result?.testTitle || "Yapay zeka bir test üretemedi veya format hatalı.");
       }
     } catch (error: any) {
       console.error("Test oluşturma hatası:", error);
@@ -150,7 +144,6 @@ export default function TestGeneratorPage() {
             correctAnswer: currentQuestion.correctAnswer
         }
     }));
-    // Automatically show explanation after checking if the answer is wrong
     if (!isCorrect) {
         setShowExplanations(prev => ({...prev, [currentQuestionIndex]: true}));
     }
@@ -219,8 +212,8 @@ export default function TestGeneratorPage() {
             <CardContent className="space-y-6">
                 <Accordion type="multiple" className="w-full">
                     {testOutput.questions.map((q, index) => {
-                        const userAnswer = userAnswers[index];
-                        const checkedInfo = checkedAnswers[index] || {isCorrect: userAnswer === q.correctAnswer, selectedOption: userAnswer, correctAnswer: q.correctAnswer};
+                        const userAnswerInfo = userAnswers[index];
+                        const checkedInfo = checkedAnswers[index] || {isCorrect: userAnswerInfo === q.correctAnswer, selectedOption: userAnswerInfo, correctAnswer: q.correctAnswer};
                         return (
                             <AccordionItem value={`item-${index}`} key={`review-${index}`}>
                                 <AccordionTrigger className={`text-left ${checkedInfo.isCorrect ? 'text-green-600' : 'text-red-600'} hover:no-underline`}>
@@ -285,6 +278,20 @@ export default function TestGeneratorPage() {
         <form onSubmit={handleSubmit}>
             <Card>
             <CardContent className="pt-6 space-y-4">
+                {userProfile?.isAdmin && (
+                <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
+                    <Label htmlFor="adminModelSelectTestGen" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
+                    <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled}>
+                    <SelectTrigger id="adminModelSelectTestGen"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
+                        <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
+                        <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
+                    </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz.</p>
+                </div>
+                )}
                 <div>
                 <Label htmlFor="topic" className="block text-sm font-medium text-foreground mb-1">Test Konusu</Label>
                 <Textarea
@@ -466,5 +473,4 @@ export default function TestGeneratorPage() {
     </div>
   );
 }
-
     

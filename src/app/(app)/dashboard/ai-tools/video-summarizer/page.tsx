@@ -7,16 +7,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Youtube, Loader2, AlertTriangle, Brain, List } from "lucide-react";
+import { Youtube, Loader2, AlertTriangle, Brain, List, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { summarizeVideo, type VideoSummarizerOutput, type VideoSummarizerInput } from "@/ai/flows/video-summarizer-flow";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function VideoSummarizerPage() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [summaryOutput, setSummaryOutput] = useState<VideoSummarizerOutput | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
+  const [adminSelectedModel, setAdminSelectedModel] = useState<string | undefined>(undefined);
 
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
@@ -41,7 +43,6 @@ export default function VideoSummarizerPage() {
       toast({ title: "URL Gerekli", description: "Lütfen bir YouTube video URL'si girin.", variant: "destructive" });
       return;
     }
-    // Basic URL validation (more robust validation can be added)
     try {
       new URL(youtubeUrl);
       if (!youtubeUrl.includes("youtube.com/") && !youtubeUrl.includes("youtu.be/")) {
@@ -70,7 +71,8 @@ export default function VideoSummarizerPage() {
       }
       const input: VideoSummarizerInput = {
         youtubeUrl,
-        userPlan: currentProfile.plan
+        userPlan: currentProfile.plan,
+        customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
       };
       const result = await summarizeVideo(input);
       setSummaryOutput(result);
@@ -124,6 +126,22 @@ export default function VideoSummarizerPage() {
             YouTube ders videolarının linkini girerek eğitimsel içeriklerini özetleyin. Bu özellik deneyseldir ve her video için çalışmayabilir.
           </CardDescription>
         </CardHeader>
+         <CardContent>
+         {userProfile?.isAdmin && (
+              <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
+                <Label htmlFor="adminModelSelectVideoSum" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
+                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled}>
+                  <SelectTrigger id="adminModelSelectVideoSum"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz.</p>
+              </div>
+            )}
+        </CardContent>
       </Card>
 
       {!canProcess && !isSummarizing && userProfile && (userProfile.dailyRemainingQuota ?? 0) <= 0 && (
@@ -208,7 +226,7 @@ export default function VideoSummarizerPage() {
                 )}
               </ScrollArea>
             ) : (
-              !summaryOutput.warnings && <p className="text-muted-foreground">Bu video için bir özet veya anahtar nokta üretilemedi.</p>
+              !summaryOutput.warnings?.length && <p className="text-muted-foreground">Bu video için bir özet veya anahtar nokta üretilemedi.</p>
             )}
              <div className="mt-4 p-3 text-xs text-destructive-foreground bg-destructive/80 rounded-md flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
@@ -220,3 +238,4 @@ export default function VideoSummarizerPage() {
     </div>
   );
 }
+    

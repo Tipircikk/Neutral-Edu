@@ -12,23 +12,21 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import type { UserProfile } from '@/types';
 
-// Giriş Şeması: Kullanıcının bilgi kartlarına dönüştürmek istediği metin
 const GenerateFlashcardsInputSchema = z.object({
   textContent: z.string().min(50).describe('Bilgi kartlarına dönüştürülmesi istenen en az 50 karakterlik akademik metin, tanımlar veya anahtar noktalar.'),
   numFlashcards: z.number().min(3).max(15).optional().default(5).describe('Oluşturulması istenen bilgi kartı sayısı (3-15 arası).'),
   difficulty: z.enum(["easy", "medium", "hard"]).optional().default("medium").describe("Bilgi kartlarının YKS'ye göre zorluk seviyesi."),
-  userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı.")
+  userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
+  customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi."),
 });
 export type GenerateFlashcardsInput = z.infer<typeof GenerateFlashcardsInputSchema>;
 
-// Bilgi Kartı Şeması: Her bir bilgi kartının yapısı
 const FlashcardSchema = z.object({
   front: z.string().describe('Bilgi kartının ön yüzü (genellikle bir soru, kavram veya terim).'),
   back: z.string().describe('Bilgi kartının arka yüzü (genellikle cevap, tanım veya açıklama).'),
   topic: z.string().optional().describe('Bilgi kartının ilgili olduğu ana konu veya alt başlık.'),
 });
 
-// Çıkış Şeması: Oluşturulan bilgi kartlarının listesi
 const GenerateFlashcardsOutputSchema = z.object({
   flashcards: z.array(FlashcardSchema).describe('Oluşturulan bilgi kartlarının listesi.'),
   summaryTitle: z.string().optional().describe('Bilgi kartlarının dayandığı metin için kısa bir başlık veya konu özeti.'),
@@ -47,10 +45,14 @@ const prompt = ai.definePrompt({
 Amacın, metindeki en önemli tanımları, kavramları, formülleri, tarihleri veya olguları belirleyip bunları soru-cevap veya terim-tanım formatında bilgi kartlarına dönüştürmektir. Kartlar, YKS öğrencisinin seviyesine uygun, net ve akılda kalıcı olmalıdır.
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#ifEquals userPlan "pro"}}
-Pro kullanıcılar için: Bilgi kartlarını, konunun en derin ve karmaşık noktalarını sorgulayacak şekilde, çoklu bağlantılar ve ileri düzey ipuçları içerecek biçimde tasarla. Kartlar, öğrencinin analitik düşünme ve sentez yapma becerilerini en üst düzeye çıkarmalı. Bu kullanıcılar için en gelişmiş AI yeteneklerini kullan.
+(Pro Kullanıcı Notu: Bilgi kartlarını, konunun en derin ve karmaşık noktalarını sorgulayacak şekilde, çoklu bağlantılar ve ileri düzey ipuçları içerecek biçimde tasarla. Kartlar, öğrencinin analitik düşünme ve sentez yapma becerilerini en üst düzeye çıkarmalı. Bu kullanıcılar için en gelişmiş AI yeteneklerini kullan.)
 {{else ifEquals userPlan "premium"}}
-Premium kullanıcılar için: Kartlara ek ipuçları, bağlantılı kavramlar veya YKS'de çıkabilecek alternatif soru tarzlarına göndermeler ekleyerek daha zengin içerik sun.
+(Premium Kullanıcı Notu: Kartlara ek ipuçları, bağlantılı kavramlar veya YKS'de çıkabilecek alternatif soru tarzlarına göndermeler ekleyerek daha zengin içerik sun.)
 {{/ifEquals}}
+
+{{#if customModelIdentifier}}
+(Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
+{{/if}}
 
 Kullanıcının Girdileri:
 Metin İçeriği:
@@ -88,14 +90,70 @@ const flashcardGeneratorFlow = ai.defineFlow(
     inputSchema: GenerateFlashcardsInputSchema,
     outputSchema: GenerateFlashcardsOutputSchema,
   },
-  async (input) => {
-    // Tüm kullanıcılar için standart model kullanılacak.
-    const modelToUse = 'googleai/gemini-2.0-flash'; 
-    
-    const {output} = await prompt(input, { model: modelToUse });
-    if (!output || !output.flashcards || output.flashcards.length === 0) {
-      throw new Error("AI YKS Bilgi Kartı Uzmanı, belirtilen metin için bilgi kartı oluşturamadı. Lütfen metni ve ayarları kontrol edin.");
+  async (input: GenerateFlashcardsInput): Promise<GenerateFlashcardsOutput> => {
+    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Varsayılan
+    let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
+
+    const isCustomModelSelected = !!input.customModelIdentifier;
+    const isProUser = input.userPlan === 'pro';
+    const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+
+    const enrichedInput = {
+      ...input,
+      isProUser,
+      isCustomModelSelected,
+      isGemini25PreviewSelected,
+    };
+
+    if (input.customModelIdentifier) {
+      switch (input.customModelIdentifier) {
+        case 'default_gemini_flash':
+          modelToUse = 'googleai/gemini-2.0-flash';
+          break;
+        case 'experimental_gemini_1_5_flash':
+          modelToUse = 'googleai/gemini-1.5-flash-latest';
+          break;
+        case 'experimental_gemini_2_5_flash_preview':
+          modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
+          break;
+        default:
+          console.warn(`[Flashcard Generator Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting to ${modelToUse}`);
+      }
+    } else if (input.userPlan === 'pro') {
+      modelToUse = 'googleai/gemini-1.5-flash-latest';
     }
-    return output;
+
+    callOptions.model = modelToUse;
+
+    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
+      callOptions.config = {
+        generationConfig: {
+          maxOutputTokens: input.numFlashcards * 200 > 4096 ? 4096 : input.numFlashcards * 200, // Her kart için ortalama 200 token
+        }
+      };
+    } else {
+        callOptions.config = {};
+    }
+    
+    console.log(`[Flashcard Generator Flow] Using model: ${modelToUse} for plan: ${input.userPlan}, customModel: ${input.customModelIdentifier}`);
+    
+    try {
+        const {output} = await prompt(enrichedInput, callOptions);
+        if (!output || !output.flashcards || output.flashcards.length === 0) {
+        throw new Error("AI YKS Bilgi Kartı Uzmanı, belirtilen metin için bilgi kartı oluşturamadı. Lütfen metni ve ayarları kontrol edin.");
+        }
+        return output;
+    } catch (error: any) {
+        console.error(`[Flashcard Generator Flow] Error during generation with model ${modelToUse}:`, error);
+        let errorMessage = `AI modeli (${modelToUse}) ile bilgi kartı oluşturulurken bir hata oluştu.`;
+        if (error.message) {
+            errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
+        }
+        return {
+            flashcards: [],
+            summaryTitle: `Hata: ${errorMessage}`
+        };
+    }
   }
 );
+    

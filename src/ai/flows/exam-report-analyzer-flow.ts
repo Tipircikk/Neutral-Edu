@@ -15,7 +15,8 @@ import type { UserProfile } from '@/types';
 
 const ExamReportAnalyzerInputSchema = z.object({
   reportTextContent: z.string().min(100).describe('Analiz edilecek sınav raporundan çıkarılmış en az 100 karakterlik metin içeriği. Bu metin dersleri, konuları, doğru/yanlış/boş sayılarını veya puanları içermelidir.'),
-  userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı.")
+  userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
+  customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi."),
 });
 export type ExamReportAnalyzerInput = z.infer<typeof ExamReportAnalyzerInputSchema>;
 
@@ -46,10 +47,14 @@ Amacın, öğrencinin sınav raporundaki verileri (ders adları, konu başlıkla
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#ifEquals userPlan "pro"}}
-Pro kullanıcılar için: Analizini en üst düzeyde akademik titizlikle, konular arası bağlantıları da dikkate alarak yap. Öğrencinin farkında olmadığı örtük bilgi eksikliklerini veya yanlış öğrenmeleri tespit etmeye çalış. En kapsamlı ve derinlemesine stratejik yol haritasını sun. En gelişmiş AI yeteneklerini kullan.
+(Pro Kullanıcı Notu: Analizini en üst düzeyde akademik titizlikle, konular arası bağlantıları da dikkate alarak yap. Öğrencinin farkında olmadığı örtük bilgi eksikliklerini veya yanlış öğrenmeleri tespit etmeye çalış. En kapsamlı ve derinlemesine stratejik yol haritasını sun. En gelişmiş AI yeteneklerini kullan.)
 {{else ifEquals userPlan "premium"}}
-Premium kullanıcılar için: Daha detaylı konu analizi, alternatif çalışma yöntemleri ve öğrencinin gelişimini hızlandıracak ek kaynak önerileri sunmaya özen göster.
+(Premium Kullanıcı Notu: Daha detaylı konu analizi, alternatif çalışma yöntemleri ve öğrencinin gelişimini hızlandıracak ek kaynak önerileri sunmaya özen göster.)
 {{/ifEquals}}
+
+{{#if customModelIdentifier}}
+(Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
+{{/if}}
 
 Öğrencinin Sınav Raporu Metni:
 {{{reportTextContent}}}
@@ -79,19 +84,72 @@ const examReportAnalyzerFlow = ai.defineFlow(
     inputSchema: ExamReportAnalyzerInputSchema,
     outputSchema: ExamReportAnalyzerOutputSchema,
   },
-  async (input) => {
-    const modelToUse = 'googleai/gemini-2.0-flash'; // Varsayılan model
+  async (input: ExamReportAnalyzerInput): Promise<ExamReportAnalyzerOutput> => {
+    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Varsayılan
+    let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
-    // Kullanıcı planına göre model seçimi (eğer pro plan için farklı model kullanılacaksa)
-    // if (input.userPlan === 'pro') {
-    //   modelToUse = 'googleai/gemini-1.5-flash-latest'; // veya pro için belirlenen model
-    // }
-    
-    const {output} = await prompt(input, { model: modelToUse });
-    if (!output || !output.identifiedTopics || output.identifiedTopics.length === 0) {
-      throw new Error("AI Sınav Analisti, bu rapor için detaylı bir analiz ve öneri üretemedi. Lütfen rapor metninin yeterli ve anlaşılır olduğundan emin olun.");
+    const isCustomModelSelected = !!input.customModelIdentifier;
+    const isProUser = input.userPlan === 'pro';
+    const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+
+    const enrichedInput = {
+      ...input,
+      isProUser,
+      isCustomModelSelected,
+      isGemini25PreviewSelected,
+    };
+
+    if (input.customModelIdentifier) {
+      switch (input.customModelIdentifier) {
+        case 'default_gemini_flash':
+          modelToUse = 'googleai/gemini-2.0-flash';
+          break;
+        case 'experimental_gemini_1_5_flash':
+          modelToUse = 'googleai/gemini-1.5-flash-latest';
+          break;
+        case 'experimental_gemini_2_5_flash_preview':
+          modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
+          break;
+        default:
+          console.warn(`[Exam Report Analyzer Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting to ${modelToUse}`);
+      }
+    } else if (input.userPlan === 'pro') {
+      modelToUse = 'googleai/gemini-1.5-flash-latest';
     }
-    return output;
+    
+    callOptions.model = modelToUse;
+
+    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
+      callOptions.config = {
+        generationConfig: {
+          maxOutputTokens: 4096, // Örnek bir değer, raporun karmaşıklığına göre ayarlanabilir
+        }
+      };
+    } else {
+       callOptions.config = {};
+    }
+    
+    console.log(`[Exam Report Analyzer Flow] Using model: ${modelToUse} for plan: ${input.userPlan}, customModel: ${input.customModelIdentifier}`);
+    
+    try {
+        const {output} = await prompt(enrichedInput, callOptions);
+        if (!output || !output.identifiedTopics || output.identifiedTopics.length === 0) {
+        throw new Error("AI Sınav Analisti, bu rapor için detaylı bir analiz ve öneri üretemedi. Lütfen rapor metninin yeterli ve anlaşılır olduğundan emin olun.");
+        }
+        return output;
+    } catch (error: any) {
+        console.error(`[Exam Report Analyzer Flow] Error during generation with model ${modelToUse}:`, error);
+        let errorMessage = `AI modeli (${modelToUse}) ile sınav raporu analizi yapılırken bir hata oluştu.`;
+        if (error.message) {
+            errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
+        }
+        return {
+            identifiedTopics: [],
+            overallFeedback: errorMessage,
+            studySuggestions: ["Lütfen rapor metnini kontrol edin veya daha sonra tekrar deneyin."],
+            reportSummaryTitle: "Analiz Hatası"
+        };
+    }
   }
 );
-
+    
