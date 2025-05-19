@@ -31,7 +31,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Brain, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation, Timer, CalendarClock, ListChecks, Palette, Youtube, MessageSquareQuestion } from "lucide-react";
+import { Brain, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation, Timer, CalendarClock, ListChecks, Palette, Youtube } from "lucide-react";
 import Link from "next/link";
 import QuotaDisplay from "@/components/dashboard/QuotaDisplay";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
@@ -49,12 +49,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const [isAiToolsSubmenuOpen, setIsAiToolsSubmenuOpen] = useState(false);
   const [isHelperToolsSubmenuOpen, setIsHelperToolsSubmenuOpen] = useState(false);
 
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.replace("/landing");
-    }
-  }, [user, authLoading, router]);
-
   const aiToolPaths = [
     "/dashboard/ai-tools/pdf-summarizer",
     "/dashboard/ai-tools/topic-summarizer",
@@ -71,6 +65,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     "/dashboard/tools/pomodoro",
     "/dashboard/tools/countdown",
     "/dashboard/tools/goal-tracker",
+    // "/dashboard/tools/whiteboard", // Karalama tahtası kaldırıldı
   ];
 
   useEffect(() => {
@@ -164,7 +159,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 <DropdownMenuItem asChild className="cursor-pointer">
                     <Link href="/dashboard/support">
                         <LifeBuoy className="mr-2 h-4 w-4" />
-                        <span>Destek</span>
+                        <span>Destek Talebi</span>
                     </Link>
                 </DropdownMenuItem>
                 {userProfile?.isAdmin && (
@@ -298,6 +293,13 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                           <Link href="/dashboard/tools/goal-tracker"><ListChecks /><span>Hedef Takipçisi</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
+                      {/* Karalama tahtası linki kaldırıldı
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/tools/whiteboard"}>
+                          <Link href="/dashboard/tools/whiteboard"><Palette /><span>Dijital Karalama Tahtası</span></Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      */}
                     </SidebarMenuSub>
                   )}
                 </SidebarMenuItem>
@@ -346,7 +348,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               {userProfile?.plan === 'free' && (
                 <div className="p-2 group-data-[collapsible=icon]:hidden text-center">
                   <div style={{width: '100%', height: '100px', background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius)', fontSize: '0.8rem', border: '1px dashed hsl(var(--border))'}}>
-                    Reklam Alanı (Örn: 120x100)
+                    Reklam Alanı (120x100)
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">Reklamsız deneyim için <Link href="/pricing" className="underline text-primary">Pro'ya</Link> geçin.</p>
                 </div>
@@ -365,16 +367,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           </Sidebar>
           <SidebarInset className="flex-1 overflow-y-auto bg-background">
             <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-              {userProfile?.plan === 'free' && (
-                <div className="mb-6 p-3 text-center bg-muted/50 border border-dashed rounded-md">
-                   <div style={{width: '100%', minHeight: '90px', background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius)', fontSize: '0.9rem', border: '1px dashed hsl(var(--border))'}}>
-                    Reklam Alanı (Örn: Banner 728x90)
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Reklamsız bir deneyim ve daha fazla özellik için <Link href="/pricing" className="underline text-primary">Premium veya Pro'ya</Link> geçin!
-                  </p>
-                </div>
-              )}
+              {/* Üst banner reklamı kaldırıldı */}
               {children}
             </main>
             <Footer appName="NeutralEdu AI" />
@@ -384,5 +377,3 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     </SidebarProvider>
   );
 }
-
-    
