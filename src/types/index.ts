@@ -1,4 +1,3 @@
-
 import type { Timestamp } from "firebase/firestore";
 import type { User as FirebaseUser } from "firebase/auth";
 
@@ -8,7 +7,7 @@ export interface UserProfile {
   displayName?: string | null;
   plan: "free" | "premium" | "pro";
   dailyRemainingQuota: number;
-  lastSummaryDate: Timestamp | string | null; 
+  lastSummaryDate: Timestamp | string | null;
   isAdmin?: boolean;
   planExpiryDate?: Timestamp | null;
   createdAt?: Timestamp;
@@ -24,12 +23,20 @@ export interface AuthContextType {
 export type SupportTicketStatus = "open" | "answered" | "closed_by_user" | "closed_by_admin";
 export type SupportTicketSubject = "premium" | "ai_tools" | "account" | "bug_report" | "other";
 
+export interface SupportMessage {
+  id?: string;
+  senderId: string;
+  senderType: "user" | "admin";
+  senderName: string;
+  text: string;
+  timestamp: Timestamp;
+}
 export interface SupportTicket {
-  id: string; 
+  id: string;
   userId: string;
   userEmail: string | null;
   userName?: string | null;
-  userPlan?: UserProfile["plan"]; 
+  userPlan?: UserProfile["plan"];
   subject: SupportTicketSubject;
   status: SupportTicketStatus;
   createdAt: Timestamp;
@@ -37,16 +44,9 @@ export interface SupportTicket {
   lastMessageSnippet?: string;
   lastMessageAt?: Timestamp;
   lastRepliedByAdmin?: boolean;
+  messages?: SupportMessage[]; // For holding messages when fetched
 }
 
-export interface SupportMessage {
-  id?: string; 
-  senderId: string; 
-  senderType: "user" | "admin";
-  senderName: string; 
-  text: string;
-  timestamp: Timestamp;
-}
 
 export interface PricingPlanDetails {
   price: string;
@@ -78,5 +78,5 @@ export interface Notification {
   description: string;
   createdAt: Timestamp;
   read: boolean;
-  link?: string; 
+  link?: string;
 }

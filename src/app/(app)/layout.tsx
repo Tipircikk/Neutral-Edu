@@ -28,8 +28,9 @@ import {
   DropdownMenuContent,
   DropdownMenuLabel,
   DropdownMenuTrigger,
+  DropdownMenuItem, // Added this import
 } from "@/components/ui/dropdown-menu";
-import { BookOpenText, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation, Timer, CalendarClock, ListChecks, Palette, Brain } from "lucide-react";
+import { Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation, Timer, CalendarClock, ListChecks, Palette, Youtube, Brain } from "lucide-react";
 import Link from "next/link";
 import QuotaDisplay from "@/components/dashboard/QuotaDisplay";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
@@ -52,38 +53,33 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     }
   }, [user, authLoading, router]);
 
+  const aiToolPaths = [
+    "/dashboard/ai-tools/pdf-summarizer",
+    "/dashboard/ai-tools/topic-summarizer",
+    "/dashboard/ai-tools/topic-explainer",
+    "/dashboard/ai-tools/flashcard-generator",
+    "/dashboard/ai-tools/question-solver",
+    "/dashboard/ai-tools/test-generator",
+    "/dashboard/ai-tools/exam-report-analyzer",
+    "/dashboard/ai-tools/study-plan-generator",
+    "/dashboard/ai-tools/video-summarizer", // Added new path
+  ];
+
+  const helperToolPaths = [
+    "/dashboard/tools/pomodoro",
+    "/dashboard/tools/countdown",
+    "/dashboard/tools/goal-tracker",
+  ];
+
   useEffect(() => {
-    const aiToolPaths = [
-      "/dashboard/ai-tools/pdf-summarizer",
-      "/dashboard/ai-tools/topic-summarizer",
-      "/dashboard/ai-tools/topic-explainer",
-      "/dashboard/ai-tools/flashcard-generator",
-      "/dashboard/ai-tools/question-solver",
-      "/dashboard/ai-tools/test-generator",
-      "/dashboard/ai-tools/exam-report-analyzer",
-      "/dashboard/ai-tools/study-plan-generator",
-    ];
     if (aiToolPaths.some(path => pathname.startsWith(path))) {
       setIsAiToolsSubmenuOpen(true);
-    } else {
-      // Optional: close submenu if navigating away from its children
-      // setIsAiToolsSubmenuOpen(false);
     }
 
-    const helperToolPaths = [
-      "/dashboard/tools/pomodoro",
-      "/dashboard/tools/countdown",
-      "/dashboard/tools/goal-tracker",
-      // "/dashboard/tools/whiteboard", // Karalama tahtası kaldırılmıştı
-    ];
     if (helperToolPaths.some(path => pathname.startsWith(path))) {
       setIsHelperToolsSubmenuOpen(true);
-    } else {
-      // Optional: close submenu if navigating away from its children
-      // setIsHelperToolsSubmenuOpen(false);
     }
-
-  }, [pathname]);
+  }, [pathname]); // Removed aiToolPaths and helperToolPaths from dependencies as they are constant
 
   const handleSignOut = async () => {
     await firebaseSignOut();
@@ -147,7 +143,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         </header>
 
         <div className="flex flex-1">
-          <Sidebar collapsible="icon" className="border-r bg-card text-card-foreground">
+          <Sidebar collapsible="icon" className="border-r bg-sidebar text-sidebar-foreground">
             <SidebarHeader className="p-4 mb-2">
               <Link href="/dashboard" className="flex items-center gap-2.5 group-data-[collapsible=icon]:justify-center">
                 <Brain className="h-8 w-8 text-primary" />
@@ -217,6 +213,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                           <Link href="/dashboard/ai-tools/study-plan-generator"><CalendarDays /><span>AI Çalışma Planı</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
+                       <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/video-summarizer"} className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
+                          <Link href="/dashboard/ai-tools/video-summarizer"><Youtube /><span>AI Video Özetleyici</span></Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
                     </SidebarMenuSub>
                   )}
                 </SidebarMenuItem>
@@ -275,8 +276,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               </SidebarMenu>
             </SidebarContent>
             <SidebarFooter className="p-2 mt-auto space-y-2">
-               {/* AI Soru Çözücü kartı kaldırıldı */}
-
                {(userProfile?.plan !== 'premium' && userProfile?.plan !== 'pro') && (
                 <Card className="bg-gradient-to-br from-primary/20 to-accent/20 border-primary/50 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:border-none">
                   <CardContent className="p-3 group-data-[collapsible=icon]:p-0">
@@ -308,7 +307,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               </SidebarMenu>
             </SidebarFooter>
           </Sidebar>
-          <SidebarInset className="flex-1 overflow-y-auto bg-background"> {/* Main content background */}
+          <SidebarInset className="flex-1 overflow-y-auto bg-background">
             <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
               {children}
             </main>

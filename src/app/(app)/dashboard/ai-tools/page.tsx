@@ -4,13 +4,13 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { FileScan, HelpCircle, FileTextIcon, Lightbulb, ArrowRight, LayoutGrid, ClipboardCheck, CalendarDays, Presentation } from "lucide-react";
+import { FileScan, HelpCircle, FileTextIcon, Lightbulb, ArrowRight, LayoutGrid, ClipboardCheck, CalendarDays, Presentation, Youtube } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const allAiTools = [
   {
-    name: "AI PDF Özetleyici",
-    description: "Uzun PDF'lerinizi saniyeler içinde anahtar noktaları içeren anlaşılır özetlere dönüştürün.",
+    name: "AI PDF Anlatıcısı",
+    description: "Uzun PDF'lerinizi saniyeler içinde anahtar noktaları içeren, detaylı ve öğrenci dostu anlatımlara dönüştürün.",
     icon: <FileScan className="h-10 w-10 text-primary mb-4" />,
     link: "/dashboard/ai-tools/pdf-summarizer",
     status: "active",
@@ -18,15 +18,15 @@ const allAiTools = [
   },
   {
     name: "AI Soru Çözücü",
-    description: "Karmaşık sorularınıza adım adım çözümler ve açıklamalar alın. İsterseniz soru içeren bir görsel de yükleyebilirsiniz.",
+    description: "Karmaşık YKS sorularınıza adım adım çözümler ve açıklamalar alın. (Geliştirme Aşamasında)",
     icon: <HelpCircle className="h-10 w-10 text-primary mb-4" />,
     link: "/dashboard/ai-tools/question-solver",
-    status: "soon", // Değiştirildi
+    status: "soon",
     category: "soru",
   },
   {
     name: "AI Test Oluşturucu",
-    description: "Belirlediğiniz konulardan YKS formatında pratik testler oluşturun.",
+    description: "Belirlediğiniz konulardan YKS formatında, detaylı çözümlü pratik testler oluşturun.",
     icon: <FileTextIcon className="h-10 w-10 text-primary mb-4" />,
     link: "/dashboard/ai-tools/test-generator",
     status: "active",
@@ -34,7 +34,7 @@ const allAiTools = [
   },
   {
     name: "AI Konu Özetleyici",
-    description: "Geniş konuları veya metinleri temel kavramlarına indirgeyerek hızlıca öğrenin.",
+    description: "Geniş konuları veya metinleri temel kavramlarına indirgeyerek YKS odaklı hızlı özetler alın.",
     icon: <Lightbulb className="h-10 w-10 text-primary mb-4" />,
     link: "/dashboard/ai-tools/topic-summarizer",
     status: "active",
@@ -50,7 +50,7 @@ const allAiTools = [
   },
   {
     name: "AI Sınav Raporu Analizcisi",
-    description: "YKS deneme sınavı raporlarınızı yükleyerek zayıf olduğunuz konuları ve gelişim alanlarınızı belirleyin.",
+    description: "YKS deneme sınavı raporlarınızı (PDF) analiz ederek zayıf olduğunuz konuları ve gelişim alanlarınızı belirleyin.",
     icon: <ClipboardCheck className="h-10 w-10 text-primary mb-4" />,
     link: "/dashboard/ai-tools/exam-report-analyzer",
     status: "active",
@@ -66,10 +66,18 @@ const allAiTools = [
   },
   {
     name: "AI Konu Anlatımı Oluşturucu",
-    description: "Belirttiğiniz YKS konusunu yapay zekanın detaylı ve anlaşılır bir şekilde anlatmasını sağlayın.",
+    description: "Belirttiğiniz YKS konusunu yapay zekanın detaylı, seviyeli ve farklı hoca tarzlarında anlatmasını sağlayın.",
     icon: <Presentation className="h-10 w-10 text-primary mb-4" />,
     link: "/dashboard/ai-tools/topic-explainer",
     status: "active",
+    category: "ozetleme",
+  },
+  {
+    name: "AI Video Özetleyici",
+    description: "YouTube ders videolarının linkini vererek eğitimsel içeriklerini özetleyin. (Deneysel)",
+    icon: <Youtube className="h-10 w-10 text-primary mb-4" />,
+    link: "/dashboard/ai-tools/video-summarizer",
+    status: "active", // Changed to active for testing
     category: "ozetleme",
   },
 ];
