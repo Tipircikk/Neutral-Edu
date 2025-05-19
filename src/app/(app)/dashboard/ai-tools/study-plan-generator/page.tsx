@@ -4,7 +4,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CalendarDays, Wand2, Loader2, AlertTriangle, Settings, UploadCloud, FileText as FileTextIcon } from "lucide-react"; // Renamed FileText
+import { CalendarDays, Wand2, Loader2, AlertTriangle, Settings, UploadCloud, FileText as FileTextIcon } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input as ShadInput } from "@/components/ui/input"; 
 import { Textarea } from "@/components/ui/textarea";
@@ -20,7 +20,7 @@ const MAX_PDF_SIZE_MB = 5;
 const MAX_PDF_SIZE_BYTES = MAX_PDF_SIZE_MB * 1024 * 1024;
 
 export default function StudyPlanGeneratorPage() {
-  const [userField, setUserField] = useState<GenerateStudyPlanInput["userField"] | undefined>(undefined);
+  const [userField, setUserField] = useState<GenerateStudyPlanInput["userField"]>("sayisal");
   const [customSubjectsInput, setCustomSubjectsInput] = useState("");
   const [studyDuration, setStudyDuration] = useState("4_hafta");
   const [hoursPerDay, setHoursPerDay] = useState(4);
@@ -133,10 +133,14 @@ export default function StudyPlanGeneratorPage() {
       };
       const result = await generateStudyPlan(input);
 
-      if (result && result.planTitle && result.weeklyPlans) {
+      if (result && result.planTitle && result.introduction && Array.isArray(result.weeklyPlans)) {
         const validatedWeeklyPlans = result.weeklyPlans.map((plan, index) => ({
           ...plan,
-          week: typeof plan.week === 'number' ? plan.week : index + 1,
+          week: typeof plan.week === 'number' && !isNaN(plan.week) ? plan.week : index + 1,
+          dailyTasks: Array.isArray(plan.dailyTasks) ? plan.dailyTasks.map(task => ({
+            ...task,
+            focusTopics: Array.isArray(task.focusTopics) && task.focusTopics.length > 0 ? task.focusTopics : ["Genel Tekrar / Boş Zaman"],
+          })) : [],
         }));
         setPlanOutput({ ...result, weeklyPlans: validatedWeeklyPlans });
         toast({ title: "Çalışma Planı Hazır!", description: "Kişiselleştirilmiş çalışma planınız oluşturuldu." });
@@ -148,9 +152,9 @@ export default function StudyPlanGeneratorPage() {
           setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
         }
       } else {
-        const errorMessage = result?.planTitle || "Yapay zeka bir çalışma planı üretemedi veya format hatalı.";
+        const errorMessage = result?.introduction || result?.planTitle || "Yapay zeka bir çalışma planı üretemedi veya format hatalı.";
         toast({ title: "Plan Oluşturma Sonucu Yetersiz", description: errorMessage, variant: "destructive"});
-        setPlanOutput({ planTitle: errorMessage, weeklyPlans: [], introduction: "Hata oluştu.", generalTips: [], disclaimer: "Bir sorun oluştu." });
+        setPlanOutput({ planTitle: "Plan Oluşturulamadı", weeklyPlans: [], introduction: errorMessage, disclaimer: "Bir sorun oluştu." });
       }
     } catch (error: any) {
       console.error("Çalışma planı oluşturma hatası:", error);
@@ -163,7 +167,7 @@ export default function StudyPlanGeneratorPage() {
         displayErrorMessage = error.message;
       }
       toast({ title: "Oluşturma Hatası", description: displayErrorMessage, variant: "destructive" });
-      setPlanOutput({ planTitle: displayErrorMessage, weeklyPlans: [], introduction: "Hata oluştu.", generalTips: [], disclaimer: "Bir sorun oluştu." });
+      setPlanOutput({ planTitle: "Hata", weeklyPlans: [], introduction: displayErrorMessage, disclaimer: "Bir sorun oluştu." });
     } finally {
       setIsGenerating(false);
     }
@@ -174,37 +178,40 @@ export default function StudyPlanGeneratorPage() {
     isProcessingPdf || 
     (!userField && !customSubjectsInput.trim()) ||
     (hoursPerDay < 1 || hoursPerDay > 12) || 
-    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && userProfile && !canProcess && (userProfile.dailyRemainingQuota ?? 0) <= 0) ||
     (!userProfileLoading && !userProfile);
   
   const isModelSelectDisabled = 
     isGenerating || 
     isProcessingPdf ||
     !userProfile?.isAdmin ||
-    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && userProfile && !canProcess && (userProfile.dailyRemainingQuota ?? 0) <= 0) ||
     (!userProfileLoading && !userProfile);
 
   const isFormElementsDisabled = 
     isGenerating || 
     isProcessingPdf || 
-    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && userProfile && !canProcess && (userProfile.dailyRemainingQuota ?? 0) <= 0) ||
     (!userProfileLoading && !userProfile);
 
-  const renderFormattedText = (text: string | undefined): React.ReactNode => {
+ const renderFormattedText = (text: string | undefined): React.ReactNode => {
     if (!text) return null;
     return text.split('\n').map((line, index, arr) => {
       const trimmedLine = line.trim();
-      if (trimmedLine.toUpperCase().startsWith("PRO İPUCU:")) {
-        return <p key={index} className="my-1 text-primary"><strong className="font-semibold">{trimmedLine.substring(0, "PRO İPUCU:".length)}</strong>{trimmedLine.substring("PRO İPUCU:".length)}</p>;
-      }
-      if (trimmedLine.toUpperCase().startsWith("NOT:")) {
-        return <p key={index} className="my-1 italic text-muted-foreground"><strong className="font-semibold not-italic text-foreground/90">{trimmedLine.substring(0, "NOT:".length)}</strong>{trimmedLine.substring("NOT:".length)}</p>;
+      if (trimmedLine.toUpperCase().startsWith("PRO KULLANICI İÇİN STRATEJİLER:") || 
+          trimmedLine.toUpperCase().startsWith("PREMIUM KULLANICI İÇİN STRATEJİLER:") ||
+          trimmedLine.toUpperCase().startsWith("ÜCRETSİZ KULLANICI İÇİN STRATEJİLER:") ||
+          trimmedLine.toUpperCase().startsWith("PRO İPUCU:") || 
+          trimmedLine.toUpperCase().startsWith("ÖNEMLİ NOT:") ||
+          trimmedLine.toUpperCase().startsWith("UNUTMA:")
+        ) {
+        return <p key={index} className="my-1 text-primary font-semibold"><strong className="font-bold">{trimmedLine.substring(0, trimmedLine.indexOf(':') + 1)}</strong>{trimmedLine.substring(trimmedLine.indexOf(':') + 1)}</p>;
       }
       if (trimmedLine.startsWith("* ") || trimmedLine.startsWith("- ")) {
         return <li key={index} className="ml-4 list-disc text-muted-foreground">{trimmedLine.substring(line.indexOf(' ') + 1)}</li>;
       }
-      if (trimmedLine === "" && index < arr.length -1) { 
-          return <div key={index} className="h-2"></div>;
+       if (trimmedLine === "" && index < arr.length -1 && arr[index+1].trim() !== "") { 
+          return <div key={index} className="h-2"></div>; // Boş satırlar için paragraf arası boşluk
       }
       return <p key={index} className="my-1 text-muted-foreground">{line || <>&nbsp;</>}</p>; 
     });
@@ -304,7 +311,7 @@ export default function StudyPlanGeneratorPage() {
                 </div>
             </div>
             <div>
-                <Label htmlFor="customSubjectsInput">Veya Odaklanmak İstediğiniz Özel Konular/Dersler (isteğe bağlı)</Label>
+                <Label htmlFor="customSubjectsInput">Odaklanmak İstediğiniz Özel Konular/Dersler (isteğe bağlı)</Label>
                 <Textarea
                     id="customSubjectsInput"
                     placeholder="Örn: Sadece Kimya - Organik Kimya ve Çözeltiler konuları için bir plan istiyorum."
@@ -366,15 +373,20 @@ export default function StudyPlanGeneratorPage() {
         <Card className="mt-6">
           <CardHeader>
             <CardTitle>{planOutput.planTitle}</CardTitle>
-            {planOutput.introduction && 
-                <CardDescription className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-line">
-                    {renderFormattedText(planOutput.introduction)}
-                </CardDescription>
-            }
           </CardHeader>
           <CardContent className="space-y-6">
-            <ScrollArea className="h-[600px] w-full rounded-md border p-4 bg-muted/30">
-              <div className="space-y-6">
+             {planOutput.introduction && (
+                <Card className="bg-muted/30 p-4">
+                    <CardHeader className="p-0 mb-2">
+                        <CardTitle className="text-lg text-primary">Giriş ve Genel Stratejiler</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0 prose prose-sm dark:prose-invert max-w-none">
+                        {renderFormattedText(planOutput.introduction)}
+                    </CardContent>
+                </Card>
+             )}
+            <ScrollArea className="h-auto max-h-[700px] w-full rounded-md border p-0">
+              <div className="space-y-6 p-4">
                 {planOutput.weeklyPlans.map((weekPlan, weekIndex) => (
                   <Card key={weekPlan.week ?? weekIndex} className="bg-card shadow-md">
                     <CardHeader>
@@ -405,16 +417,6 @@ export default function StudyPlanGeneratorPage() {
                     </CardContent>
                   </Card>
                 ))}
-                {planOutput.generalTips && planOutput.generalTips.length > 0 && (
-                  <Card className="mt-4 bg-card shadow-md">
-                    <CardHeader><CardTitle className="text-lg text-primary">Genel İpuçları</CardTitle></CardHeader>
-                    <CardContent>
-                        <ul className="list-disc list-inside pl-2 space-y-1 text-sm text-muted-foreground">
-                        {planOutput.generalTips.map((tip, tipIndex) => <Fragment key={tipIndex}>{renderFormattedText(tip)}</Fragment>)}
-                        </ul>
-                    </CardContent>
-                  </Card>
-                )}
               </div>
             </ScrollArea>
              <p className="text-sm text-muted-foreground mt-2">{planOutput.disclaimer}</p>
