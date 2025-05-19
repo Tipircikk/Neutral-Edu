@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { LayoutGrid, Wand2, Loader2, AlertTriangle, Settings, RotateCw } from "lucide-react";
 import { Label } from "@/components/ui/label";
-import { Input as ShadInput } from "@/components/ui/input";
+import { Input as ShadInput } from "@/components/ui/input"; // Renamed to avoid conflict if HTML Input is ever used
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -28,8 +28,8 @@ export default function FlashcardGeneratorPage() {
   const [canProcess, setCanProcess] = useState(false);
 
   const memoizedCheckAndResetQuota = useCallback(async () => {
-    if (checkAndResetQuota) return checkAndResetQuota();
-    return Promise.resolve(userProfile);
+    if (!checkAndResetQuota) return userProfile; // Return current profile if function doesn't exist
+    return checkAndResetQuota();
   }, [checkAndResetQuota, userProfile]);
 
   useEffect(() => {
@@ -61,7 +61,7 @@ export default function FlashcardGeneratorPage() {
 
     setIsGenerating(true);
     setFlashcardsOutput(null);
-    setFlippedStates({}); 
+    setFlippedStates({});
 
     const currentProfile = await memoizedCheckAndResetQuota();
     if (!currentProfile || (currentProfile.dailyRemainingQuota ?? 0) <= 0) {
@@ -102,18 +102,27 @@ export default function FlashcardGeneratorPage() {
       }
     } catch (error: any) {
       console.error("Bilgi kartı oluşturma hatası:", error);
+      let displayErrorMessage = "Bilgi kartları oluşturulurken beklenmedik bir hata oluştu.";
+      if (error instanceof Error && error.message) {
+          displayErrorMessage = error.message;
+      } else if (typeof error === 'string' && error.length > 0) {
+          displayErrorMessage = error;
+      } else if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+          displayErrorMessage = error.message;
+      }
+      
+      setFlashcardsOutput({ flashcards: [], summaryTitle: displayErrorMessage });
       toast({
         title: "Oluşturma Hatası",
-        description: error.message || "Bilgi kartları oluşturulurken beklenmedik bir hata oluştu.",
+        description: displayErrorMessage,
         variant: "destructive",
       });
-      setFlashcardsOutput({ flashcards: [], summaryTitle: error.message || "Beklenmedik bir hata oluştu." });
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const isSubmitDisabled = isGenerating || !inputText.trim() || inputText.trim().length < 50 || (numFlashcards < 3 || numFlashcards > 15) || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <= 0);
+  const isSubmitDisabled = isGenerating || !inputText.trim() || inputText.trim().length < 50 || numFlashcards < 3 || numFlashcards > 15 || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <= 0);
 
   if (userProfileLoading) {
     return (
@@ -140,17 +149,17 @@ export default function FlashcardGeneratorPage() {
           {userProfile?.isAdmin && (
             <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
               <Label htmlFor="adminModelSelectFlashcard" className="font-semibold text-primary flex items-center gap-2"><Settings size={16} /> Model Seç (Admin Özel)</Label>
-              <Select 
-                value={adminSelectedModel} 
-                onValueChange={setAdminSelectedModel} 
-                disabled={isSubmitDisabled || isGenerating}
+              <Select
+                value={adminSelectedModel}
+                onValueChange={setAdminSelectedModel}
+                disabled={isGenerating || !canProcess}
               >
                 <SelectTrigger id="adminModelSelectFlashcard">
                   <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="default_gemini_flash">Eski Varsayılan (Gemini 2.0 Flash)</SelectItem>
-                  <SelectItem value="experimental_gemini_1_5_flash">Mevcut Varsayılan (Gemini 1.5 Flash)</SelectItem>
+                  <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
+                  <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
                   <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
                 </SelectContent>
               </Select>
@@ -190,7 +199,7 @@ export default function FlashcardGeneratorPage() {
                   value={numFlashcards}
                   onChange={(e) => {
                     const val = parseInt(e.target.value, 10);
-                    setNumFlashcards(isNaN(val) ? 3 : val);
+                    setNumFlashcards(isNaN(val) ? 3 : val); // Ensure it's a number, default to 3 if NaN
                   }}
                   min="3"
                   max="15"
@@ -298,3 +307,5 @@ export default function FlashcardGeneratorPage() {
     </div>
   );
 }
+
+    

@@ -65,6 +65,10 @@ export default function TestGeneratorPage() {
     setShowExplanations({});
     setTestOutput(null);
     setIsTestFinished(false);
+    // Optionally reset form inputs if desired
+    // setTopic(""); 
+    // setNumQuestions(5);
+    // setDifficulty("medium");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -197,13 +201,13 @@ export default function TestGeneratorPage() {
   
   if (isTestFinished && testOutput) {
     let correctCount = 0;
-    testOutput.questions.forEach((_, index) => {
+    testOutput.questions.forEach((q, index) => {
         const answerInfo = checkedAnswers[index];
-        if (!answerInfo && userAnswers[index] !== undefined) {
-            if(userAnswers[index] === testOutput.questions[index].correctAnswer) {
+        if (!answerInfo && userAnswers[index] !== undefined) { // If answer was selected but not explicitly "checked"
+            if(userAnswers[index] === q.correctAnswer) { // Check against correct answer
                 correctCount++;
             }
-        } else if (answerInfo?.isCorrect) {
+        } else if (answerInfo?.isCorrect) { // If answer was "checked" and is correct
              correctCount++;
         }
     });
@@ -298,8 +302,8 @@ export default function TestGeneratorPage() {
                         <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="default_gemini_flash">Eski Varsayılan (Gemini 2.0 Flash)</SelectItem>
-                        <SelectItem value="experimental_gemini_1_5_flash">Mevcut Varsayılan (Gemini 1.5 Flash)</SelectItem>
+                        <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
+                        <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
                         <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
                       </SelectContent>
                     </Select>

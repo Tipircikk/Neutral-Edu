@@ -104,17 +104,20 @@ export default function VideoSummarizerPage() {
       } else if (result.warnings && result.warnings.length > 0) {
          toast({ title: "Özetleme Bilgisi", description: result.warnings.join(" "), variant: "default" });
       } else {
-        throw new Error("Yapay zeka bir video özeti üretemedi veya format hatalı.");
+        const defaultErrorMsg = "Yapay zeka bir video özeti üretemedi veya format hatalı.";
+        setSummaryOutput({ warnings: [defaultErrorMsg] });
+        toast({ title: "Özetleme Sonucu Yetersiz", description: defaultErrorMsg, variant: "destructive"});
       }
     } catch (error: any) {
       console.error("Video özetleme hatası:", error);
+      const errorMsg = error.message || "Video özetlenirken beklenmedik bir hata oluştu.";
       toast({
         title: "Video Özetleme Hatası",
-        description: error.message || "Video özetlenirken beklenmedik bir hata oluştu.",
+        description: errorMsg,
         variant: "destructive",
       });
        setSummaryOutput({ 
-            warnings: [error.message || "Video özetlenirken beklenmedik bir hata oluştu."]
+            warnings: [errorMsg]
         });
     } finally {
       setIsSummarizing(false);
@@ -151,14 +154,14 @@ export default function VideoSummarizerPage() {
                 <Select 
                   value={adminSelectedModel} 
                   onValueChange={setAdminSelectedModel} 
-                  disabled={isSubmitDisabled}
+                  disabled={isSubmitDisabled || isSummarizing}
                 >
                   <SelectTrigger id="adminModelSelectVideoSum">
                     <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="default_gemini_flash">Eski Varsayılan (Gemini 2.0 Flash)</SelectItem>
-                    <SelectItem value="experimental_gemini_1_5_flash">Mevcut Varsayılan (Gemini 1.5 Flash)</SelectItem>
+                    <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
                     <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
                   </SelectContent>
                 </Select>

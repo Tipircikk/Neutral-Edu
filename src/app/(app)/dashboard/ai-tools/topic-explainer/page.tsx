@@ -46,30 +46,32 @@ export default function TopicExplainerPage() {
     if (!line) return [<React.Fragment key="empty-line"></React.Fragment>];
     
     const elements: React.ReactNode[] = [];
-    let currentSegment = "";
-    
-    // Regex to find patterns like text^number or text_number
-    const regex = /(\S+?)\_(\d+|\{\d+\})|(\S+?)\^(\d+|\{\d+\})/g;
+    // Regex to find patterns like text^number or text_number or **bold text**
+    // It will match **text**, then text_number, then text^number
+    // Order matters if patterns can overlap. Here, bold is distinct.
+    const regex = /\*\*(.*?)\*\*|(\S+?)_(\d+|\{\d+\})|(\S+?)\^(\d+|\{\d+\})/g;
     let lastIndex = 0;
     let match;
-
+  
     while ((match = regex.exec(line)) !== null) {
       // Add text before the match
       elements.push(line.substring(lastIndex, match.index));
       
-      if (match[1] && match[2]) { // Subscript: text_number or text_{number}
-        elements.push(match[1]);
-        elements.push(<sub key={`sub-${match.index}-${Math.random()}`}>{match[2].replace(/[{}]/g, '')}</sub>);
-      } else if (match[3] && match[4]) { // Superscript: text^number or text^{number}
-        elements.push(match[3]);
-        elements.push(<sup key={`sup-${match.index}-${Math.random()}`}>{match[4].replace(/[{}]/g, '')}</sup>);
+      if (match[1]) { // Bold: **text**
+        elements.push(<strong key={`bold-${match.index}-${Math.random()}`}>{match[1]}</strong>);
+      } else if (match[2] && match[3]) { // Subscript: text_number or text_{number}
+        elements.push(match[2]);
+        elements.push(<sub key={`sub-${match.index}-${Math.random()}`}>{match[3].replace(/[{}]/g, '')}</sub>);
+      } else if (match[4] && match[5]) { // Superscript: text^number or text^{number}
+        elements.push(match[4]);
+        elements.push(<sup key={`sup-${match.index}-${Math.random()}`}>{match[5].replace(/[{}]/g, '')}</sup>);
       }
       lastIndex = regex.lastIndex;
     }
     // Add any remaining text after the last match
     elements.push(line.substring(lastIndex));
     
-    return elements.filter(el => el !== ""); // Filter out empty strings that might result from splitting
+    return elements.filter(el => el !== ""); 
   };
 
 
@@ -182,7 +184,7 @@ export default function TopicExplainerPage() {
     toast({ title: "PDF Oluşturuluyor...", description: "Lütfen bekleyin."});
 
     try {
-      const { default: jsPDF } = await import('jspdf'); // Dynamic import
+      const { default: jsPDF } = await import('jspdf'); 
 
       const doc = new jsPDF({
         orientation: 'p',
@@ -210,16 +212,14 @@ export default function TopicExplainerPage() {
         doc.setFontSize(fontSize);
         doc.setFont('Helvetica', fontStyle); 
         doc.setTextColor(color);
-
-        // Basic handling for superscripts (like x^2) and subscripts (like H_2O)
-        // This is a simplified version and won't handle complex LaTeX or MathML.
+        
         const cleanedText = text.replace(/(\S+)\^(\d+|\{\d+\})/g, '$1^$2') 
                                .replace(/(\S+)_(\d+|\{\d+\})/g, '$1_$2'); 
 
 
         const lines = doc.splitTextToSize(cleanedText, maxWidth); 
         
-        lines.forEach((line: string, index: number) => {
+        lines.forEach((line: string, lineIndex: number) => {
           if (y + lineHeight > pageHeight - margin - 10) { 
             doc.addPage();
             y = margin; 
@@ -227,7 +227,7 @@ export default function TopicExplainerPage() {
             doc.setFont('Helvetica', fontStyle);
             doc.setTextColor(color);
           }
-          const lineText = isListItem && index === 0 ? `• ${line}` : line;
+          const lineText = isListItem && lineIndex === 0 ? `• ${line}` : line;
           const xOffset = isTitle ? (pageWidth - doc.getTextWidth(lineText)) / 2 : (isListItem ? margin + 3 : margin); 
           doc.text(lineText, xOffset, y);
           y += lineHeight; 
@@ -329,8 +329,8 @@ export default function TopicExplainerPage() {
                     <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="default_gemini_flash">Eski Varsayılan (Gemini 2.0 Flash)</SelectItem>
-                    <SelectItem value="experimental_gemini_1_5_flash">Mevcut Varsayılan (Gemini 1.5 Flash)</SelectItem>
+                    <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
                     <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
                   </SelectContent>
                 </Select>

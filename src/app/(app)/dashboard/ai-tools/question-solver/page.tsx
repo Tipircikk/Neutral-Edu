@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { HelpCircle, Send, Loader2, AlertTriangle, UploadCloud, ImageIcon } from "lucide-react";
+import { HelpCircle, Send, Loader2, AlertTriangle, UploadCloud, ImageIcon, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { solveQuestion, type SolveQuestionOutput, type SolveQuestionInput } from "@/ai/flows/question-solver-flow";
@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ParsedSolution {
-  answerValue: string | null;
+  answerValue: React.ReactNode[] | null;
   explanationSections: React.ReactNode[];
 }
 
@@ -31,7 +31,7 @@ export default function QuestionSolverPage() {
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
   const [canProcess, setCanProcess] = useState(false);
-  const [adminSelectedModel, setAdminSelectedModel] = useState<string>("experimental_gemini_1_5_flash");
+  const [adminSelectedModel, setAdminSelectedModel] = useState<string | undefined>(undefined);
 
   const [loadingMessage, setLoadingMessage] = useState("Çözüm oluşturuluyor...");
   const loadingMessageIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -71,7 +71,7 @@ export default function QuestionSolverPage() {
             messageIndex++;
           }
         }
-      }, 5000);
+      }, 5000); // Check every 5 seconds
     } else {
       if (loadingMessageIntervalRef.current) clearInterval(loadingMessageIntervalRef.current);
       loadingStartTimeRef.current = null;
@@ -79,57 +79,87 @@ export default function QuestionSolverPage() {
     return () => { if (loadingMessageIntervalRef.current) clearInterval(loadingMessageIntervalRef.current); };
   }, [isSolving]);
 
-  const parseInlineFormatting = (line: string): React.ReactNode[] => {
-    if (!line) return [];
+  const parseInlineFormatting = (line: string | undefined | null): React.ReactNode[] => {
+    if (!line) return [<React.Fragment key="empty-line"></React.Fragment>];
+    
     const elements: React.ReactNode[] = [];
-    let remainingLine = line;
-
-    // Handle bold text: **text**
-    const boldRegex = /\*\*(.*?)\*\*/g;
+    // Regex to find patterns like text^number, text_number, or **bold text**
+    const regex = /\*\*(.*?)\*\*|(\S+?)_(\d+|\{\S+\})|(\S+?)\^(\d+|\{\S+\})/g;
     let lastIndex = 0;
     let match;
-
-    while ((match = boldRegex.exec(remainingLine)) !== null) {
-      if (match.index > lastIndex) {
-        elements.push(remainingLine.substring(lastIndex, match.index));
+  
+    while ((match = regex.exec(line)) !== null) {
+      // Add text before the match
+      elements.push(line.substring(lastIndex, match.index));
+      
+      if (match[1]) { // Bold: **text**
+        elements.push(<strong key={`bold-${match.index}-${Math.random()}`}>{match[1]}</strong>);
+      } else if (match[2] && match[3]) { // Subscript: text_number or text_{number}
+        elements.push(match[2]);
+        elements.push(<sub key={`sub-${match.index}-${Math.random()}`}>{match[3].replace(/[{}]/g, '')}</sub>);
+      } else if (match[4] && match[5]) { // Superscript: text^number or text^{number}
+        elements.push(match[4]);
+        elements.push(<sup key={`sup-${match.index}-${Math.random()}`}>{match[5].replace(/[{}]/g, '')}</sup>);
       }
-      elements.push(<strong key={`bold-${elements.length}`}>{match[1]}</strong>);
-      lastIndex = match.index + match[0].length;
+      lastIndex = regex.lastIndex;
     }
-    if (lastIndex < remainingLine.length) {
-      elements.push(remainingLine.substring(lastIndex));
-    }
+    elements.push(line.substring(lastIndex));
     
-    // Simple ^ and _ parsing can be added here if needed, but bold is primary for now based on image
-    // For example, for superscripts (x^2):
-    // return elements.flatMap(el => typeof el === 'string' ? el.split(/(\S+\^\S+)/g).map((part, idx) => part.includes('^') ? <Fragment key={`${idx}-sup`}>{part.split('^')[0]}<sup>{part.split('^')[1]}</sup></Fragment> : part) : el);
-    // This part needs to be more robust if multiple inline formats are mixed.
-    // For now, focusing on bold as per the image.
-    return elements;
+    return elements.filter(el => el !== ""); 
   };
 
-  const formatSolverOutputForDisplay = (text: string): ParsedSolution => {
+ const formatSolverOutputForDisplay = (text: string): ParsedSolution => {
     const lines = text.split('\n');
-    let answerValue: string | null = null;
+    let answerValue: React.ReactNode[] | null = null;
     const explanationSections: React.ReactNode[] = [];
     let isExplanationSection = false;
     let currentListItems: React.ReactNode[] = [];
+    let inCodeBlock = false;
+    let codeBlockContent = "";
 
     const flushList = () => {
       if (currentListItems.length > 0) {
         explanationSections.push(
-          <ul key={`ul-${explanationSections.length}`} className="list-disc pl-5 my-2 space-y-1">
+          <ul key={`ul-${explanationSections.length}-${Math.random()}`} className="list-disc pl-5 my-2 space-y-1">
             {currentListItems.map((itemContent, idx) => <li key={idx}>{itemContent}</li>)}
           </ul>
         );
         currentListItems = [];
       }
     };
+    
+    const flushCodeBlock = () => {
+        if (inCodeBlock) {
+            explanationSections.push(
+                <pre key={`pre-${explanationSections.length}-${Math.random()}`} className="bg-muted p-2 rounded-md overflow-x-auto text-sm my-2">
+                    <code>{codeBlockContent.trimEnd()}</code>
+                </pre>
+            );
+            codeBlockContent = "";
+            inCodeBlock = false;
+        }
+    };
+
 
     let captureAnswer = false;
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       const trimmedLine = line.trim();
+
+      if (trimmedLine.startsWith("```")) {
+          if (inCodeBlock) { // End of code block
+              flushCodeBlock();
+          } else { // Start of code block
+              flushList();
+              inCodeBlock = true;
+          }
+          continue;
+      }
+
+      if (inCodeBlock) {
+          codeBlockContent += line + '\n';
+          continue;
+      }
 
       if (trimmedLine.toLowerCase().startsWith("cevap:")) {
         flushList();
@@ -137,11 +167,10 @@ export default function QuestionSolverPage() {
         captureAnswer = true;
         const answerText = trimmedLine.substring("cevap:".length).trim();
         if (answerText) {
-          answerValue = answerText;
+          answerValue = parseInlineFormatting(answerText);
         } else if (lines[i+1] && lines[i+1].trim() && !lines[i+1].trim().toLowerCase().startsWith("açıklama:")) {
-          // If answer is on the next line and it's not the explanation starting
-          answerValue = lines[i+1].trim();
-          i++; // Skip next line as it's part of the answer
+          answerValue = parseInlineFormatting(lines[i+1].trim());
+          i++; 
         }
         continue;
       }
@@ -150,12 +179,12 @@ export default function QuestionSolverPage() {
         flushList();
         isExplanationSection = true;
         captureAnswer = false;
-        explanationSections.push(<div key={`desc-label-${explanationSections.length}`} className="h-2"></div>); // Space after label
+        explanationSections.push(<div key={`desc-label-${explanationSections.length}`} className="h-2"></div>); 
         continue;
       }
 
       if (captureAnswer && trimmedLine && !trimmedLine.toLowerCase().startsWith("açıklama:")) {
-        answerValue = (answerValue ? answerValue + "\n" : "") + trimmedLine;
+        answerValue = [...(answerValue || []), ...parseInlineFormatting((answerValue ? "\n" : "") + trimmedLine)];
         continue;
       }
       
@@ -170,22 +199,23 @@ export default function QuestionSolverPage() {
           currentListItems.push(parseInlineFormatting(trimmedLine.substring(trimmedLine.indexOf(' ') + 1)));
         } else if (trimmedLine === "") {
           flushList();
-          explanationSections.push(<div key={`space-${explanationSections.length}`} className="h-2"></div>);
         } else {
           flushList();
           explanationSections.push(<p key={`p-${explanationSections.length}`} className="mb-2 last:mb-0">{parseInlineFormatting(line)}</p>);
         }
       }
     }
-    flushList(); // Ensure any remaining list items are flushed
+    flushList(); 
+    flushCodeBlock();
 
     return { answerValue, explanationSections };
   };
 
+
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
         toast({ title: "Dosya Boyutu Büyük", description: "Lütfen 5MB'den küçük bir görsel yükleyin.", variant: "destructive" });
         event.target.value = ""; setImageFile(null); setImageDataUri(null); return;
       }
@@ -228,7 +258,7 @@ export default function QuestionSolverPage() {
 
       if (result && typeof result.solution === 'string' && Array.isArray(result.relatedConcepts) && Array.isArray(result.examStrategyTips)) {
         if (result.solution.startsWith("AI modeli") || result.solution.startsWith("Sunucu tarafında") || result.solution.includes("Hata:") || result.solution.includes("Error:")) {
-           toast({ title: "Çözüm Bilgisi", description: "Detaylar için çözüme bakın.", variant: "default" });
+           toast({ title: "Çözüm Bilgisi", description: result.solution.substring(0,100) + "...", variant: "default" });
         } else {
            toast({ title: "Çözüm Hazır!", description: "Sorunuz için bir çözüm oluşturuldu." });
         }
@@ -277,6 +307,28 @@ export default function QuestionSolverPage() {
           <div className="flex items-center gap-3"> <HelpCircle className="h-7 w-7 text-primary" /> <CardTitle className="text-2xl">AI Soru Çözücü</CardTitle> </div>
           <CardDescription> Aklınızdaki soruları sorun, yapay zeka size adım adım çözümler ve açıklamalar sunsun. İsterseniz soru içeren bir görsel de yükleyebilirsiniz. </CardDescription>
         </CardHeader>
+        <CardContent>
+            {userProfile?.isAdmin && (
+              <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
+                <Label htmlFor="adminModelSelectSolver" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
+                <Select 
+                  value={adminSelectedModel} 
+                  onValueChange={setAdminSelectedModel} 
+                  disabled={isSubmitDisabled || isSolving}
+                >
+                  <SelectTrigger id="adminModelSelectSolver">
+                    <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground"> Farklı AI modellerini test edebilirsiniz. </p>
+              </div>
+            )}
+        </CardContent>
       </Card>
 
       {!canProcess && !isSolving && userProfile && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
@@ -289,20 +341,6 @@ export default function QuestionSolverPage() {
       <form onSubmit={handleSubmit}>
         <Card>
           <CardContent className="pt-6 space-y-4">
-            {userProfile?.isAdmin && (
-              <div className="space-y-2 p-4 border rounded-md bg-muted/50">
-                <Label htmlFor="adminModelSelect" className="font-semibold text-primary">Model Seç (Admin Özel)</Label>
-                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSolving}>
-                  <SelectTrigger id="adminModelSelect"><SelectValue placeholder="Model seçin" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
-                    <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
-                    <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground"> Bu seçenek sadece adminlere özeldir. Farklı Google modellerini test edebilirsiniz. </p>
-              </div>
-            )}
             <div>
               <Label htmlFor="questionText" className="block text-sm font-medium text-foreground mb-1">Soru Metni (isteğe bağlı)</Label>
               <Textarea id="questionText" placeholder="Örneğin: Bir dik üçgenin hipotenüsü 10 cm, bir dik kenarı 6 cm ise diğer dik kenarı kaç cm'dir?" value={questionText} onChange={(e) => setQuestionText(e.target.value)} rows={5} className="text-base" disabled={isSolving || !canProcess} />
@@ -337,9 +375,9 @@ export default function QuestionSolverPage() {
             <ScrollArea className="h-auto max-h-[600px] w-full rounded-md border p-4 bg-muted/30">
               <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
                 {parsedSolution.answerValue && (
-                  <div className="mb-4">
+                  <div className="mb-4 p-3 border-b border-border">
                     <h3 className="text-lg font-semibold text-primary mb-1">Cevap:</h3>
-                    <p className="text-lg font-bold text-foreground">{parsedSolution.answerValue}</p>
+                    <div className="text-lg font-bold text-foreground">{parsedSolution.answerValue}</div>
                   </div>
                 )}
                 {parsedSolution.explanationSections.length > 0 && (
@@ -349,7 +387,7 @@ export default function QuestionSolverPage() {
                   </div>
                 )}
                 {!parsedSolution.answerValue && parsedSolution.explanationSections.length === 0 && answer?.solution && (
-                   <p>{parseInlineFormatting(answer.solution)}</p> // Fallback for non-structured error messages
+                   <p>{parseInlineFormatting(answer.solution)}</p> 
                 )}
               </div>
             </ScrollArea>
@@ -376,5 +414,3 @@ export default function QuestionSolverPage() {
     </div>
   );
 }
-
-    

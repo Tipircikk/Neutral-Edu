@@ -125,7 +125,7 @@ export default function PdfSummarizerPage() {
     }
   };
   
-  const isProcessingDisabled = isSummarizing || (!canProcess && !isSummarizing && (userProfile?.dailyRemainingQuota ?? 0) <=0);
+  const isProcessingDisabled = isSummarizing || (!canProcess && !isSummarizing && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
 
 
   if (userProfileLoading) {
@@ -162,8 +162,8 @@ export default function PdfSummarizerPage() {
                     <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="default_gemini_flash">Eski Varsayılan (Gemini 2.0 Flash)</SelectItem>
-                    <SelectItem value="experimental_gemini_1_5_flash">Mevcut Varsayılan (Gemini 1.5 Flash)</SelectItem>
+                    <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
+                    <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
                     <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
                   </SelectContent>
                 </Select>
