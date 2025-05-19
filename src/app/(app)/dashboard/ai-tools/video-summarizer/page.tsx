@@ -10,31 +10,31 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Youtube, Loader2, AlertTriangle, Brain, List, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
-import { summarizeVideo } from "@/ai/flows/video-summarizer-flow"; // Sadece ana fonksiyonu import et
+import { summarizeVideo, type VideoSummarizerOutput, type VideoSummarizerInput } from "@/ai/flows/video-summarizer-flow"; // Artık tipleri buradan import etmiyoruz
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { z } from "zod"; // Zod'u sayfa içinde kullanmak için import et
+import { z } from "zod";
 
-// Şemaları ve tipleri doğrudan sayfa içinde tanımla
-const VideoSummarizerInputSchema = z.object({
+// Tipleri ve şemaları sayfa içinde tanımla
+const VideoSummarizerInputSchemaInternal = z.object({
   youtubeUrl: z.string().url({ message: "Lütfen geçerli bir YouTube video URL'si girin." }).describe('Özetlenmesi istenen YouTube videosunun URL adresi.'),
   userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
   customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi."),
 });
-type VideoSummarizerInput = z.infer<typeof VideoSummarizerInputSchema>;
+type VideoSummarizerInputInternal = z.infer<typeof VideoSummarizerInputSchemaInternal>;
 
-const VideoSummarizerOutputSchema = z.object({
+const VideoSummarizerOutputSchemaInternal = z.object({
   videoTitle: z.string().optional().describe('AI tarafından bulunabilirse videonun başlığı.'),
   summary: z.string().optional().describe('Videonun eğitimsel içeriğinin özeti.'),
   keyPoints: z.array(z.string()).optional().describe('Videodan çıkarılan anahtar noktalar.'),
   warnings: z.array(z.string()).optional().describe('Özetleme işlemiyle ilgili uyarılar (örn: Videoya erişilemedi, transkript bulunamadı).'),
 });
-type VideoSummarizerOutput = z.infer<typeof VideoSummarizerOutputSchema>;
+type VideoSummarizerOutputInternal = z.infer<typeof VideoSummarizerOutputSchemaInternal>;
 
 
 export default function VideoSummarizerPage() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
-  const [summaryOutput, setSummaryOutput] = useState<VideoSummarizerOutput | null>(null);
+  const [summaryOutput, setSummaryOutput] = useState<VideoSummarizerOutputInternal | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [adminSelectedModel, setAdminSelectedModel] = useState<string | undefined>(undefined);
 
@@ -62,10 +62,7 @@ export default function VideoSummarizerPage() {
       return;
     }
     try {
-      new URL(youtubeUrl); // URL formatını doğrula
-      if (!youtubeUrl.includes("youtube.com/") && !youtubeUrl.includes("youtu.be/")) {
-        throw new Error("Geçersiz YouTube URL'si.");
-      }
+      VideoSummarizerInputSchemaInternal.shape.youtubeUrl.parse(youtubeUrl);
     } catch (_) {
       toast({ title: "Geçersiz URL", description: "Lütfen geçerli bir YouTube video URL'si girin.", variant: "destructive" });
       return;
@@ -87,12 +84,12 @@ export default function VideoSummarizerPage() {
       if (!currentProfile?.plan) {
         throw new Error("Kullanıcı planı bulunamadı.");
       }
-      const input: VideoSummarizerInput = {
+      const input: VideoSummarizerInputInternal = { // Internal tipi kullan
         youtubeUrl,
         userPlan: currentProfile.plan,
         customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
       };
-      const result = await summarizeVideo(input);
+      const result = await summarizeVideo(input); // Flow'a internal tipiyle uyumlu input gönder
       setSummaryOutput(result);
 
       if (result.summary || (result.keyPoints && result.keyPoints.length > 0)) {
@@ -116,7 +113,7 @@ export default function VideoSummarizerPage() {
         description: error.message || "Video özetlenirken beklenmedik bir hata oluştu.",
         variant: "destructive",
       });
-       setSummaryOutput({ // Hata durumunda bile şemaya uygun bir nesne döndür
+       setSummaryOutput({ 
             warnings: [error.message || "Video özetlenirken beklenmedik bir hata oluştu."]
         });
     } finally {
@@ -259,3 +256,4 @@ export default function VideoSummarizerPage() {
     </div>
   );
 }
+    

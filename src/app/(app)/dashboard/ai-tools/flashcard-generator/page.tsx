@@ -177,6 +177,8 @@ export default function FlashcardGeneratorPage() {
                             const val = parseInt(e.target.value, 10);
                             setNumFlashcards(isNaN(val) ? 3 : val);
                         }}
+                        min="3"
+                        max="15"
                         className="w-full p-2 border rounded-md bg-input border-border"
                         disabled={isGenerating || !canProcess}
                     />

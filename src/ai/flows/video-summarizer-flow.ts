@@ -1,16 +1,15 @@
+
 'use server';
 /**
  * @fileOverview YouTube videolarındaki eğitimsel içeriği özetleyen bir AI aracı.
  *
  * - summarizeVideo - YouTube video özetleme işlemini yöneten fonksiyon.
- * - VideoSummarizerInput - summarizeVideo fonksiyonu için giriş tipi.
- * - VideoSummarizerOutput - summarizeVideo fonksiyonu için dönüş tipi.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-// UserProfile type'ını import etmeye gerek yok, çünkü userPlan doğrudan input şemasında tanımlanıyor.
 
+// Zod şemaları ve tipleri dosya içinde tanımlanır, dışa aktarılmaz.
 const VideoSummarizerInputSchema = z.object({
   youtubeUrl: z.string().url({ message: "Lütfen geçerli bir YouTube video URL'si girin." }).describe('Özetlenmesi istenen YouTube videosunun URL adresi.'),
   userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
@@ -27,25 +26,24 @@ const VideoSummarizerOutputSchema = z.object({
 type VideoSummarizerOutput = z.infer<typeof VideoSummarizerOutputSchema>;
 
 export async function summarizeVideo(input: VideoSummarizerInput): Promise<VideoSummarizerOutput> {
-  // Kullanıcı planına ve özel model seçimine göre boolean flag'ler oluştur
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
   const isCustomModelSelected = !!input.customModelIdentifier;
   const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
 
-  const enrichedInput = {
+  const enrichedInputForPrompt = {
     ...input,
     isProUser,
     isPremiumUser,
     isCustomModelSelected,
     isGemini25PreviewSelected,
   };
-  return videoSummarizerFlow(enrichedInput);
+  return videoSummarizerFlow(enrichedInputForPrompt);
 }
 
 const videoSummarizerPrompt = ai.definePrompt({
   name: 'videoSummarizerPrompt',
-  input: {schema: VideoSummarizerInputSchema}, // enrichedInput'a göre değil, orijinal input'a göre olmalı
+  input: {schema: VideoSummarizerInputSchema}, 
   output: {schema: VideoSummarizerOutputSchema},
   prompt: `Sen, YouTube videolarındaki eğitimsel içeriği (özellikle YKS'ye hazırlanan öğrenciler için) analiz edip özetleyen uzman bir AI eğitim asistanısın.
 Görevin, verilen YouTube video URL'sindeki içeriği (başlık, açıklama ve eğer erişebiliyorsan transkript veya sesli içeriğin metin dökümü üzerinden) değerlendirerek öğrenci için en önemli bilgileri çıkarmaktır.
@@ -83,25 +81,11 @@ Eğer video içeriğine (transkript, başlık, açıklama vb.) erişemiyorsan ve
 const videoSummarizerFlow = ai.defineFlow(
   {
     name: 'videoSummarizerFlow',
-    inputSchema: VideoSummarizerInputSchema, // Orijinal input şeması kullanılacak
+    inputSchema: VideoSummarizerInputSchema, 
     outputSchema: VideoSummarizerOutputSchema,
   },
-  async (input: VideoSummarizerInput): Promise<VideoSummarizerOutput> => { // Orijinal input tipi
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Genel varsayılan
-
-    // enrichedInput'ı burada, flow içinde oluşturuyoruz.
-    const isProUser = input.userPlan === 'pro';
-    const isPremiumUser = input.userPlan === 'premium';
-    const isCustomModelSelected = !!input.customModelIdentifier;
-    const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
-
-    const enrichedInputForPrompt = { // Prompt'a göndereceğimiz zenginleştirilmiş input
-      ...input,
-      isProUser,
-      isPremiumUser,
-      isCustomModelSelected,
-      isGemini25PreviewSelected,
-    };
+  async (input: VideoSummarizerInput): Promise<VideoSummarizerOutput> => { 
+    let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
 
     if (input.customModelIdentifier) {
       switch (input.customModelIdentifier) {
@@ -123,32 +107,17 @@ const videoSummarizerFlow = ai.defineFlow(
 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
     
-    // "Invalid JSON payload" hatasını çözmek için gemini-1.5-flash-latest için config göndermeyi DENEYELİM.
-    // Eğer sorun devam ederse, bu modeli de preview modeli gibi config olmadan çağıracağız.
-    // Şimdilik, sadece preview modeli için config'i kaldırıyoruz.
     if (modelToUse === 'googleai/gemini-2.5-flash-preview-04-17') {
-        callOptions.config = {}; // Preview modeli için boş config
+        callOptions.config = {}; 
     } else {
-      // Diğer tüm Google modelleri için (gemini-1.5-flash-latest dahil) config'i kaldırmayı deneyelim.
-      // Bu, "Invalid JSON payload" hatasının kaynağının generationConfig olup olmadığını test eder.
        callOptions.config = {}; 
-       // Eğer yukarıdaki satır Invalid JSON payload hatasını çözmezse ve sorun
-       // gemini-1.5-flash-latest ile devam ederse, bu modelin kendisiyle veya Genkit'in bu modelle
-       // etkileşimiyle ilgili daha derin bir sorun olabilir.
-       // Orijinal config (maxOutputTokens ile) şuydu:
-       /*
-       callOptions.config = {
-         generationConfig: {
-           maxOutputTokens: 4096,
-         }
-       };
-       */
     }
     
     console.log(`[Video Summarizer Flow] Using model: ${modelToUse} for plan: ${input.userPlan}, customModel: ${input.customModelIdentifier} with callOptions:`, JSON.stringify(callOptions));
 
     try {
-      const {output} = await videoSummarizerPrompt(enrichedInputForPrompt, callOptions); 
+      // Input zaten zenginleştirilmiş olarak geliyor `summarizeVideo` fonksiyonundan
+      const {output} = await videoSummarizerPrompt(input, callOptions); 
       
       if (!output) {
          console.warn(`[Video Summarizer Flow] AI model (${modelToUse}) returned null or undefined output.`);
@@ -171,6 +140,8 @@ const videoSummarizerFlow = ai.defineFlow(
         errorMessage += ` Detay: ${error.message.substring(0, 250)}`;
         if (error.message.includes('Invalid JSON payload')) {
             errorMessage += ` (JSON Hatası algılandı. Geliştiriciye bildirin.)`;
+        } else if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
+            errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen video içeriğini kontrol edin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
         }
       }
       return {
@@ -179,3 +150,5 @@ const videoSummarizerFlow = ai.defineFlow(
     }
   }
 );
+
+    

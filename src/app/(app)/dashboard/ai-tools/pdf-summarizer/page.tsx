@@ -148,7 +148,7 @@ export default function PdfSummarizerPage() {
         </CardHeader>
          <CardContent className="space-y-4 md:space-y-6">
             {userProfile?.isAdmin && (
-              <div className="space-y-2 p-4 border rounded-md bg-muted/50">
+              <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
                 <Label htmlFor="adminModelSelectPdf" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
                 <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isProcessingDisabled}>
                   <SelectTrigger id="adminModelSelectPdf"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>

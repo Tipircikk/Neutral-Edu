@@ -91,7 +91,7 @@ const flashcardGeneratorFlow = ai.defineFlow(
     outputSchema: GenerateFlashcardsOutputSchema,
   },
   async (input: GenerateFlashcardsInput): Promise<GenerateFlashcardsOutput> => {
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Varsayılan
+    let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
     const isCustomModelSelected = !!input.customModelIdentifier;
@@ -128,7 +128,7 @@ const flashcardGeneratorFlow = ai.defineFlow(
     if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
       callOptions.config = {
         generationConfig: {
-          maxOutputTokens: input.numFlashcards * 200 > 4096 ? 4096 : input.numFlashcards * 200, // Her kart için ortalama 200 token
+          maxOutputTokens: input.numFlashcards * 200 > 4096 ? 4096 : input.numFlashcards * 200, 
         }
       };
     } else {
@@ -148,6 +148,9 @@ const flashcardGeneratorFlow = ai.defineFlow(
         let errorMessage = `AI modeli (${modelToUse}) ile bilgi kartı oluşturulurken bir hata oluştu.`;
         if (error.message) {
             errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
+            if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
+              errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
+            }
         }
         return {
             flashcards: [],

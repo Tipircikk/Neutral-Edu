@@ -49,11 +49,11 @@ const prompt = ai.definePrompt({
   name: 'detailedTopicExplainerFromPdfPrompt',
   input: {schema: SummarizePdfForStudentInputSchema},
   output: {schema: SummarizePdfForStudentOutputSchema},
-  prompt: `Sen, sana sunulan akademik metinlerdeki konuları son derece detaylı, kapsamlı ve anlaşılır bir şekilde açıklayan uzman bir AI öğretmeni/konu uzmanısın. Amacın, metindeki bilgileri sadece özetlemek değil, aynı zamanda konuyu derinlemesine öğretmek, temel kavramları, prensipleri, önemli alt başlıkları, örnekleri ve (varsa) diğer disiplinler veya konularla bağlantılarıyla birlikte sunmaktır. Öğrencinin metindeki konuyu tam anlamıyla kavramasına yardımcı ol. Cevapların her zaman Türkçe dilinde olmalıdır.
+  prompt: `Sen, sana sunulan akademik metinlerdeki konuları son derece detaylı, kapsamlı ve anlaşılır bir şekilde açıklayan, alanında otorite sahibi bir AI konu uzmanısın. Amacın, metindeki bilgileri sadece özetlemek değil, aynı zamanda konuyu derinlemesine öğretmek, temel kavramları, prensipleri, önemli alt başlıkları, örnekleri ve (varsa) diğer disiplinler veya konularla bağlantılarıyla birlikte sunmaktır. Öğrencinin metindeki konuyu tam anlamıyla kavramasına yardımcı ol. Cevapların her zaman Türkçe dilinde olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#ifEquals userPlan "pro"}}
-(Pro Kullanıcı Notu: Açıklamanı en üst düzeyde akademik zenginlikle, konunun felsefi temellerine, tarihsel gelişimine ve en karmaşık detaylarına değinerek yap. Sunduğun anlatım, bir ders kitabının ilgili bölümü kadar kapsamlı ve derinlemesine olmalı. {{{summaryLength}}} "detailed" ise, mümkün olan en uzun ve en kapsamlı çıktıyı üret.)
+(Pro Kullanıcı Notu: Açıklamanı en üst düzeyde akademik zenginlikle, konunun felsefi temellerine, tarihsel gelişimine ve en karmaşık detaylarına değinerek yap. Sunduğun anlatım, bir ders kitabının ilgili bölümü kadar kapsamlı ve derinlemesine olmalı. {{{summaryLength}}} "detailed" ise, mümkün olan en uzun ve en kapsamlı çıktıyı üret. En gelişmiş AI yeteneklerini kullan.)
 {{else ifEquals userPlan "premium"}}
 (Premium Kullanıcı Notu: Açıklamalarını daha fazla örnekle, konunun farklı yönlerini ele alarak ve önemli bağlantıları vurgulayarak zenginleştir. {{{summaryLength}}} "detailed" ise, standart kullanıcıya göre belirgin şekilde daha uzun ve detaylı bir çıktı üret.)
 {{/ifEquals}}
@@ -130,14 +130,12 @@ const summarizePdfForStudentFlow = ai.defineFlow(
           modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
           break;
         default:
-          // Bilinmeyen bir customModelIdentifier varsa varsayılanı kullan
           console.warn(`[Summarize PDF Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
     } else if (input.userPlan === 'pro') {
-      modelToUse = 'googleai/gemini-1.5-flash-latest'; // Pro kullanıcılar için
+      modelToUse = 'googleai/gemini-1.5-flash-latest'; 
     }
-    // Diğer planlar için varsayılan model (gemini-1.5-flash-latest) zaten ayarlı
-
+    
     callOptions.model = modelToUse;
 
     if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
@@ -147,9 +145,8 @@ const summarizePdfForStudentFlow = ai.defineFlow(
         }
       };
     } else {
-       callOptions.config = {}; // Preview modeli için özel config yok
+       callOptions.config = {}; 
     }
-
 
     console.log(`[Summarize PDF Flow] Using model: ${modelToUse} with input:`, { summaryLength: input.summaryLength, outputDetail: input.outputDetail, keywords: !!input.keywords, pageRange: !!input.pageRange, userPlan: input.userPlan, customModel: input.customModelIdentifier });
 
@@ -169,7 +166,7 @@ const summarizePdfForStudentFlow = ai.defineFlow(
 
       const shouldHaveExamTips = input.outputDetail === 'full' || input.outputDetail === 'exam_tips_only';
       if (!shouldHaveExamTips) {
-          output.examTips = [];
+          output.examTips = []; // Keep as empty array if not requested but potentially returned by schema
       }
       if (shouldHaveExamTips && output.examTips === undefined) {
           output.examTips = [];
@@ -193,7 +190,6 @@ const summarizePdfForStudentFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen PDF içeriğini kontrol edin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
             }
         }
-        // Hata durumunda bile şemaya uygun bir nesne döndür
         return {
             summary: errorMessage,
             keyPoints: ["Hata oluştu."],

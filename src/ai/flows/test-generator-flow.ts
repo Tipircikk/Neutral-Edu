@@ -95,19 +95,21 @@ const testGeneratorFlow = ai.defineFlow(
     outputSchema: GenerateTestOutputSchema,
   },
   async (input: GenerateTestInput): Promise<GenerateTestOutput> => {
-    // Force question type to multiple_choice for YKS focus
-    const adjustedInput = { 
-      ...input, 
-      questionTypes: ["multiple_choice"] as Array<"multiple_choice" | "true_false" | "short_answer">,
-      isProUser: input.userPlan === 'pro',
-      isPremiumUser: input.userPlan === 'premium',
-      isCustomModelSelected: !!input.customModelIdentifier,
-      isGemini25PreviewSelected: input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview',
-    };
-    
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Varsayılan
+    let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
+    const isCustomModelSelected = !!input.customModelIdentifier;
+    const isProUser = input.userPlan === 'pro';
+    const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+
+    const enrichedInput = { 
+      ...input, 
+      questionTypes: ["multiple_choice"] as Array<"multiple_choice" | "true_false" | "short_answer">,
+      isProUser,
+      isCustomModelSelected,
+      isGemini25PreviewSelected,
+    };
+    
 
     if (input.customModelIdentifier) {
       switch (input.customModelIdentifier) {
@@ -128,24 +130,27 @@ const testGeneratorFlow = ai.defineFlow(
     }
 
     callOptions.model = modelToUse;
-    callOptions.config = { temperature: 0.8 }; // Farklı sorular üretmek için
-
+    
     if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
-       // maxOutputTokens, sorunun karmaşıklığına ve sayısına göre ayarlanabilir
-       callOptions.config.generationConfig = { 
-         maxOutputTokens: input.numQuestions * 500 > 8000 ? 8000 : input.numQuestions * 500 
-        }; // Her soru için ortalama 500 token (soru+seçenekler+açıklama)
+       callOptions.config = { 
+         temperature: 0.8, // Farklı sorular üretmek için
+         generationConfig: { 
+           maxOutputTokens: input.numQuestions * 500 > 8000 ? 8000 : input.numQuestions * 500 
+          }
+        }; 
+    } else {
+      callOptions.config = { temperature: 0.8 };
     }
     
     console.log(`[Test Generator Flow] Using model: ${modelToUse} for plan: ${input.userPlan}, customModel: ${input.customModelIdentifier}`);
     
     try {
-        const {output} = await prompt(adjustedInput, callOptions);
+        const {output} = await prompt(enrichedInput, callOptions);
         if (!output || !output.questions || output.questions.length === 0) {
         throw new Error("AI YKS Test Uzmanı, belirtilen konu için YKS standartlarında bir test oluşturamadı. Lütfen konu ve ayarları kontrol edin.");
         }
         output.questions.forEach(q => {
-        q.questionType = "multiple_choice"; // Ensure questionType is correctly set post-generation
+        q.questionType = "multiple_choice"; 
         if (!q.options || q.options.length !== 5) {
             console.warn(`Multiple choice question "${q.questionText.substring(0,50)}..." for topic "${input.topic}" was expected to have 5 options, but received ${q.options?.length || 0}. Prompt may need adjustment.`);
         }
@@ -156,10 +161,10 @@ const testGeneratorFlow = ai.defineFlow(
         let errorMessage = `AI modeli (${modelToUse}) ile test oluşturulurken bir hata oluştu.`;
         if (error.message) {
             errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
+            if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
+              errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
+            }
         }
-        // Hata durumunda boş bir test döndürmek yerine, bir hata nesnesi fırlatmak daha iyi olabilir
-        // veya kullanıcıya UI'da gösterilecek bir hata mesajı içeren bir yapı döndürülebilir.
-        // Şimdilik, akışın çökmemesi için boş bir test döndürüyoruz ama bu UI'da "test oluşturulamadı" mesajı ile desteklenmeli.
         return {
             testTitle: `Hata: ${errorMessage}`,
             questions: []

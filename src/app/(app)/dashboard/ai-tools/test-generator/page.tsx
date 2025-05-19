@@ -65,6 +65,10 @@ export default function TestGeneratorPage() {
     setShowExplanations({});
     setTestOutput(null);
     setIsTestFinished(false);
+    // Optionally reset form fields too
+    // setTopic("");
+    // setNumQuestions(5);
+    // setDifficulty("medium");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

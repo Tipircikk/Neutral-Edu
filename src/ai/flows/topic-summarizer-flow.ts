@@ -76,12 +76,12 @@ const topicSummarizerFlow = ai.defineFlow(
     outputSchema: SummarizeTopicOutputSchema,
   },
   async (input: SummarizeTopicInput): Promise<SummarizeTopicOutput> => {
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Varsayılan
+    let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
-     const isCustomModelSelected = !!input.customModelIdentifier;
-     const isProUser = input.userPlan === 'pro';
-     const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+    const isCustomModelSelected = !!input.customModelIdentifier;
+    const isProUser = input.userPlan === 'pro';
+    const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
 
     const enrichedInput = {
       ...input,
@@ -89,7 +89,6 @@ const topicSummarizerFlow = ai.defineFlow(
       isCustomModelSelected,
       isGemini25PreviewSelected,
     };
-
 
     if (input.customModelIdentifier) {
       switch (input.customModelIdentifier) {
@@ -134,6 +133,9 @@ const topicSummarizerFlow = ai.defineFlow(
         let errorMessage = `AI modeli (${modelToUse}) ile konu özeti oluşturulurken bir hata oluştu.`;
         if (error.message) {
             errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
+             if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
+              errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
+            }
         }
         return {
             topicSummary: errorMessage,

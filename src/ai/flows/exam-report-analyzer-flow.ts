@@ -85,7 +85,7 @@ const examReportAnalyzerFlow = ai.defineFlow(
     outputSchema: ExamReportAnalyzerOutputSchema,
   },
   async (input: ExamReportAnalyzerInput): Promise<ExamReportAnalyzerOutput> => {
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Varsayılan
+    let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
     const isCustomModelSelected = !!input.customModelIdentifier;
@@ -122,7 +122,7 @@ const examReportAnalyzerFlow = ai.defineFlow(
     if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
       callOptions.config = {
         generationConfig: {
-          maxOutputTokens: 4096, // Örnek bir değer, raporun karmaşıklığına göre ayarlanabilir
+          maxOutputTokens: 4096, 
         }
       };
     } else {
@@ -142,6 +142,9 @@ const examReportAnalyzerFlow = ai.defineFlow(
         let errorMessage = `AI modeli (${modelToUse}) ile sınav raporu analizi yapılırken bir hata oluştu.`;
         if (error.message) {
             errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
+             if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
+              errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen rapor metnini kontrol edin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
+            }
         }
         return {
             identifiedTopics: [],

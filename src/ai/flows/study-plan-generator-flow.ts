@@ -109,7 +109,7 @@ const studyPlanGeneratorFlow = ai.defineFlow(
     outputSchema: GenerateStudyPlanOutputSchema,
   },
   async (input: GenerateStudyPlanInput): Promise<GenerateStudyPlanOutput> => {
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Varsayılan
+    let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
     const isCustomModelSelected = !!input.customModelIdentifier;
@@ -146,7 +146,7 @@ const studyPlanGeneratorFlow = ai.defineFlow(
     if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
       callOptions.config = {
         generationConfig: {
-          maxOutputTokens: 8000, // Planlar uzun olabilir
+          maxOutputTokens: 8000, 
         }
       };
     } else {
@@ -162,16 +162,24 @@ const studyPlanGeneratorFlow = ai.defineFlow(
         throw new Error("AI Eğitim Koçu, belirtilen girdilerle bir çalışma planı oluşturamadı. Lütfen bilgilerinizi kontrol edin.");
         }
         
+        // Ensure 'week' property is present and is a number
         if (Array.isArray(output.weeklyPlans)) {
-        output.weeklyPlans.forEach((plan, index) => {
-            if (plan.week === undefined || typeof plan.week !== 'number' || isNaN(plan.week)) {
-            console.warn(`Study Plan Generator: AI output for weeklyPlans[${index}] is missing or has an invalid 'week' number. Assigning index+1. Original plan:`, JSON.stringify(plan));
-            plan.week = index + 1; 
-            }
-        });
+            output.weeklyPlans.forEach((plan, index) => {
+                if (plan.week === undefined || typeof plan.week !== 'number' || isNaN(plan.week)) {
+                    console.warn(`Study Plan Generator: AI output for weeklyPlans[${index}] is missing or has an invalid 'week' number. Assigning index+1. Original plan object:`, JSON.stringify(plan));
+                    plan.week = index + 1; 
+                }
+            });
         } else {
-        console.error("Study Plan Generator: AI output for weeklyPlans is not an array or is empty. Input:", JSON.stringify(input));
-        throw new Error("AI Eğitim Koçu, haftalık planları doğru formatta oluşturamadı.");
+            console.error("Study Plan Generator: AI output for weeklyPlans is not an array or is empty. Input:", JSON.stringify(input));
+            // Attempt to create a minimal valid structure to avoid crashing the client, though this is not ideal.
+             return {
+                planTitle: "Hata: Haftalık Planlar Oluşturulamadı",
+                weeklyPlans: [],
+                introduction: "AI modeli, haftalık planları beklenen formatta oluşturamadı. Lütfen girdilerinizi kontrol edin veya daha sonra tekrar deneyin.",
+                generalTips: [],
+                disclaimer: "Bir hata nedeniyle plan oluşturulamadı."
+            };
         }
 
         return output;
@@ -180,6 +188,9 @@ const studyPlanGeneratorFlow = ai.defineFlow(
         let errorMessage = `AI modeli (${modelToUse}) ile çalışma planı oluşturulurken bir hata oluştu.`;
         if (error.message) {
             errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
+            if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
+              errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen girdilerinizi gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
+            }
         }
         return {
             planTitle: `Hata: ${errorMessage}`,
