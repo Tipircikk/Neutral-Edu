@@ -35,12 +35,14 @@ export type GenerateFlashcardsOutput = z.infer<typeof GenerateFlashcardsOutputSc
 
 export async function generateFlashcards(input: GenerateFlashcardsInput): Promise<GenerateFlashcardsOutput> {
   const isProUser = input.userPlan === 'pro';
+  const isPremiumUser = input.userPlan === 'premium';
   const isCustomModelSelected = !!input.customModelIdentifier;
   const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
 
   const enrichedInput = {
     ...input,
     isProUser,
+    isPremiumUser,
     isCustomModelSelected,
     isGemini25PreviewSelected,
   };
@@ -51,6 +53,7 @@ const prompt = ai.definePrompt({
   name: 'flashcardGeneratorPrompt',
   input: {schema: GenerateFlashcardsInputSchema.extend({
     isProUser: z.boolean().optional(),
+    isPremiumUser: z.boolean().optional(),
     isCustomModelSelected: z.boolean().optional(),
     isGemini25PreviewSelected: z.boolean().optional(),
   })},
@@ -60,7 +63,7 @@ Amacın, metindeki en önemli tanımları, kavramları, formülleri, tarihleri v
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
 (Pro Kullanıcı Notu: Bilgi kartlarını, konunun en derin ve karmaşık noktalarını sorgulayacak şekilde, çoklu bağlantılar ve ileri düzey ipuçları içerecek biçimde tasarla. Kartlar, öğrencinin analitik düşünme ve sentez yapma becerilerini en üst düzeye çıkarmalı. Bu kullanıcılar için en gelişmiş AI yeteneklerini kullan.)
-{{else ifEquals userPlan "premium"}}
+{{else if isPremiumUser}}
 (Premium Kullanıcı Notu: Kartlara ek ipuçları, bağlantılı kavramlar veya YKS'de çıkabilecek alternatif soru tarzlarına göndermeler ekleyerek daha zengin içerik sun.)
 {{/if}}
 
@@ -106,12 +109,13 @@ const flashcardGeneratorFlow = ai.defineFlow(
     name: 'flashcardGeneratorFlow',
     inputSchema: GenerateFlashcardsInputSchema.extend({ 
         isProUser: z.boolean().optional(),
+        isPremiumUser: z.boolean().optional(),
         isCustomModelSelected: z.boolean().optional(),
         isGemini25PreviewSelected: z.boolean().optional(),
     }),
     outputSchema: GenerateFlashcardsOutputSchema,
   },
-  async (enrichedInput: z.infer<typeof GenerateFlashcardsInputSchema> & {isProUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<GenerateFlashcardsOutput> => {
+  async (enrichedInput: z.infer<typeof GenerateFlashcardsInputSchema> & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<GenerateFlashcardsOutput> => {
     let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 

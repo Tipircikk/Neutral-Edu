@@ -37,12 +37,14 @@ export type ExamReportAnalyzerOutput = z.infer<typeof ExamReportAnalyzerOutputSc
 export async function analyzeExamReport(input: ExamReportAnalyzerInput): Promise<ExamReportAnalyzerOutput> {
   
   const isProUser = input.userPlan === 'pro';
+  const isPremiumUser = input.userPlan === 'premium';
   const isCustomModelSelected = !!input.customModelIdentifier;
   const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
 
   const enrichedInput = {
     ...input,
     isProUser, 
+    isPremiumUser,
     isCustomModelSelected, 
     isGemini25PreviewSelected, 
   };
@@ -53,6 +55,7 @@ const prompt = ai.definePrompt({
   name: 'examReportAnalyzerPrompt',
   input: {schema: ExamReportAnalyzerInputSchema.extend({
     isProUser: z.boolean().optional(),
+    isPremiumUser: z.boolean().optional(),
     isCustomModelSelected: z.boolean().optional(),
     isGemini25PreviewSelected: z.boolean().optional(),
   })},
@@ -63,7 +66,7 @@ Amacın, öğrencinin sınav raporundaki verileri (ders adları, konu başlıkla
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
 (Pro Kullanıcı Notu: Analizini en üst düzeyde akademik titizlikle, konular arası bağlantıları da dikkate alarak yap. Öğrencinin farkında olmadığı örtük bilgi eksikliklerini veya yanlış öğrenmeleri tespit etmeye çalış. En kapsamlı ve derinlemesine stratejik yol haritasını sun. En gelişmiş AI yeteneklerini kullan.)
-{{else ifEquals userPlan "premium"}}
+{{else if isPremiumUser}}
 (Premium Kullanıcı Notu: Daha detaylı konu analizi, alternatif çalışma yöntemleri ve öğrencinin gelişimini hızlandıracak ek kaynak önerileri sunmaya özen göster.)
 {{/if}}
 
@@ -101,12 +104,13 @@ const examReportAnalyzerFlow = ai.defineFlow(
     name: 'examReportAnalyzerFlow',
     inputSchema: ExamReportAnalyzerInputSchema.extend({ 
         isProUser: z.boolean().optional(),
+        isPremiumUser: z.boolean().optional(),
         isCustomModelSelected: z.boolean().optional(),
         isGemini25PreviewSelected: z.boolean().optional(),
     }),
     outputSchema: ExamReportAnalyzerOutputSchema,
   },
-  async (enrichedInput: ExamReportAnalyzerInput & {isProUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<ExamReportAnalyzerOutput> => {
+  async (enrichedInput: ExamReportAnalyzerInput & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<ExamReportAnalyzerOutput> => {
     let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
     
@@ -122,11 +126,14 @@ const examReportAnalyzerFlow = ai.defineFlow(
           modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
           break;
         default:
+          // If an unknown customModelIdentifier is provided, it will default to gemini-1.5-flash-latest
+          // Or, if strict checking is needed, one could throw an error or use a specific fallback.
           console.warn(`[Exam Report Analyzer Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
     } else if (enrichedInput.isProUser) { 
-      modelToUse = 'googleai/gemini-1.5-flash-latest';
+      modelToUse = 'googleai/gemini-1.5-flash-latest'; // Pro users might get a better model by default if available and configured
     }
+    // Free and Premium users (without custom model) will use the default 'googleai/gemini-1.5-flash-latest'
     
     callOptions.model = modelToUse;
 
@@ -167,5 +174,3 @@ const examReportAnalyzerFlow = ai.defineFlow(
     }
   }
 );
-
-    
