@@ -10,9 +10,27 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Youtube, Loader2, AlertTriangle, Brain, List, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
-import { summarizeVideo, type VideoSummarizerOutput, type VideoSummarizerInput } from "@/ai/flows/video-summarizer-flow";
+import { summarizeVideo } from "@/ai/flows/video-summarizer-flow"; // Sadece ana fonksiyonu import et
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { z } from "zod"; // Zod'u sayfa içinde kullanmak için import et
+
+// Şemaları ve tipleri doğrudan sayfa içinde tanımla
+const VideoSummarizerInputSchema = z.object({
+  youtubeUrl: z.string().url({ message: "Lütfen geçerli bir YouTube video URL'si girin." }).describe('Özetlenmesi istenen YouTube videosunun URL adresi.'),
+  userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
+  customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi."),
+});
+type VideoSummarizerInput = z.infer<typeof VideoSummarizerInputSchema>;
+
+const VideoSummarizerOutputSchema = z.object({
+  videoTitle: z.string().optional().describe('AI tarafından bulunabilirse videonun başlığı.'),
+  summary: z.string().optional().describe('Videonun eğitimsel içeriğinin özeti.'),
+  keyPoints: z.array(z.string()).optional().describe('Videodan çıkarılan anahtar noktalar.'),
+  warnings: z.array(z.string()).optional().describe('Özetleme işlemiyle ilgili uyarılar (örn: Videoya erişilemedi, transkript bulunamadı).'),
+});
+type VideoSummarizerOutput = z.infer<typeof VideoSummarizerOutputSchema>;
+
 
 export default function VideoSummarizerPage() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
@@ -44,7 +62,7 @@ export default function VideoSummarizerPage() {
       return;
     }
     try {
-      new URL(youtubeUrl);
+      new URL(youtubeUrl); // URL formatını doğrula
       if (!youtubeUrl.includes("youtube.com/") && !youtubeUrl.includes("youtu.be/")) {
         throw new Error("Geçersiz YouTube URL'si.");
       }
@@ -98,6 +116,9 @@ export default function VideoSummarizerPage() {
         description: error.message || "Video özetlenirken beklenmedik bir hata oluştu.",
         variant: "destructive",
       });
+       setSummaryOutput({ // Hata durumunda bile şemaya uygun bir nesne döndür
+            warnings: [error.message || "Video özetlenirken beklenmedik bir hata oluştu."]
+        });
     } finally {
       setIsSummarizing(false);
     }
@@ -196,8 +217,8 @@ export default function VideoSummarizerPage() {
           <CardHeader>
             <CardTitle>{summaryOutput.videoTitle || "Video Özeti"}</CardTitle>
             {summaryOutput.warnings && summaryOutput.warnings.length > 0 && (
-              <Alert variant="destructive" className="mt-2">
-                <AlertTriangle className="h-4 w-4" />
+              <Alert variant="default" className="mt-2 bg-yellow-500/10 border-yellow-500 text-yellow-700 dark:text-yellow-400">
+                <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
                 <AlertTitle>Uyarılar</AlertTitle>
                 {summaryOutput.warnings.map((warn, index) => (
                   <AlertDescription key={index}>{warn}</AlertDescription>
@@ -238,4 +259,3 @@ export default function VideoSummarizerPage() {
     </div>
   );
 }
-    

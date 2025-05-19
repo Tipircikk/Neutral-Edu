@@ -10,22 +10,22 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import type { UserProfile } from '@/types';
+// UserProfile type'ını import etmeye gerek yok, çünkü userPlan doğrudan input şemasında tanımlanıyor.
 
-export const VideoSummarizerInputSchema = z.object({
+const VideoSummarizerInputSchema = z.object({
   youtubeUrl: z.string().url({ message: "Lütfen geçerli bir YouTube video URL'si girin." }).describe('Özetlenmesi istenen YouTube videosunun URL adresi.'),
   userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
   customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi."),
 });
-export type VideoSummarizerInput = z.infer<typeof VideoSummarizerInputSchema>;
+type VideoSummarizerInput = z.infer<typeof VideoSummarizerInputSchema>;
 
-export const VideoSummarizerOutputSchema = z.object({
+const VideoSummarizerOutputSchema = z.object({
   videoTitle: z.string().optional().describe('AI tarafından bulunabilirse videonun başlığı.'),
   summary: z.string().optional().describe('Videonun eğitimsel içeriğinin özeti.'),
   keyPoints: z.array(z.string()).optional().describe('Videodan çıkarılan anahtar noktalar.'),
   warnings: z.array(z.string()).optional().describe('Özetleme işlemiyle ilgili uyarılar (örn: Videoya erişilemedi, transkript bulunamadı).'),
 });
-export type VideoSummarizerOutput = z.infer<typeof VideoSummarizerOutputSchema>;
+type VideoSummarizerOutput = z.infer<typeof VideoSummarizerOutputSchema>;
 
 export async function summarizeVideo(input: VideoSummarizerInput): Promise<VideoSummarizerOutput> {
   return videoSummarizerFlow(input);
@@ -40,9 +40,11 @@ Görevin, verilen YouTube video URL'sindeki içeriği (başlık, açıklama ve e
 
 Kullanıcının Üyelik Planı: {{{userPlan}}}
 {{#ifEquals userPlan "pro"}}
-(Pro Kullanıcılar İçin: Özetini, videonun en derin ve nüanslı noktalarını yakalayacak şekilde, konular arası bağlantıları da dikkate alarak yap. Öğrencinin videodan maksimum faydayı sağlaması için en kapsamlı ve stratejik içgörüleri sun.)
+(Pro Kullanıcılar İçin: Özetini, videonun en derin ve nüanslı noktalarını yakalayacak şekilde, konular arası bağlantıları da dikkate alarak yap. Öğrencinin videodan maksimum faydayı sağlaması için en kapsamlı ve stratejik içgörüleri sun. {{#if customModelIdentifier}}En gelişmiş AI yeteneklerini ve seçilen '{{{customModelIdentifier}}}' modelini kullan.{{else}}En gelişmiş AI yeteneklerini kullan.{{/if}})
 {{else ifEquals userPlan "premium"}}
-(Premium Kullanıcılar İçin: Daha detaylı bir özet, ek örnekler ve videonun farklı açılardan değerlendirilmesini sunmaya özen göster.)
+(Premium Kullanıcılar İçin: Daha detaylı bir özet, ek örnekler ve videonun farklı açılardan değerlendirilmesini sunmaya özen göster. {{#if customModelIdentifier}}Seçilen '{{{customModelIdentifier}}}' modelini kullan.{{/if}})
+{{else}}
+({{{userPlan}}} Kullanıcılar İçin: Videonun ana eğitimsel mesajını ve temel çıkarımlarını özetle. {{#if customModelIdentifier}}Seçilen '{{{customModelIdentifier}}}' modelini kullan.{{/if}})
 {{/ifEquals}}
 
 {{#if customModelIdentifier}}
@@ -70,19 +72,12 @@ const videoSummarizerFlow = ai.defineFlow(
     outputSchema: VideoSummarizerOutputSchema,
   },
   async (input: VideoSummarizerInput): Promise<VideoSummarizerOutput> => {
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Varsayılan
+    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Genel varsayılan
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
     const isCustomModelSelected = !!input.customModelIdentifier;
     const isProUser = input.userPlan === 'pro';
-    const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
-
-    const enrichedInput = {
-      ...input,
-      isProUser,
-      isCustomModelSelected,
-      isGemini25PreviewSelected,
-    };
+    // Gemini 2.5 Preview için özel bir boolean'a artık gerek yok, customModelIdentifier üzerinden yönetilecek.
 
     if (input.customModelIdentifier) {
       switch (input.customModelIdentifier) {
@@ -99,30 +94,36 @@ const videoSummarizerFlow = ai.defineFlow(
           console.warn(`[Video Summarizer Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
     } else if (input.userPlan === 'pro') {
-      modelToUse = 'googleai/gemini-1.5-flash-latest';
+      modelToUse = 'googleai/gemini-1.5-flash-latest'; // Pro kullanıcılar için varsayılan daha iyi model
     }
+    // Free ve Premium kullanıcılar için (özel model seçilmemişse) genel varsayılan (gemini-1.5-flash-latest) zaten ayarlı.
 
     callOptions.model = modelToUse;
 
+    // Sadece gemini-2.5-flash-preview modeli için config gönderme
     if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
       callOptions.config = {
         generationConfig: {
-          maxOutputTokens: 4096,
+          maxOutputTokens: 4096, // Diğer modeller için
         }
       };
     } else {
-        callOptions.config = {};
+        callOptions.config = {}; // Preview modeli için boş config
     }
     
     console.log(`[Video Summarizer Flow] Using model: ${modelToUse} for plan: ${input.userPlan}, customModel: ${input.customModelIdentifier}`);
 
     try {
-      const {output} = await prompt(enrichedInput, callOptions);
+      // `ai.generate` veya `prompt` çağrısını yaparken model ve config'i ilet.
+      // Burada, prompt objesini doğrudan çağırmak daha doğru, çünkü prompt'un kendi içinde input/output şemaları tanımlı.
+      const {output} = await prompt(input, callOptions); 
+      
       if (!output) {
         return {
-          warnings: ["Yapay zeka modelinden bir yanıt alınamadı."]
+          warnings: [`Yapay zeka modeli (${modelToUse}) bir yanıt üretemedi.`]
         };
       }
+      // Eğer summary ve keyPoints boşsa ve uyarı da yoksa genel bir uyarı ekle
       if (!output.summary && (!output.keyPoints || output.keyPoints.length === 0) && (!output.warnings || output.warnings.length === 0)) {
          return {
           ...output,
@@ -132,7 +133,7 @@ const videoSummarizerFlow = ai.defineFlow(
       return output;
     } catch (error: any) {
       console.error(`[Video Summarizer Flow] CRITICAL error during prompt execution with model ${modelToUse}:`, error);
-      let errorMessage = "Video özetlenirken sunucu tarafında beklenmedik bir hata oluştu.";
+      let errorMessage = `Video özetlenirken sunucu tarafında beklenmedik bir hata oluştu (Model: ${modelToUse}).`;
       if (error.message) {
         errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
       }
@@ -142,4 +143,3 @@ const videoSummarizerFlow = ai.defineFlow(
     }
   }
 );
-    
