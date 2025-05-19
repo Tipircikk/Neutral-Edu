@@ -20,7 +20,7 @@ const MAX_PDF_SIZE_MB = 5;
 const MAX_PDF_SIZE_BYTES = MAX_PDF_SIZE_MB * 1024 * 1024;
 
 export default function StudyPlanGeneratorPage() {
-  const [userField, setUserField] = useState<GenerateStudyPlanInput["userField"]>("sayisal");
+  const [userField, setUserField] = useState<GenerateStudyPlanInput["userField"] | undefined>(undefined);
   const [customSubjectsInput, setCustomSubjectsInput] = useState("");
   const [studyDuration, setStudyDuration] = useState("4_hafta");
   const [hoursPerDay, setHoursPerDay] = useState(4);
@@ -152,17 +152,33 @@ export default function StudyPlanGeneratorPage() {
           setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
         }
       } else {
-        const errorMessage = result?.introduction || result?.planTitle || "Yapay zeka bir çalışma planı üretemedi veya format hatalı.";
+        let errorMessage = result?.introduction || result?.planTitle || "Yapay zeka bir çalışma planı üretemedi veya format hatalı.";
+        if (result?.weeklyPlans === undefined || !Array.isArray(result?.weeklyPlans)){
+            errorMessage += " Haftalık planlar oluşturulamadı.";
+        }
         toast({ title: "Plan Oluşturma Sonucu Yetersiz", description: errorMessage, variant: "destructive"});
         setPlanOutput({ planTitle: "Plan Oluşturulamadı", weeklyPlans: [], introduction: errorMessage, disclaimer: "Bir sorun oluştu." });
       }
     } catch (error: any) {
       console.error("Çalışma planı oluşturma hatası:", error);
       let displayErrorMessage = "Çalışma planı oluşturulurken beklenmedik bir hata oluştu.";
-      if (typeof error === 'string') {
+      if (error instanceof Error && error.message) {
+        if (error.name === 'GenkitError' && error.message.includes('Schema validation failed')) {
+            let zodErrors = "Şema Doğrulama Hatası.";
+            // @ts-ignore
+            if (error.details && Array.isArray(error.details)) { 
+                // @ts-ignore
+                zodErrors = error.details.map((detail: any) => detail.message || JSON.stringify(detail)).join('; ');
+            }
+            displayErrorMessage += ` Detay: ${zodErrors.substring(0, 300)}`;
+             if (zodErrors.toLowerCase().includes("week") || zodErrors.toLowerCase().includes("focustopics") || zodErrors.toLowerCase().includes("plantitle") || zodErrors.toLowerCase().includes("introduction")) {
+               displayErrorMessage += " (AI, haftalık planları, başlığı, girişi veya günlük odak konularını beklenen formatta oluşturamadı. Lütfen girdilerinizi kontrol edin veya farklı bir süre/alan deneyin.)";
+             }
+        } else {
+            displayErrorMessage = error.message;
+        }
+      } else if (typeof error === 'string' && error.length > 0) {
         displayErrorMessage = error;
-      } else if (error instanceof Error && error.message) {
-        displayErrorMessage = error.message;
       } else if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
         displayErrorMessage = error.message;
       }
@@ -203,17 +219,18 @@ export default function StudyPlanGeneratorPage() {
           trimmedLine.toUpperCase().startsWith("ÜCRETSİZ KULLANICI İÇİN STRATEJİLER:") ||
           trimmedLine.toUpperCase().startsWith("PRO İPUCU:") || 
           trimmedLine.toUpperCase().startsWith("ÖNEMLİ NOT:") ||
-          trimmedLine.toUpperCase().startsWith("UNUTMA:")
+          trimmedLine.toUpperCase().startsWith("UNUTMA:") ||
+          trimmedLine.toUpperCase().startsWith("GENEL STRATEJİLER VE YKS TAKTİKLERİ:")
         ) {
-        return <p key={index} className="my-1 text-primary font-semibold"><strong className="font-bold">{trimmedLine.substring(0, trimmedLine.indexOf(':') + 1)}</strong>{trimmedLine.substring(trimmedLine.indexOf(':') + 1)}</p>;
+        return <p key={index} className="my-2 text-primary font-semibold"><strong className="font-bold">{trimmedLine.substring(0, trimmedLine.indexOf(':') + 1)}</strong>{trimmedLine.substring(trimmedLine.indexOf(':') + 1)}</p>;
       }
       if (trimmedLine.startsWith("* ") || trimmedLine.startsWith("- ")) {
-        return <li key={index} className="ml-4 list-disc text-muted-foreground">{trimmedLine.substring(line.indexOf(' ') + 1)}</li>;
+        return <li key={index} className="ml-5 list-disc text-muted-foreground">{trimmedLine.substring(line.indexOf(' ') + 1)}</li>;
       }
        if (trimmedLine === "" && index < arr.length -1 && arr[index+1].trim() !== "") { 
-          return <div key={index} className="h-2"></div>; // Boş satırlar için paragraf arası boşluk
+          return <div key={index} className="h-3"></div>; 
       }
-      return <p key={index} className="my-1 text-muted-foreground">{line || <>&nbsp;</>}</p>; 
+      return <p key={index} className="my-1.5 text-muted-foreground leading-relaxed">{line || <>&nbsp;</>}</p>; 
     });
   };
 
