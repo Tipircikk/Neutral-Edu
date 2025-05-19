@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CalendarDays, Wand2, Loader2, AlertTriangle, Settings, UploadCloud, FileText as FileTextIcon } from "lucide-react";
 import { Label } from "@/components/ui/label";
-import { Input as ShadInput } from "@/components/ui/input"; 
+import { Input as ShadInput } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -75,7 +75,7 @@ export default function StudyPlanGeneratorPage() {
         return;
       }
       
-      setPdfFile(file); setPdfFileName(file.name); setPlanOutput(null); 
+      setPdfFile(file); setPdfFileName(file.name); setPlanOutput(null);
       setIsProcessingPdf(true);
       toast({ title: "PDF İşleniyor...", description: "Lütfen bekleyin." });
       try {
@@ -133,7 +133,7 @@ export default function StudyPlanGeneratorPage() {
       };
       const result = await generateStudyPlan(input);
 
-      if (result && result.planTitle && result.introduction && Array.isArray(result.weeklyPlans)) {
+      if (result && result.planTitle && Array.isArray(result.weeklyPlans)) { // introduction is optional in schema
         const validatedWeeklyPlans = result.weeklyPlans.map((plan, index) => ({
           ...plan,
           week: typeof plan.week === 'number' && !isNaN(plan.week) ? plan.week : index + 1,
@@ -156,34 +156,37 @@ export default function StudyPlanGeneratorPage() {
         if (result?.weeklyPlans === undefined || !Array.isArray(result?.weeklyPlans)){
             errorMessage += " Haftalık planlar oluşturulamadı.";
         }
+        if (result && (typeof result.planTitle !== 'string' || typeof result.introduction !== 'string' || !Array.isArray(result.weeklyPlans) || typeof result.disclaimer !== 'string')) {
+             errorMessage = "AI'dan gelen yanıt beklenen formatta değil. Lütfen tekrar deneyin veya farklı bir model seçin.";
+        }
         toast({ title: "Plan Oluşturma Sonucu Yetersiz", description: errorMessage, variant: "destructive"});
-        setPlanOutput({ planTitle: "Plan Oluşturulamadı", weeklyPlans: [], introduction: errorMessage, disclaimer: "Bir sorun oluştu." });
+        setPlanOutput({ planTitle: "Plan Oluşturulamadı", introduction: errorMessage, weeklyPlans: [], disclaimer: "Bir sorun oluştu." });
       }
     } catch (error: any) {
-      console.error("Çalışma planı oluşturma hatası:", error);
+      console.error("[Study Plan Generator Page] Plan oluşturma hatası:", error);
       let displayErrorMessage = "Çalışma planı oluşturulurken beklenmedik bir hata oluştu.";
-      if (error instanceof Error && error.message) {
-        if (error.name === 'GenkitError' && error.message.includes('Schema validation failed')) {
-            let zodErrors = "Şema Doğrulama Hatası.";
-            // @ts-ignore
-            if (error.details && Array.isArray(error.details)) { 
+        if (error instanceof Error) {
+            if (error.name === 'GenkitError' && error.message.includes('Schema validation failed')) {
+                let zodErrorDetails = "Şema Doğrulama Hatası.";
                 // @ts-ignore
-                zodErrors = error.details.map((detail: any) => detail.message || JSON.stringify(detail)).join('; ');
+                if (error.details && Array.isArray(error.details) && error.details.length > 0) {
+                    // @ts-ignore
+                    zodErrorDetails = error.details.map((detail: any) => detail.message || JSON.stringify(detail.path ? `${detail.path.join('.')} - ${detail.message}`: detail.message )).join('; ');
+                }
+                displayErrorMessage = `AI modelinden gelen yanıt şemayla uyuşmuyor: ${zodErrorDetails.substring(0, 300)}`;
+                 if (zodErrorDetails.toLowerCase().includes("week") || zodErrorDetails.toLowerCase().includes("focustopics") || zodErrorDetails.toLowerCase().includes("plantitle") || zodErrorDetails.toLowerCase().includes("introduction")) {
+                   displayErrorMessage += " (AI, haftalık planları, başlığı, girişi veya günlük odak konularını beklenen formatta oluşturamadı.)";
+                 }
+            } else {
+                displayErrorMessage = error.message;
             }
-            displayErrorMessage += ` Detay: ${zodErrors.substring(0, 300)}`;
-             if (zodErrors.toLowerCase().includes("week") || zodErrors.toLowerCase().includes("focustopics") || zodErrors.toLowerCase().includes("plantitle") || zodErrors.toLowerCase().includes("introduction")) {
-               displayErrorMessage += " (AI, haftalık planları, başlığı, girişi veya günlük odak konularını beklenen formatta oluşturamadı. Lütfen girdilerinizi kontrol edin veya farklı bir süre/alan deneyin.)";
-             }
-        } else {
+        } else if (typeof error === 'string' && error.length > 0) {
+            displayErrorMessage = error;
+        } else if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
             displayErrorMessage = error.message;
         }
-      } else if (typeof error === 'string' && error.length > 0) {
-        displayErrorMessage = error;
-      } else if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
-        displayErrorMessage = error.message;
-      }
       toast({ title: "Oluşturma Hatası", description: displayErrorMessage, variant: "destructive" });
-      setPlanOutput({ planTitle: "Hata", weeklyPlans: [], introduction: displayErrorMessage, disclaimer: "Bir sorun oluştu." });
+      setPlanOutput({ planTitle: "Hata", introduction: displayErrorMessage, weeklyPlans: [], disclaimer: "Bir sorun oluştu." });
     } finally {
       setIsGenerating(false);
     }
@@ -210,8 +213,9 @@ export default function StudyPlanGeneratorPage() {
     (!userProfileLoading && userProfile && !canProcess && (userProfile.dailyRemainingQuota ?? 0) <= 0) ||
     (!userProfileLoading && !userProfile);
 
- const renderFormattedText = (text: string | undefined): React.ReactNode => {
-    if (!text) return null;
+  const renderFormattedText = (text: string | undefined | null): React.ReactNode => {
+    if (!text) return null; // Return null if text is null, undefined, or empty
+    
     const lines = text.split('\n');
     const elements: JSX.Element[] = [];
     let listItems: string[] = [];
@@ -230,19 +234,18 @@ export default function StudyPlanGeneratorPage() {
 
     lines.forEach((line, index) => {
       const trimmedLine = line.trim();
-      if (trimmedLine.toUpperCase().startsWith("PRO KULLANICI İÇİN STRATEJİLER:") || 
-          trimmedLine.toUpperCase().startsWith("PRO İPUCU:") || 
-          trimmedLine.toUpperCase().startsWith("PREMIUM KULLANICI İÇİN STRATEJİLER:") ||
-          trimmedLine.toUpperCase().startsWith("ÜCRETSİZ KULLANICI İÇİN STRATEJİLER:") ||
-          trimmedLine.toUpperCase().startsWith("ÖNEMLİ NOT:") ||
-          trimmedLine.toUpperCase().startsWith("UNUTMA:") ||
-          trimmedLine.toUpperCase().startsWith("GENEL STRATEJİLER VE YKS TAKTİKLERİ:")
-        ) {
+      const proTipMatch = trimmedLine.match(/^(PRO KULLANICI İÇİN STRATEJİLER|PRO İPUCU|PREMIUM KULLANICI İÇİN STRATEJİLER|ÜCRETSİZ KULLANICI İÇİN STRATEJİLER|ÖNEMLİ NOT|UNUTMA|GENEL STRATEJİLER VE YKS TAKTİKLERİ):\s*(.*)/i);
+
+      if (proTipMatch) {
         flushList();
-        const labelEndIndex = trimmedLine.indexOf(':') + 1;
-        const label = trimmedLine.substring(0, labelEndIndex);
-        const content = trimmedLine.substring(labelEndIndex);
-        elements.push(<p key={`p-${keyCounter++}`} className="my-2 text-primary"><strong className="font-bold">{label}</strong>{content}</p>);
+        const label = proTipMatch[1];
+        const content = proTipMatch[2];
+        elements.push(
+          <div key={`pro-tip-${keyCounter++}`} className="my-3 p-3 border-l-4 border-primary bg-primary/10 rounded-r-md">
+            <strong className="font-bold text-primary">{label}:</strong>
+            <p className="text-muted-foreground mt-1 leading-relaxed">{content}</p>
+          </div>
+        );
       } else if (trimmedLine.startsWith("* ") || trimmedLine.startsWith("- ")) {
         listItems.push(trimmedLine.substring(line.indexOf(' ') + 1));
       } else if (trimmedLine.startsWith("## ")) {
@@ -265,6 +268,7 @@ export default function StudyPlanGeneratorPage() {
     flushList(); 
     return elements;
   };
+
 
   if (userProfileLoading && !userProfile) {
     return (
@@ -475,8 +479,13 @@ export default function StudyPlanGeneratorPage() {
                  <p className="text-center text-muted-foreground">Haftalık planlar oluşturulamadı veya bulunamadı.</p>
               )}
             </ScrollArea>
-
-             {planOutput.disclaimer && <p className="text-sm text-muted-foreground mt-2">{planOutput.disclaimer}</p>}
+             {planOutput.disclaimer && (
+                <Alert className="mt-4" variant="default">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Sorumluluk Reddi</AlertTitle>
+                    <AlertDescription>{planOutput.disclaimer}</AlertDescription>
+                </Alert>
+             )}
             <div className="mt-4 p-3 text-xs text-destructive-foreground bg-destructive/80 rounded-md flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
               <span>NeutralEdu AI bir yapay zekadır bu nedenle hata yapabilir, bu yüzden verdiği bilgileri doğrulayınız ve bu planı bir başlangıç noktası olarak kullanınız.</span>
