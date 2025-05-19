@@ -2,25 +2,28 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import PdfUploadForm from "@/components/dashboard/PdfUploadForm";
 import SummaryDisplay from "@/components/dashboard/SummaryDisplay";
 import { extractTextFromPdf } from "@/lib/pdfUtils";
 import { summarizePdfForStudent, type SummarizePdfForStudentOutput, type SummarizePdfForStudentInput } from "@/ai/flows/summarize-pdf-flow";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Terminal, Loader2, AlertTriangle, FileScan, Settings } from "lucide-react";
+import { Terminal, Loader2, AlertTriangle, FileScan, Settings, UploadCloud } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
+import { Input as ShadInput } from "@/components/ui/input"; // Renamed to avoid conflict
+import { Button } from "@/components/ui/button";
 
+const MAX_FILE_SIZE_MB = 10;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 export default function PdfSummarizerPage() {
   const [summaryOutput, setSummaryOutput] = useState<SummarizePdfForStudentOutput | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [pdfTextContent, setPdfTextContent] = useState<string | null>(null);
   const [currentFileName, setCurrentFileName] = useState<string | undefined>(undefined);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
   const [summaryLength, setSummaryLength] = useState<SummarizePdfForStudentInput["summaryLength"]>("medium");
   const [keywords, setKeywords] = useState<string>("");
@@ -30,53 +33,69 @@ export default function PdfSummarizerPage() {
 
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
-
   const [canProcess, setCanProcess] = useState(false);
 
   const memoizedCheckAndResetQuota = useCallback(async () => {
-    if (checkAndResetQuota) {
-      return checkAndResetQuota();
-    }
-    return Promise.resolve(userProfile); 
+    if (!checkAndResetQuota) return userProfile;
+    return checkAndResetQuota();
   }, [checkAndResetQuota, userProfile]);
 
-
   useEffect(() => {
-    if (userProfile) {
-      memoizedCheckAndResetQuota().then(updatedProfile => {
-        if (updatedProfile) {
-          setCanProcess((updatedProfile.dailyRemainingQuota ?? 0) > 0);
-        } else {
-          setCanProcess((userProfile.dailyRemainingQuota ?? 0) > 0);
-        }
-      });
+    if (!userProfileLoading) {
+      if (userProfile) {
+        memoizedCheckAndResetQuota().then(updatedProfile => {
+          setCanProcess((updatedProfile?.dailyRemainingQuota ?? 0) > 0);
+        });
+      } else {
+        setCanProcess(false);
+      }
     }
-  }, [userProfile, memoizedCheckAndResetQuota]);
+  }, [userProfile, userProfileLoading, memoizedCheckAndResetQuota]);
 
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.type !== "application/pdf") {
+        toast({ title: "Geçersiz Dosya Türü", description: "Lütfen bir PDF dosyası yükleyin.", variant: "destructive" });
+        event.target.value = ""; setSelectedFile(null); setCurrentFileName(undefined); return;
+      }
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        toast({ title: "Dosya Boyutu Çok Büyük", description: `Lütfen ${MAX_FILE_SIZE_MB}MB'den küçük bir PDF dosyası yükleyin.`, variant: "destructive" });
+        event.target.value = ""; setSelectedFile(null); setCurrentFileName(undefined); return;
+      }
+      setSelectedFile(file);
+      setCurrentFileName(file.name);
+      setSummaryOutput(null); 
+      setPdfTextContent(null);
+    } else {
+      setSelectedFile(null);
+      setCurrentFileName(undefined);
+    }
+  };
 
-  const handlePdfSubmit = async (file: File) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedFile) {
+      toast({ title: "Dosya Gerekli", description: "Lütfen özetlemek için bir PDF dosyası yükleyin.", variant: "destructive" });
+      return;
+    }
+
     setIsSummarizing(true);
     setSummaryOutput(null); 
     setPdfTextContent(null);
-    setCurrentFileName(file.name);
 
     const currentProfile = await memoizedCheckAndResetQuota();
     if (!currentProfile || (currentProfile.dailyRemainingQuota ?? 0) <= 0) {
-      toast({
-        title: "Kota Aşıldı",
-        description: "Bugünkü anlatım hakkınızı doldurdunuz. Lütfen yarın tekrar deneyin.",
-        variant: "destructive",
-      });
+      toast({ title: "Kota Aşıldı", description: "Bugünkü özetleme hakkınızı doldurdunuz.", variant: "destructive" });
       setIsSummarizing(false);
       setCanProcess(false);
       return;
     }
     setCanProcess(true);
 
-
     try {
       toast({ title: "PDF İşleniyor...", description: "PDF'inizden metin içeriği çıkarılıyor." });
-      const text = await extractTextFromPdf(file);
+      const text = await extractTextFromPdf(selectedFile);
       setPdfTextContent(text);
       toast({ title: "Metin Çıkarıldı", description: "Şimdi konu anlatımınız oluşturuluyor..." });
 
@@ -105,7 +124,6 @@ export default function PdfSummarizerPage() {
          if (updatedProfileAgain) {
           setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
         }
-
       } else {
         const errorMessage = result?.summary || "Yapay zeka bir anlatım üretemedi veya format hatalı.";
         toast({ title: "Anlatım Sonucu Yetersiz", description: errorMessage, variant: "destructive"});
@@ -113,11 +131,7 @@ export default function PdfSummarizerPage() {
       }
     } catch (error: any) {
       console.error("Detaylı anlatım oluşturma hatası:", error);
-      toast({
-        title: "Anlatım Oluşturma Hatası",
-        description: error.message || "Anlatım oluşturulurken beklenmedik bir hata oluştu.",
-        variant: "destructive",
-      });
+      toast({ title: "Anlatım Oluşturma Hatası", description: error.message || "Anlatım oluşturulurken beklenmedik bir hata oluştu.", variant: "destructive" });
       const errorMessage = error.message || "Beklenmedik bir hata oluştu.";
       setSummaryOutput({ summary: errorMessage, keyPoints: [], mainIdea: "Hata", examTips: [], practiceQuestions: [], formattedStudyOutput: `## Hata\n\n${errorMessage}` });
     } finally {
@@ -125,14 +139,29 @@ export default function PdfSummarizerPage() {
     }
   };
   
-  const isProcessingDisabled = isSummarizing || (!canProcess && !isSummarizing && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
+  const isSubmitButtonDisabled = 
+    isSummarizing || 
+    !selectedFile ||
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
+
+  const isModelSelectDisabled = 
+    isSummarizing || 
+    !userProfile?.isAdmin ||
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
+
+  const isFormElementsDisabled = 
+    isSummarizing ||
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
 
 
-  if (userProfileLoading) {
+  if (userProfileLoading && !userProfile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-20rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground">PDF Detaylı Anlatıcı yükleniyor...</p>
+        <p className="mt-4 text-muted-foreground">AI PDF Anlatıcısı yükleniyor...</p>
       </div>
     );
   }
@@ -156,7 +185,7 @@ export default function PdfSummarizerPage() {
                 <Select 
                   value={adminSelectedModel} 
                   onValueChange={setAdminSelectedModel} 
-                  disabled={isProcessingDisabled || isSummarizing}
+                  disabled={isModelSelectDisabled}
                 >
                   <SelectTrigger id="adminModelSelectPdf">
                     <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
@@ -176,7 +205,7 @@ export default function PdfSummarizerPage() {
                     <Select
                     value={summaryLength}
                     onValueChange={(value: SummarizePdfForStudentInput["summaryLength"]) => setSummaryLength(value)}
-                    disabled={isProcessingDisabled || isSummarizing}
+                    disabled={isFormElementsDisabled}
                     >
                     <SelectTrigger id="summaryLength">
                         <SelectValue placeholder="Uzunluk seçin" />
@@ -193,7 +222,7 @@ export default function PdfSummarizerPage() {
                     <Select
                     value={outputDetail}
                     onValueChange={(value: SummarizePdfForStudentInput["outputDetail"]) => setOutputDetail(value)}
-                    disabled={isProcessingDisabled || isSummarizing}
+                    disabled={isFormElementsDisabled}
                     >
                     <SelectTrigger id="outputDetail">
                         <SelectValue placeholder="Çıktı detayını seçin" />
@@ -211,23 +240,23 @@ export default function PdfSummarizerPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                  <div>
                     <Label htmlFor="keywords" className="mb-1 block text-sm">Anahtar Kelimeler (isteğe bağlı)</Label>
-                    <Input 
+                    <ShadInput 
                         id="keywords" 
                         placeholder="örn: fotosentez, hücre zarı, enerji"
                         value={keywords}
                         onChange={(e) => setKeywords(e.target.value)}
-                        disabled={isProcessingDisabled || isSummarizing}
+                        disabled={isFormElementsDisabled}
                     />
                     <p className="text-xs text-muted-foreground mt-1">Virgülle ayırarak birden fazla anahtar kelime girebilirsiniz.</p>
                 </div>
                 <div>
                     <Label htmlFor="pageRange" className="mb-1 block text-sm">Sayfa Aralığı (isteğe bağlı)</Label>
-                    <Input 
+                    <ShadInput 
                         id="pageRange" 
                         placeholder="örn: 5-10, 12, 15-20"
                         value={pageRange}
                         onChange={(e) => setPageRange(e.target.value)}
-                        disabled={isProcessingDisabled || isSummarizing}
+                        disabled={isFormElementsDisabled}
                     />
                      <p className="text-xs text-muted-foreground mt-1">Belirli sayfalara odaklanmak için (AI yorumuna göre).</p>
                 </div>
@@ -235,7 +264,7 @@ export default function PdfSummarizerPage() {
         </CardContent>
       </Card>
 
-      {!canProcess && !isSummarizing && userProfile && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
+      {!userProfileLoading && userProfile && !canProcess && !isSummarizing && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
          <Alert variant="destructive" className="shadow-md">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Günlük Kota Doldu</AlertTitle>
@@ -244,8 +273,58 @@ export default function PdfSummarizerPage() {
           </AlertDescription>
         </Alert>
       )}
+        <Card className="w-full shadow-lg">
+            <CardHeader>
+                <CardTitle className="text-xl flex items-center">
+                <UploadCloud className="mr-3 h-6 w-6 text-primary" />
+                PDF Yükle
+                </CardTitle>
+                <CardDescription>
+                Anlatımını oluşturmak istediğiniz PDF dosyasını seçin (Maksimum {MAX_FILE_SIZE_MB}MB).
+                </CardDescription>
+            </CardHeader>
+            <form onSubmit={handleSubmit}>
+                <CardContent className="space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="pdfFile-upload" className="sr-only">PDF Dosyası</Label>
+                    <div className="flex items-center justify-center w-full">
+                        <label htmlFor="pdfFile-upload" className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-card hover:bg-muted border-input transition-colors">
+                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                <UploadCloud className="w-8 h-8 mb-2 text-muted-foreground" />
+                                <p className="mb-1 text-sm text-muted-foreground"><span className="font-semibold">Yüklemek için tıklayın</span> veya sürükleyip bırakın</p>
+                                <p className="text-xs text-muted-foreground">PDF (MAKS. {MAX_FILE_SIZE_MB}MB)</p>
+                            </div>
+                            <ShadInput 
+                            id="pdfFile-upload" 
+                            type="file" 
+                            className="hidden" 
+                            accept=".pdf" 
+                            onChange={handleFileChange}
+                            disabled={isFormElementsDisabled}
+                            />
+                        </label>
+                    </div>
+                    {currentFileName && (
+                    <div className="mt-2 flex items-center text-sm text-muted-foreground bg-muted p-2 rounded-md">
+                        <FileText className="h-5 w-5 mr-2 text-primary" />
+                        Seçilen Dosya: {currentFileName}
+                    </div>
+                    )}
+                </div>
+                </CardContent>
+                <CardFooter>
+                <Button type="submit" className="w-full" disabled={isSubmitButtonDisabled}>
+                    {isSummarizing ? (
+                    <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Anlatım Oluşturuluyor...
+                    </>
+                    ) : "PDF Anlatımı Oluştur"}
+                </Button>
+                </CardFooter>
+            </form>
+        </Card>
 
-      <PdfUploadForm onSubmit={handlePdfSubmit} isSummarizing={isSummarizing} isDisabled={isProcessingDisabled} />
 
       {isSummarizing && !summaryOutput && (
         <Card className="mt-6 md:mt-8 shadow-lg">
@@ -264,7 +343,7 @@ export default function PdfSummarizerPage() {
 
       {summaryOutput && <SummaryDisplay summaryOutput={summaryOutput} originalFileName={currentFileName} />}
 
-      {!isSummarizing && !summaryOutput && (
+      {!isSummarizing && !summaryOutput && !userProfileLoading && (userProfile || !userProfile) && (
          <Alert className="mt-6 md:mt-8 shadow-md">
           <Terminal className="h-4 w-4" />
           <AlertTitle>Anlatıma Hazır!</AlertTitle>
@@ -276,3 +355,5 @@ export default function PdfSummarizerPage() {
     </div>
   );
 }
+
+    

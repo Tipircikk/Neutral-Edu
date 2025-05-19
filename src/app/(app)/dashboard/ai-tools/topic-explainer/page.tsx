@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Presentation, Wand2, Loader2, AlertTriangle, Download, Settings } from "lucide-react";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
+import { Input as ShadInput } from "@/components/ui/input"; // Renamed
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
@@ -30,61 +30,65 @@ export default function TopicExplainerPage() {
   const [canProcess, setCanProcess] = useState(false);
 
   const memoizedCheckAndResetQuota = useCallback(async () => {
-    if (checkAndResetQuota) return checkAndResetQuota();
-    return Promise.resolve(userProfile);
+    if (!checkAndResetQuota) return userProfile;
+    return checkAndResetQuota();
   }, [checkAndResetQuota, userProfile]);
 
   useEffect(() => {
-    if (userProfile) {
-      memoizedCheckAndResetQuota().then(updatedProfile => {
-        setCanProcess((updatedProfile?.dailyRemainingQuota ?? 0) > 0);
-      });
+    if (!userProfileLoading) {
+      if (userProfile) {
+        memoizedCheckAndResetQuota().then(updatedProfile => {
+          setCanProcess((updatedProfile?.dailyRemainingQuota ?? 0) > 0);
+        });
+      } else {
+        setCanProcess(false);
+      }
     }
-  }, [userProfile, memoizedCheckAndResetQuota]);
+  }, [userProfile, userProfileLoading, memoizedCheckAndResetQuota]);
 
   const parseInlineFormatting = (line: string | undefined | null): React.ReactNode[] => {
-    if (!line) return [<React.Fragment key="empty-line"></React.Fragment>];
+    if (!line) return [<React.Fragment key={`empty-${Math.random()}`}></React.Fragment>];
     
     const elements: React.ReactNode[] = [];
-    // Regex to find patterns like text^number or text_number or **bold text**
-    // It will match **text**, then text_number, then text^number
-    // Order matters if patterns can overlap. Here, bold is distinct.
-    const regex = /\*\*(.*?)\*\*|(\S+?)_(\d+|\{\d+\})|(\S+?)\^(\d+|\{\d+\})/g;
+    const regex = /(\S+?)\^(\d+|\{[\d\w.-]+\})|(\S+?)_(\d+|\{[\d\w.-]+\})|\*\*(.*?)\*\*/g;
     let lastIndex = 0;
     let match;
+    let keyIndex = 0;
   
     while ((match = regex.exec(line)) !== null) {
-      // Add text before the match
-      elements.push(line.substring(lastIndex, match.index));
+      if (match.index > lastIndex) {
+        elements.push(<Fragment key={`text-${keyIndex++}`}>{line.substring(lastIndex, match.index)}</Fragment>);
+      }
       
-      if (match[1]) { // Bold: **text**
-        elements.push(<strong key={`bold-${match.index}-${Math.random()}`}>{match[1]}</strong>);
-      } else if (match[2] && match[3]) { // Subscript: text_number or text_{number}
-        elements.push(match[2]);
-        elements.push(<sub key={`sub-${match.index}-${Math.random()}`}>{match[3].replace(/[{}]/g, '')}</sub>);
-      } else if (match[4] && match[5]) { // Superscript: text^number or text^{number}
-        elements.push(match[4]);
-        elements.push(<sup key={`sup-${match.index}-${Math.random()}`}>{match[5].replace(/[{}]/g, '')}</sup>);
+      if (match[5]) { // Bold: **text**
+        elements.push(<strong key={`bold-${keyIndex++}`}>{match[5]}</strong>);
+      } else if (match[1] && match[2]) { // Superscript: text^number or text^{number}
+        elements.push(<Fragment key={`base-sup-${keyIndex}`}>{match[1]}</Fragment>);
+        elements.push(<sup key={`sup-${keyIndex++}`}>{match[2].replace(/[{}]/g, '')}</sup>);
+      } else if (match[3] && match[4]) { // Subscript: text_number or text_{number}
+        elements.push(<Fragment key={`base-sub-${keyIndex}`}>{match[3]}</Fragment>);
+        elements.push(<sub key={`sub-${keyIndex++}`}>{match[4].replace(/[{}]/g, '')}</sub>);
       }
       lastIndex = regex.lastIndex;
     }
-    // Add any remaining text after the last match
-    elements.push(line.substring(lastIndex));
+    if (lastIndex < line.length) {
+      elements.push(<Fragment key={`text-end-${keyIndex}`}>{line.substring(lastIndex)}</Fragment>);
+    }
     
     return elements.filter(el => el !== ""); 
   };
-
 
   const formatExplanationForDisplay = (text: string | undefined | null): JSX.Element[] => {
     if (!text) return [];
     const lines = text.split('\n');
     const elements: JSX.Element[] = [];
     let listItems: React.ReactNode[] = [];
+    let keyCounter = 0;
 
     const flushList = () => {
       if (listItems.length > 0) {
         elements.push(
-          <ul key={`ul-${elements.length}-${Math.random()}`} className="list-disc pl-5 my-2 space-y-1 text-muted-foreground">
+          <ul key={`ul-${keyCounter++}`} className="list-disc pl-5 my-2 space-y-1 text-muted-foreground">
             {listItems.map((itemContent, idx) => <li key={idx}>{itemContent}</li>)}
           </ul>
         );
@@ -92,21 +96,21 @@ export default function TopicExplainerPage() {
       }
     };
 
-    lines.forEach((line, index) => {
+    lines.forEach((line) => {
       const trimmedLine = line.trim();
       if (trimmedLine.startsWith('### ')) {
         flushList();
-        elements.push(<h4 key={index} className="text-md font-semibold mt-3 mb-1 text-foreground">{parseInlineFormatting(trimmedLine.substring(4))}</h4>);
+        elements.push(<h4 key={`h4-${keyCounter++}`} className="text-md font-semibold mt-3 mb-1 text-foreground">{parseInlineFormatting(trimmedLine.substring(4))}</h4>);
       } else if (trimmedLine.startsWith('## ')) {
         flushList();
-        elements.push(<h3 key={index} className="text-lg font-semibold mt-4 mb-2 text-foreground">{parseInlineFormatting(trimmedLine.substring(3))}</h3>);
+        elements.push(<h3 key={`h3-${keyCounter++}`} className="text-lg font-semibold mt-4 mb-2 text-foreground">{parseInlineFormatting(trimmedLine.substring(3))}</h3>);
       } else if (trimmedLine.startsWith('* ') || trimmedLine.startsWith('- ')) {
         listItems.push(parseInlineFormatting(trimmedLine.substring(trimmedLine.indexOf(' ') + 1)));
       } else if (trimmedLine === "") {
          flushList(); 
       } else {
         flushList();
-        elements.push(<p key={index} className="mb-2 last:mb-0 text-muted-foreground">{parseInlineFormatting(line)}</p>);
+        elements.push(<p key={`p-${keyCounter++}`} className="mb-2 last:mb-0 text-muted-foreground">{parseInlineFormatting(line)}</p>);
       }
     });
     flushList();
@@ -167,11 +171,7 @@ export default function TopicExplainerPage() {
       }
     } catch (error: any) {
       console.error("Konu anlatımı oluşturma hatası:", error);
-      toast({
-        title: "Anlatım Oluşturma Hatası",
-        description: error.message || "Konu anlatımı oluşturulurken beklenmedik bir hata oluştu.",
-        variant: "destructive",
-      });
+      toast({ title: "Anlatım Oluşturma Hatası", description: error.message || "Konu anlatımı oluşturulurken beklenmedik bir hata oluştu.", variant: "destructive" });
       setExplanationOutput({ explanationTitle: error.message || "Beklenmedik bir hata oluştu.", explanation: "Hata oluştu.", keyConcepts:[], commonMistakes: [], yksTips:[], activeRecallQuestions: [] });
     } finally {
       setIsGenerating(false);
@@ -179,19 +179,14 @@ export default function TopicExplainerPage() {
   };
 
   const handleExportToPdf = async () => {
-    if (!explanationOutput) return;
+    if (!explanationOutput || !explanationOutput.explanation) return;
     setIsExportingPdf(true);
     toast({ title: "PDF Oluşturuluyor...", description: "Lütfen bekleyin."});
 
     try {
       const { default: jsPDF } = await import('jspdf'); 
 
-      const doc = new jsPDF({
-        orientation: 'p',
-        unit: 'mm',
-        format: 'a4',
-      });
-      
+      const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
       doc.setFont('Helvetica', 'normal'); 
 
       const pageHeight = doc.internal.pageSize.height;
@@ -213,23 +208,18 @@ export default function TopicExplainerPage() {
         doc.setFont('Helvetica', fontStyle); 
         doc.setTextColor(color);
         
-        const cleanedText = text.replace(/(\S+)\^(\d+|\{\d+\})/g, '$1^$2') 
-                               .replace(/(\S+)_(\d+|\{\d+\})/g, '$1_$2'); 
-
+        const cleanedText = text.replace(/(\S+?)\^(\S+)/g, '$1^$2').replace(/(\S+?)_(\S+)/g, '$1_$2').replace(/\*\*(.*?)\*\*/g, '$1');
 
         const lines = doc.splitTextToSize(cleanedText, maxWidth); 
         
-        lines.forEach((line: string, lineIndex: number) => {
+        lines.forEach((lineTxt: string, lineIndex: number) => {
           if (y + lineHeight > pageHeight - margin - 10) { 
-            doc.addPage();
-            y = margin; 
-            doc.setFontSize(fontSize);
-            doc.setFont('Helvetica', fontStyle);
-            doc.setTextColor(color);
+            doc.addPage(); y = margin; 
+            doc.setFontSize(fontSize); doc.setFont('Helvetica', fontStyle); doc.setTextColor(color);
           }
-          const lineText = isListItem && lineIndex === 0 ? `• ${line}` : line;
-          const xOffset = isTitle ? (pageWidth - doc.getTextWidth(lineText)) / 2 : (isListItem ? margin + 3 : margin); 
-          doc.text(lineText, xOffset, y);
+          const lineContent = isListItem && lineIndex === 0 ? `• ${lineTxt}` : lineTxt;
+          const xOffset = isTitle ? (pageWidth - doc.getTextWidth(lineContent)) / 2 : (isListItem ? margin + 3 : margin); 
+          doc.text(lineContent, xOffset, y);
           y += lineHeight; 
         });
         currentY = y;
@@ -247,29 +237,18 @@ export default function TopicExplainerPage() {
         addWrappedText(explanationOutput.explanation, { fontSize: textFontSize });
       }
 
-      if (explanationOutput.keyConcepts && explanationOutput.keyConcepts.length > 0) {
-        currentY += lineHeight;
-        addWrappedText("Anahtar Kavramlar:", { fontSize: headingFontSize, fontStyle: 'bold', y: currentY });
-        explanationOutput.keyConcepts.forEach(concept => addWrappedText(concept, { fontSize: textFontSize, isListItem: true }));
-      }
+      const renderArraySection = (title: string, items: string[] | undefined) => {
+        if (items && items.length > 0) {
+          currentY += lineHeight;
+          addWrappedText(title, { fontSize: headingFontSize, fontStyle: 'bold', y: currentY });
+          items.forEach(item => addWrappedText(item, { fontSize: textFontSize, isListItem: true }));
+        }
+      };
 
-      if (explanationOutput.commonMistakes && explanationOutput.commonMistakes.length > 0) {
-        currentY += lineHeight;
-        addWrappedText("Sık Yapılan Hatalar:", { fontSize: headingFontSize, fontStyle: 'bold', y: currentY });
-        explanationOutput.commonMistakes.forEach(mistake => addWrappedText(mistake, { fontSize: textFontSize, isListItem: true }));
-      }
-      
-      if (explanationOutput.yksTips && explanationOutput.yksTips.length > 0) {
-        currentY += lineHeight;
-        addWrappedText("YKS İpuçları:", { fontSize: headingFontSize, fontStyle: 'bold', y: currentY });
-        explanationOutput.yksTips.forEach(tip => addWrappedText(tip, { fontSize: textFontSize, isListItem: true }));
-      }
-
-      if (explanationOutput.activeRecallQuestions && explanationOutput.activeRecallQuestions.length > 0) {
-        currentY += lineHeight;
-        addWrappedText("Aktif Hatırlama Soruları:", { fontSize: headingFontSize, fontStyle: 'bold', y: currentY });
-        explanationOutput.activeRecallQuestions.forEach(question => addWrappedText(question, { fontSize: textFontSize, isListItem: true }));
-      }
+      renderArraySection("Anahtar Kavramlar:", explanationOutput.keyConcepts);
+      renderArraySection("Sık Yapılan Hatalar:", explanationOutput.commonMistakes);
+      renderArraySection("YKS İpuçları:", explanationOutput.yksTips);
+      renderArraySection("Aktif Hatırlama Soruları:", explanationOutput.activeRecallQuestions);
       
       const safeFileName = (explanationOutput.explanationTitle || "konu_anlatimi").replace(/[^a-z0-9_]/gi, '_').toLowerCase();
       doc.save(`${safeFileName}.pdf`);
@@ -279,23 +258,35 @@ export default function TopicExplainerPage() {
       console.error("PDF oluşturma hatası:", error);
       let descriptionMessage = "PDF oluşturulurken bir hata oluştu.";
        if (error.message && error.message.toLowerCase().includes("module not found") && error.message.toLowerCase().includes("jspdf")) {
-        descriptionMessage = "PDF oluşturma kütüphanesi ('jspdf') yüklenemedi. Lütfen 'npm install jspdf' komutunu çalıştırıp tekrar deneyin veya geliştiriciye bildirin.";
+        descriptionMessage = "PDF oluşturma kütüphanesi ('jspdf') bulunamadı. Lütfen geliştiriciye bildirin veya paketin kurulu olduğundan emin olun.";
       } else if (error.message && error.message.toLowerCase().includes("jspdf")) {
         descriptionMessage = "PDF kütüphanesi ('jspdf') yüklenemedi veya bir sorun oluştu. İnternet bağlantınızı kontrol edin veya geliştiriciye bildirin.";
       }
-      toast({
-        title: "PDF Oluşturma Hatası",
-        description: descriptionMessage,
-        variant: "destructive",
-      });
+      toast({ title: "PDF Oluşturma Hatası", description: descriptionMessage, variant: "destructive" });
     } finally {
       setIsExportingPdf(false);
     }
   };
 
-  const isSubmitDisabled = isGenerating || !topicName.trim() || topicName.trim().length < 3 || (teacherPersona === "ozel" && (!customPersonaDescription.trim() || customPersonaDescription.trim().length < 10)) || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <= 0);
+  const isSubmitButtonDisabled = 
+    isGenerating || 
+    !topicName.trim() || topicName.trim().length < 3 || 
+    (teacherPersona === "ozel" && (!customPersonaDescription.trim() || customPersonaDescription.trim().length < 10)) ||
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
 
-  if (userProfileLoading) {
+  const isModelSelectDisabled = 
+    isGenerating || 
+    !userProfile?.isAdmin ||
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
+
+  const isFormElementsDisabled = 
+    isGenerating ||
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
+
+  if (userProfileLoading && !userProfile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-20rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -323,7 +314,7 @@ export default function TopicExplainerPage() {
                 <Select 
                   value={adminSelectedModel} 
                   onValueChange={setAdminSelectedModel} 
-                  disabled={isSubmitDisabled || isGenerating}
+                  disabled={isModelSelectDisabled}
                 >
                   <SelectTrigger id="adminModelSelectTopicExp">
                     <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
@@ -340,7 +331,7 @@ export default function TopicExplainerPage() {
         </CardContent>
       </Card>
 
-      {!canProcess && !isGenerating && userProfile && (userProfile.dailyRemainingQuota ?? 0) <= 0 && (
+      {!userProfileLoading && userProfile && !canProcess && !isGenerating && (userProfile.dailyRemainingQuota ?? 0) <= 0 && (
         <Alert variant="destructive" className="shadow-md">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Günlük Kota Doldu</AlertTitle>
@@ -358,13 +349,13 @@ export default function TopicExplainerPage() {
           <CardContent className="pt-6 space-y-4">
             <div>
               <Label htmlFor="topicName">YKS Konu Başlığı</Label>
-              <Input
+              <ShadInput
                 id="topicName"
                 placeholder="örn: Matematik - Limit ve Süreklilik"
                 value={topicName}
                 onChange={(e) => setTopicName(e.target.value)}
                 className="text-base mt-1"
-                disabled={isGenerating || !canProcess}
+                disabled={isFormElementsDisabled}
               />
               <p className="text-xs text-muted-foreground mt-1">Lütfen açıklanmasını istediğiniz konuyu girin (en az 3 karakter).</p>
             </div>
@@ -375,7 +366,7 @@ export default function TopicExplainerPage() {
                 <Select
                   value={explanationLevel}
                   onValueChange={(value: ExplainTopicInput["explanationLevel"]) => setExplanationLevel(value)}
-                  disabled={isGenerating || !canProcess}
+                  disabled={isFormElementsDisabled}
                 >
                   <SelectTrigger id="explanationLevel" className="mt-1">
                     <SelectValue placeholder="Seviye seçin" />
@@ -392,8 +383,11 @@ export default function TopicExplainerPage() {
                 <Label htmlFor="teacherPersona">Hoca Tarzı</Label>
                 <Select
                   value={teacherPersona}
-                  onValueChange={(value: ExplainTopicInput["teacherPersona"]) => setTeacherPersona(value)}
-                  disabled={isGenerating || !canProcess}
+                  onValueChange={(value: ExplainTopicInput["teacherPersona"]) => {
+                    setTeacherPersona(value);
+                    if (value !== "ozel") setCustomPersonaDescription(""); // Clear custom if another persona selected
+                  }}
+                  disabled={isFormElementsDisabled}
                 >
                   <SelectTrigger id="teacherPersona" className="mt-1">
                     <SelectValue placeholder="Hoca tarzı seçin" />
@@ -419,13 +413,13 @@ export default function TopicExplainerPage() {
                   onChange={(e) => setCustomPersonaDescription(e.target.value)}
                   rows={3}
                   className="mt-1"
-                  disabled={isGenerating || !canProcess}
+                  disabled={isFormElementsDisabled}
                 />
                 <p className="text-xs text-muted-foreground mt-1">AI hocanızın nasıl bir kişiliğe sahip olmasını istediğinizi açıklayın (en az 10 karakter).</p>
               </div>
             )}
 
-            <Button type="submit" className="w-full" disabled={isSubmitDisabled}>
+            <Button type="submit" className="w-full" disabled={isSubmitButtonDisabled}>
               {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
               Konu Anlatımı Oluştur
             </Button>
@@ -515,7 +509,7 @@ export default function TopicExplainerPage() {
           </CardContent>
         </Card>
       )}
-      {!isGenerating && !explanationOutput && !userProfileLoading && (
+      {!isGenerating && !explanationOutput && !userProfileLoading && (userProfile || !userProfile) && (
          <Alert className="mt-6">
           <Presentation className="h-4 w-4" />
           <AlertTitle>Anlatıma Hazır!</AlertTitle>
@@ -527,3 +521,5 @@ export default function TopicExplainerPage() {
     </div>
   );
 }
+
+    

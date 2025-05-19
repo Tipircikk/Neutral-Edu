@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Card, CardContent } from "@/components/ui/card";
+// Card ve CardContent importları "Pro'ya Yükselt" kartı kaldırıldığı için silindi.
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,7 +31,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Brain, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation, Timer, CalendarClock, ListChecks, Palette, Youtube } from "lucide-react";
+import { Brain, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation, Timer, CalendarClock, ListChecks, Palette, Youtube, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import QuotaDisplay from "@/components/dashboard/QuotaDisplay";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
@@ -50,6 +50,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const [isHelperToolsSubmenuOpen, setIsHelperToolsSubmenuOpen] = useState(false);
 
   const aiToolPaths = [
+    "/dashboard/ai-tools",
     "/dashboard/ai-tools/pdf-summarizer",
     "/dashboard/ai-tools/topic-summarizer",
     "/dashboard/ai-tools/topic-explainer",
@@ -62,6 +63,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   ];
 
   const helperToolPaths = [
+    "/dashboard/tools",
     "/dashboard/tools/pomodoro",
     "/dashboard/tools/countdown",
     "/dashboard/tools/goal-tracker",
@@ -237,7 +239,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                           <Link href="/dashboard/ai-tools/video-summarizer"><Youtube /><span>AI Video Özetleyici</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
-
                       {/* Soru ve Test Araçları */}
                        <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/question-solver"} className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
@@ -249,7 +250,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                           <Link href="/dashboard/ai-tools/test-generator"><FileTextIcon /><span>AI Test Oluşturucu</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
-
                       {/* Analiz ve Planlama Araçları */}
                        <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/exam-report-analyzer"} className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
@@ -293,13 +293,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                           <Link href="/dashboard/tools/goal-tracker"><ListChecks /><span>Hedef Takipçisi</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
-                      {/* Karalama tahtası linki kaldırıldı
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/tools/whiteboard"}>
-                          <Link href="/dashboard/tools/whiteboard"><Palette /><span>Dijital Karalama Tahtası</span></Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      */}
                     </SidebarMenuSub>
                   )}
                 </SidebarMenuItem>
@@ -326,25 +319,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               </SidebarMenu>
             </SidebarContent>
             <SidebarFooter className="p-2 mt-auto space-y-2">
-               {(userProfile?.plan !== 'premium' && userProfile?.plan !== 'pro') && (
-                <Card className="bg-gradient-to-br from-primary/20 to-accent/20 border-primary/50 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:border-none">
-                  <CardContent className="p-3 group-data-[collapsible=icon]:p-0">
-                    <div className="flex flex-col items-center text-center group-data-[collapsible=icon]:hidden">
-                      <Gem className="h-7 w-7 text-primary mb-1.5" />
-                      <p className="font-semibold text-foreground text-sm">Pro'ya Yükselt!</p>
-                      <p className="text-xs text-muted-foreground mb-2.5 px-1">Daha fazla özellik ve kota için.</p>
-                      <Button size="sm" className="w-full text-xs" asChild>
-                        <Link href="/pricing">Planları Gör</Link>
-                      </Button>
-                    </div>
-                     <div className="hidden group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
-                       <SidebarMenuButton asChild tooltip="Pro'ya Yükselt" className="bg-primary/80 hover:bg-primary text-primary-foreground hover:text-primary-foreground">
-                          <Link href="/pricing"><Gem/></Link>
-                       </SidebarMenuButton>
-                    </div>
-                  </CardContent>
-                </Card>
-               )}
               {userProfile?.plan === 'free' && (
                 <div className="p-2 group-data-[collapsible=icon]:hidden text-center">
                   <div style={{width: '100%', height: '100px', background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius)', fontSize: '0.8rem', border: '1px dashed hsl(var(--border))'}}>
@@ -367,7 +341,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           </Sidebar>
           <SidebarInset className="flex-1 overflow-y-auto bg-background">
             <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-              {/* Üst banner reklamı kaldırıldı */}
               {children}
             </main>
             <Footer appName="NeutralEdu AI" />
@@ -377,3 +350,5 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     </SidebarProvider>
   );
 }
+
+    

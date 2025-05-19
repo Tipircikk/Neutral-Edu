@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input as ShadInput } from "@/components/ui/input"; // Renamed
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Youtube, Loader2, AlertTriangle, Brain, List, Settings } from "lucide-react";
@@ -43,17 +43,21 @@ export default function VideoSummarizerPage() {
   const [canProcess, setCanProcess] = useState(false);
 
   const memoizedCheckAndResetQuota = useCallback(async () => {
-    if (checkAndResetQuota) return checkAndResetQuota();
-    return Promise.resolve(userProfile);
+    if (!checkAndResetQuota) return userProfile;
+    return checkAndResetQuota();
   }, [checkAndResetQuota, userProfile]);
 
   useEffect(() => {
-    if (userProfile) {
-      memoizedCheckAndResetQuota().then(updatedProfile => {
-        setCanProcess((updatedProfile?.dailyRemainingQuota ?? 0) > 0);
-      });
+    if (!userProfileLoading) {
+      if (userProfile) {
+        memoizedCheckAndResetQuota().then(updatedProfile => {
+          setCanProcess((updatedProfile?.dailyRemainingQuota ?? 0) > 0);
+        });
+      } else {
+        setCanProcess(false);
+      }
     }
-  }, [userProfile, memoizedCheckAndResetQuota]);
+  }, [userProfile, userProfileLoading, memoizedCheckAndResetQuota]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,22 +115,31 @@ export default function VideoSummarizerPage() {
     } catch (error: any) {
       console.error("Video özetleme hatası:", error);
       const errorMsg = error.message || "Video özetlenirken beklenmedik bir hata oluştu.";
-      toast({
-        title: "Video Özetleme Hatası",
-        description: errorMsg,
-        variant: "destructive",
-      });
-       setSummaryOutput({ 
-            warnings: [errorMsg]
-        });
+      toast({ title: "Video Özetleme Hatası", description: errorMsg, variant: "destructive" });
+       setSummaryOutput({ warnings: [errorMsg] });
     } finally {
       setIsSummarizing(false);
     }
   };
 
-  const isSubmitDisabled = isSummarizing || !youtubeUrl.trim() || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <= 0);
+  const isSubmitButtonDisabled = 
+    isSummarizing || 
+    !youtubeUrl.trim() ||
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
 
-  if (userProfileLoading) {
+  const isModelSelectDisabled = 
+    isSummarizing || 
+    !userProfile?.isAdmin ||
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
+
+  const isFormElementsDisabled = 
+    isSummarizing ||
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
+
+  if (userProfileLoading && !userProfile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-20rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -154,7 +167,7 @@ export default function VideoSummarizerPage() {
                 <Select 
                   value={adminSelectedModel} 
                   onValueChange={setAdminSelectedModel} 
-                  disabled={isSubmitDisabled || isSummarizing}
+                  disabled={isModelSelectDisabled}
                 >
                   <SelectTrigger id="adminModelSelectVideoSum">
                     <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
@@ -171,7 +184,7 @@ export default function VideoSummarizerPage() {
         </CardContent>
       </Card>
 
-      {!canProcess && !isSummarizing && userProfile && (userProfile.dailyRemainingQuota ?? 0) <= 0 && (
+      {!userProfileLoading && userProfile && !canProcess && !isSummarizing && (userProfile.dailyRemainingQuota ?? 0) <= 0 && (
         <Alert variant="destructive" className="shadow-md">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Günlük Kota Doldu</AlertTitle>
@@ -186,17 +199,17 @@ export default function VideoSummarizerPage() {
           <CardContent className="pt-6 space-y-4">
             <div>
               <Label htmlFor="youtubeUrl" className="block text-sm font-medium text-foreground mb-1">YouTube Video URL'si</Label>
-              <Input
+              <ShadInput
                 id="youtubeUrl"
                 type="url"
                 placeholder="https://www.youtube.com/watch?v=..."
                 value={youtubeUrl}
                 onChange={(e) => setYoutubeUrl(e.target.value)}
                 className="text-base"
-                disabled={isSummarizing || !canProcess}
+                disabled={isFormElementsDisabled}
               />
             </div>
-            <Button type="submit" className="w-full" disabled={isSubmitDisabled}>
+            <Button type="submit" className="w-full" disabled={isSubmitButtonDisabled}>
               {isSummarizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Brain className="mr-2 h-4 w-4" />}
               Videoyu Özetle
             </Button>
@@ -262,6 +275,17 @@ export default function VideoSummarizerPage() {
           </CardContent>
         </Card>
       )}
+      {!isSummarizing && !summaryOutput && !userProfileLoading && (userProfile || !userProfile) && (
+         <Alert className="mt-6">
+          <Youtube className="h-4 w-4" />
+          <AlertTitle>Videoya Hazır!</AlertTitle>
+          <AlertDescription>
+            Yukarıya bir YouTube video linki girerek eğitimsel içeriğinin özetini alın.
+          </AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 }
+
+    

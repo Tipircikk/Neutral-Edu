@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input as ShadInput } from "@/components/ui/input"; // Renamed
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { HelpCircle, Send, Loader2, AlertTriangle, UploadCloud, ImageIcon, Settings } from "lucide-react";
@@ -16,9 +16,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
+interface ParsedSolutionPart {
+  type: "heading" | "subheading" | "paragraph" | "listitem" | "codeblock";
+  content: React.ReactNode[];
+}
 interface ParsedSolution {
   answerValue: React.ReactNode[] | null;
-  explanationSections: React.ReactNode[];
+  explanationSections: ParsedSolutionPart[];
 }
 
 export default function QuestionSolverPage() {
@@ -38,17 +42,21 @@ export default function QuestionSolverPage() {
   const loadingStartTimeRef = useRef<number | null>(null);
 
   const memoizedCheckAndResetQuota = useCallback(async () => {
-    if (checkAndResetQuota) return checkAndResetQuota();
-    return Promise.resolve(userProfile);
+    if (!checkAndResetQuota) return userProfile;
+    return checkAndResetQuota();
   }, [checkAndResetQuota, userProfile]);
 
   useEffect(() => {
-    if (userProfile) {
-      memoizedCheckAndResetQuota().then(updatedProfile => {
-        setCanProcess((updatedProfile?.dailyRemainingQuota ?? 0) > 0);
-      });
+    if (!userProfileLoading) {
+      if (userProfile) {
+        memoizedCheckAndResetQuota().then(updatedProfile => {
+          setCanProcess((updatedProfile?.dailyRemainingQuota ?? 0) > 0);
+        });
+      } else {
+        setCanProcess(false);
+      }
     }
-  }, [userProfile, memoizedCheckAndResetQuota]);
+  }, [userProfile, userProfileLoading, memoizedCheckAndResetQuota]);
 
   useEffect(() => {
     if (isSolving) {
@@ -71,7 +79,7 @@ export default function QuestionSolverPage() {
             messageIndex++;
           }
         }
-      }, 5000); // Check every 5 seconds
+      }, 5000); 
     } else {
       if (loadingMessageIntervalRef.current) clearInterval(loadingMessageIntervalRef.current);
       loadingStartTimeRef.current = null;
@@ -80,30 +88,35 @@ export default function QuestionSolverPage() {
   }, [isSolving]);
 
   const parseInlineFormatting = (line: string | undefined | null): React.ReactNode[] => {
-    if (!line) return [<React.Fragment key="empty-line"></React.Fragment>];
+    if (!line) return [<React.Fragment key={`empty-${Math.random()}`}></React.Fragment>];
     
     const elements: React.ReactNode[] = [];
-    // Regex to find patterns like text^number, text_number, or **bold text**
-    const regex = /\*\*(.*?)\*\*|(\S+?)_(\d+|\{\S+\})|(\S+?)\^(\d+|\{\S+\})/g;
+    const regex = /(\S+?)\^(\d+|\{[\d\w.-]+\})|(\S+?)_(\d+|\{[\d\w.-]+\})|\*\*(.*?)\*\*|`(.*?)`/g;
     let lastIndex = 0;
     let match;
+    let keyIndex = 0;
   
     while ((match = regex.exec(line)) !== null) {
-      // Add text before the match
-      elements.push(line.substring(lastIndex, match.index));
+      if (match.index > lastIndex) {
+        elements.push(<Fragment key={`text-${keyIndex++}`}>{line.substring(lastIndex, match.index)}</Fragment>);
+      }
       
-      if (match[1]) { // Bold: **text**
-        elements.push(<strong key={`bold-${match.index}-${Math.random()}`}>{match[1]}</strong>);
-      } else if (match[2] && match[3]) { // Subscript: text_number or text_{number}
-        elements.push(match[2]);
-        elements.push(<sub key={`sub-${match.index}-${Math.random()}`}>{match[3].replace(/[{}]/g, '')}</sub>);
-      } else if (match[4] && match[5]) { // Superscript: text^number or text^{number}
-        elements.push(match[4]);
-        elements.push(<sup key={`sup-${match.index}-${Math.random()}`}>{match[5].replace(/[{}]/g, '')}</sup>);
+      if (match[5]) { // Bold: **text**
+        elements.push(<strong key={`bold-${keyIndex++}`}>{match[5]}</strong>);
+      } else if (match[6]) { // Inline code: `text`
+        elements.push(<code key={`code-${keyIndex++}`} className="bg-muted text-muted-foreground px-1 py-0.5 rounded text-sm">{match[6]}</code>);
+      } else if (match[1] && match[2]) { // Superscript: text^number or text^{number}
+        elements.push(<Fragment key={`base-sup-${keyIndex}`}>{match[1]}</Fragment>);
+        elements.push(<sup key={`sup-${keyIndex++}`}>{match[2].replace(/[{}]/g, '')}</sup>);
+      } else if (match[3] && match[4]) { // Subscript: text_number or text_{number}
+        elements.push(<Fragment key={`base-sub-${keyIndex}`}>{match[3]}</Fragment>);
+        elements.push(<sub key={`sub-${keyIndex++}`}>{match[4].replace(/[{}]/g, '')}</sub>);
       }
       lastIndex = regex.lastIndex;
     }
-    elements.push(line.substring(lastIndex));
+    if (lastIndex < line.length) {
+      elements.push(<Fragment key={`text-end-${keyIndex}`}>{line.substring(lastIndex)}</Fragment>);
+    }
     
     return elements.filter(el => el !== ""); 
   };
@@ -111,35 +124,22 @@ export default function QuestionSolverPage() {
  const formatSolverOutputForDisplay = (text: string): ParsedSolution => {
     const lines = text.split('\n');
     let answerValue: React.ReactNode[] | null = null;
-    const explanationSections: React.ReactNode[] = [];
+    const explanationSections: ParsedSolutionPart[] = [];
     let isExplanationSection = false;
-    let currentListItems: React.ReactNode[] = [];
     let inCodeBlock = false;
     let codeBlockContent = "";
+    let keyCounter = 0;
 
-    const flushList = () => {
-      if (currentListItems.length > 0) {
-        explanationSections.push(
-          <ul key={`ul-${explanationSections.length}-${Math.random()}`} className="list-disc pl-5 my-2 space-y-1">
-            {currentListItems.map((itemContent, idx) => <li key={idx}>{itemContent}</li>)}
-          </ul>
-        );
-        currentListItems = [];
-      }
-    };
-    
     const flushCodeBlock = () => {
         if (inCodeBlock) {
-            explanationSections.push(
-                <pre key={`pre-${explanationSections.length}-${Math.random()}`} className="bg-muted p-2 rounded-md overflow-x-auto text-sm my-2">
-                    <code>{codeBlockContent.trimEnd()}</code>
-                </pre>
-            );
+            explanationSections.push({
+                type: "codeblock",
+                content: [codeBlockContent.trimEnd()]
+            });
             codeBlockContent = "";
             inCodeBlock = false;
         }
     };
-
 
     let captureAnswer = false;
     for (let i = 0; i < lines.length; i++) {
@@ -147,11 +147,10 @@ export default function QuestionSolverPage() {
       const trimmedLine = line.trim();
 
       if (trimmedLine.startsWith("```")) {
-          if (inCodeBlock) { // End of code block
-              flushCodeBlock();
-          } else { // Start of code block
-              flushList();
-              inCodeBlock = true;
+          flushCodeBlock(); // Flush previous code block if any
+          inCodeBlock = !inCodeBlock; // Toggle code block state
+          if (inCodeBlock && lines[i+1] && lines[i+1].startsWith("```")) { // Handle empty block case
+             inCodeBlock = false; i++; 
           }
           continue;
       }
@@ -162,7 +161,6 @@ export default function QuestionSolverPage() {
       }
 
       if (trimmedLine.toLowerCase().startsWith("cevap:")) {
-        flushList();
         isExplanationSection = false;
         captureAnswer = true;
         const answerText = trimmedLine.substring("cevap:".length).trim();
@@ -176,10 +174,9 @@ export default function QuestionSolverPage() {
       }
       
       if (trimmedLine.toLowerCase().startsWith("açıklama:")) {
-        flushList();
         isExplanationSection = true;
         captureAnswer = false;
-        explanationSections.push(<div key={`desc-label-${explanationSections.length}`} className="h-2"></div>); 
+        explanationSections.push({type: "paragraph", content: [<React.Fragment key={`desc-label-${keyCounter++}`}></React.Fragment>]}); // Placeholder for spacing if needed
         continue;
       }
 
@@ -190,22 +187,16 @@ export default function QuestionSolverPage() {
       
       if (isExplanationSection) {
         if (trimmedLine.startsWith('### ')) {
-          flushList();
-          explanationSections.push(<h4 key={`h4-${explanationSections.length}`} className="text-md font-semibold mt-3 mb-1">{parseInlineFormatting(trimmedLine.substring(4))}</h4>);
+          explanationSections.push({ type: "subheading", content: parseInlineFormatting(trimmedLine.substring(4)) });
         } else if (trimmedLine.startsWith('## ')) {
-          flushList();
-          explanationSections.push(<h3 key={`h3-${explanationSections.length}`} className="text-lg font-semibold mt-4 mb-2">{parseInlineFormatting(trimmedLine.substring(3))}</h3>);
+          explanationSections.push({ type: "heading", content: parseInlineFormatting(trimmedLine.substring(3)) });
         } else if (trimmedLine.startsWith('* ') || trimmedLine.startsWith('- ')) {
-          currentListItems.push(parseInlineFormatting(trimmedLine.substring(trimmedLine.indexOf(' ') + 1)));
-        } else if (trimmedLine === "") {
-          flushList();
-        } else {
-          flushList();
-          explanationSections.push(<p key={`p-${explanationSections.length}`} className="mb-2 last:mb-0">{parseInlineFormatting(line)}</p>);
+          explanationSections.push({ type: "listitem", content: parseInlineFormatting(trimmedLine.substring(trimmedLine.indexOf(' ') + 1)) });
+        } else if (trimmedLine !== "") {
+          explanationSections.push({ type: "paragraph", content: parseInlineFormatting(line) });
         }
       }
     }
-    flushList(); 
     flushCodeBlock();
 
     return { answerValue, explanationSections };
@@ -215,7 +206,7 @@ export default function QuestionSolverPage() {
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      if (file.size > 5 * 1024 * 1024) { 
         toast({ title: "Dosya Boyutu Büyük", description: "Lütfen 5MB'den küçük bir görsel yükleyin.", variant: "destructive" });
         event.target.value = ""; setImageFile(null); setImageDataUri(null); return;
       }
@@ -280,7 +271,11 @@ export default function QuestionSolverPage() {
         toast({ title: "Yanıt Hatası", description: errorMessage, variant: "destructive" });
       }
     } catch (error: any) {
-      const errorMessage = error.message || 'Bilinmeyen bir istemci tarafı hatası oluştu.';
+      let errorMessage = "Bilinmeyen bir istemci tarafı hatası oluştu.";
+      if (error instanceof Error) errorMessage = error.message;
+      else if (typeof error === 'string') errorMessage = error;
+      else if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') errorMessage = error.message;
+
       setAnswer({ solution: `İstemci Hatası: ${errorMessage}. Geliştirici konsolunu kontrol edin.`, relatedConcepts: ["Hata"], examStrategyTips: ["Tekrar deneyin"] });
       setParsedSolution(formatSolverOutputForDisplay(`İstemci Hatası: ${errorMessage}.`));
       toast({ title: "Çözüm Hatası", description: errorMessage, variant: "destructive" });
@@ -289,9 +284,24 @@ export default function QuestionSolverPage() {
     }
   };
   
-  const isSubmitDisabled = isSolving || (!questionText.trim() && !imageDataUri) || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
+  const isSubmitButtonDisabled = 
+    isSolving || 
+    (!questionText.trim() && !imageDataUri) ||
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
 
-  if (userProfileLoading) {
+  const isModelSelectDisabled = 
+    isSolving || 
+    !userProfile?.isAdmin ||
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
+
+  const isFormElementsDisabled = 
+    isSolving ||
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
+
+  if (userProfileLoading && !userProfile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-20rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -305,7 +315,7 @@ export default function QuestionSolverPage() {
       <Card className="shadow-sm">
         <CardHeader>
           <div className="flex items-center gap-3"> <HelpCircle className="h-7 w-7 text-primary" /> <CardTitle className="text-2xl">AI Soru Çözücü</CardTitle> </div>
-          <CardDescription> Aklınızdaki soruları sorun, yapay zeka size adım adım çözümler ve açıklamalar sunsun. İsterseniz soru içeren bir görsel de yükleyebilirsiniz. </CardDescription>
+          <CardDescription> Aklınızdaki YKS sorularını sorun, yapay zeka size adım adım çözümler ve açıklamalar sunsun. İsterseniz soru içeren bir görsel de yükleyebilirsiniz. </CardDescription>
         </CardHeader>
         <CardContent>
             {userProfile?.isAdmin && (
@@ -314,7 +324,7 @@ export default function QuestionSolverPage() {
                 <Select 
                   value={adminSelectedModel} 
                   onValueChange={setAdminSelectedModel} 
-                  disabled={isSubmitDisabled || isSolving}
+                  disabled={isModelSelectDisabled}
                 >
                   <SelectTrigger id="adminModelSelectSolver">
                     <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
@@ -331,7 +341,7 @@ export default function QuestionSolverPage() {
         </CardContent>
       </Card>
 
-      {!canProcess && !isSolving && userProfile && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
+      {!userProfileLoading && userProfile && !canProcess && !isSolving && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
          <Alert variant="destructive" className="shadow-md">
           <AlertTriangle className="h-4 w-4" /> <AlertTitle>Günlük Kota Doldu</AlertTitle>
           <AlertDescription> Bugünlük ücretsiz hakkınızı kullandınız. Lütfen yarın tekrar kontrol edin veya Premium/Pro'ya yükseltin. </AlertDescription>
@@ -343,11 +353,11 @@ export default function QuestionSolverPage() {
           <CardContent className="pt-6 space-y-4">
             <div>
               <Label htmlFor="questionText" className="block text-sm font-medium text-foreground mb-1">Soru Metni (isteğe bağlı)</Label>
-              <Textarea id="questionText" placeholder="Örneğin: Bir dik üçgenin hipotenüsü 10 cm, bir dik kenarı 6 cm ise diğer dik kenarı kaç cm'dir?" value={questionText} onChange={(e) => setQuestionText(e.target.value)} rows={5} className="text-base" disabled={isSolving || !canProcess} />
+              <Textarea id="questionText" placeholder="Örneğin: Bir dik üçgenin hipotenüsü 10 cm, bir dik kenarı 6 cm ise diğer dik kenarı kaç cm'dir?" value={questionText} onChange={(e) => setQuestionText(e.target.value)} rows={5} className="text-base" disabled={isFormElementsDisabled} />
             </div>
             <div className="space-y-2">
                 <Label htmlFor="imageUpload" className="block text-sm font-medium text-foreground">Soru Görseli Yükle (isteğe bağlı, maks 5MB)</Label>
-                 <Input id="imageUpload" type="file" accept="image/*" onChange={handleImageChange} className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90" disabled={isSolving || !canProcess} />
+                 <ShadInput id="imageUpload" type="file" accept="image/*" onChange={handleImageChange} className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90" disabled={isFormElementsDisabled} />
                 {imageDataUri && imageFile && (
                   <div className="mt-2 p-2 border rounded-md bg-muted">
                     <p className="text-sm text-muted-foreground mb-2">Seçilen görsel: {imageFile.name}</p>
@@ -355,7 +365,7 @@ export default function QuestionSolverPage() {
                   </div>
                 )}
             </div>
-            <Button type="submit" className="w-full" disabled={isSubmitDisabled}> {isSolving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />} Çözüm İste </Button>
+            <Button type="submit" className="w-full" disabled={isSubmitButtonDisabled}> {isSolving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />} Çözüm İste </Button>
           </CardContent>
         </Card>
       </form>
@@ -383,7 +393,18 @@ export default function QuestionSolverPage() {
                 {parsedSolution.explanationSections.length > 0 && (
                   <div>
                     <h3 className="text-lg font-semibold text-primary mb-2">Açıklama:</h3>
-                    {parsedSolution.explanationSections}
+                    {parsedSolution.explanationSections.map((part, index) => {
+                        let key = `part-${index}-${Math.random()}`;
+                        switch(part.type) {
+                            case "heading": return <h3 key={key} className="text-lg font-semibold mt-4 mb-2 text-foreground">{part.content}</h3>;
+                            case "subheading": return <h4 key={key} className="text-md font-semibold mt-3 mb-1 text-foreground">{part.content}</h4>;
+                            case "listitem": return <li key={key} className="ml-4 list-disc">{part.content}</li>;
+                            case "codeblock": return <pre key={key} className="bg-background/50 p-2 my-2 rounded-md overflow-x-auto text-sm"><code className="text-foreground">{part.content}</code></pre>;
+                            case "paragraph":
+                            default:
+                                return <p key={key} className="mb-2 last:mb-0">{part.content}</p>;
+                        }
+                    })}
                   </div>
                 )}
                 {!parsedSolution.answerValue && parsedSolution.explanationSections.length === 0 && answer?.solution && (
@@ -395,7 +416,7 @@ export default function QuestionSolverPage() {
                 <div className="mt-4">
                   <h4 className="text-md font-semibold text-foreground mb-1">İlgili Kavramlar:</h4>
                   <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
-                    {answer.relatedConcepts.map((concept, index) => ( <li key={index}>{parseInlineFormatting(concept)}</li> ))}
+                    {answer.relatedConcepts.map((concept, index) => ( <li key={`concept-${index}-${Math.random()}`}>{parseInlineFormatting(concept)}</li> ))}
                   </ul>
                 </div>
               )}
@@ -403,7 +424,7 @@ export default function QuestionSolverPage() {
                 <div className="mt-4">
                   <h4 className="text-md font-semibold text-foreground mb-1">Sınav Stratejisi İpuçları:</h4>
                   <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
-                    {answer.examStrategyTips.map((tip, index) => ( <li key={index}>{parseInlineFormatting(tip)}</li> ))}
+                    {answer.examStrategyTips.map((tip, index) => ( <li key={`tip-${index}-${Math.random()}`}>{parseInlineFormatting(tip)}</li> ))}
                   </ul>
                 </div>
               )}
@@ -411,6 +432,17 @@ export default function QuestionSolverPage() {
           </CardContent>
         </Card>
       )}
+       {!isSolving && !answer && !userProfileLoading && (userProfile || !userProfile) && (
+         <Alert className="mt-6">
+          <HelpCircle className="h-4 w-4" />
+          <AlertTitle>Çözüme Hazır!</AlertTitle>
+          <AlertDescription>
+            Yukarıya bir YKS sorusu yazın veya görselini yükleyin. Yapay zeka, sorunuzu adım adım çözerek size yardımcı olacaktır.
+          </AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 }
+
+    

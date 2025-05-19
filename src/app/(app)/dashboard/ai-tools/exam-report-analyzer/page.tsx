@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { extractTextFromPdf } from "@/lib/pdfUtils";
 import { analyzeExamReport, type ExamReportAnalyzerOutput, type ExamReportAnalyzerInput } from "@/ai/flows/exam-report-analyzer-flow";
-import { Input } from "@/components/ui/input";
+import { Input as ShadInput } from "@/components/ui/input"; // Renamed
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -31,34 +31,32 @@ export default function ExamReportAnalyzerPage() {
   const [canProcess, setCanProcess] = useState(false);
 
   const memoizedCheckAndResetQuota = useCallback(async () => {
-    if (checkAndResetQuota) return checkAndResetQuota();
-    return Promise.resolve(userProfile);
+    if (!checkAndResetQuota) return userProfile;
+    return checkAndResetQuota();
   }, [checkAndResetQuota, userProfile]);
 
   useEffect(() => {
-    if (userProfile) {
-      memoizedCheckAndResetQuota().then(updatedProfile => {
-        setCanProcess((updatedProfile?.dailyRemainingQuota ?? 0) > 0);
-      });
+    if (!userProfileLoading) {
+      if (userProfile) {
+        memoizedCheckAndResetQuota().then(updatedProfile => {
+          setCanProcess((updatedProfile?.dailyRemainingQuota ?? 0) > 0);
+        });
+      } else {
+        setCanProcess(false);
+      }
     }
-  }, [userProfile, memoizedCheckAndResetQuota]);
+  }, [userProfile, userProfileLoading, memoizedCheckAndResetQuota]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
         if (file.type !== "application/pdf") {
             toast({ title: "Geçersiz Dosya Türü", description: "Lütfen bir PDF dosyası yükleyin.", variant: "destructive" });
-            event.target.value = "";
-            setSelectedFile(null);
-            setCurrentFileName(undefined);
-            return;
+            event.target.value = ""; setSelectedFile(null); setCurrentFileName(undefined); return;
         }
         if (file.size > MAX_FILE_SIZE_BYTES) {
             toast({ title: "Dosya Boyutu Çok Büyük", description: `Lütfen ${MAX_FILE_SIZE_MB}MB'den küçük bir PDF dosyası yükleyin.`, variant: "destructive" });
-            event.target.value = "";
-            setSelectedFile(null);
-            setCurrentFileName(undefined);
-            return;
+            event.target.value = ""; setSelectedFile(null); setCurrentFileName(undefined); return;
         }
         setSelectedFile(file);
         setCurrentFileName(file.name);
@@ -129,20 +127,32 @@ export default function ExamReportAnalyzerPage() {
       }
     } catch (error: any) {
       console.error("Sınav raporu analiz hatası:", error);
-      toast({
-        title: "Analiz Hatası",
-        description: error.message || "Rapor analiz edilirken beklenmedik bir hata oluştu.",
-        variant: "destructive",
-      });
+      toast({ title: "Analiz Hatası", description: error.message || "Rapor analiz edilirken beklenmedik bir hata oluştu.", variant: "destructive" });
       setAnalysisOutput({ identifiedTopics: [], overallFeedback: error.message || "Beklenmedik bir hata oluştu.", studySuggestions: ["Tekrar deneyin."], reportSummaryTitle:"Analiz Hatası"});
     } finally {
       setIsAnalyzing(false);
     }
   };
   
-  const isSubmitDisabled = isAnalyzing || !selectedFile || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
+  const isSubmitButtonDisabled = 
+    isAnalyzing || 
+    !selectedFile ||
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
 
-  if (userProfileLoading) {
+  const isModelSelectDisabled = 
+    isAnalyzing || 
+    !userProfile?.isAdmin ||
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
+
+  const isFormElementsDisabled = 
+    isAnalyzing ||
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
+
+
+  if (userProfileLoading && !userProfile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-20rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -170,7 +180,7 @@ export default function ExamReportAnalyzerPage() {
                 <Select 
                   value={adminSelectedModel} 
                   onValueChange={setAdminSelectedModel} 
-                  disabled={isSubmitDisabled || isAnalyzing}
+                  disabled={isModelSelectDisabled}
                 >
                   <SelectTrigger id="adminModelSelectExamReport">
                     <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
@@ -187,7 +197,7 @@ export default function ExamReportAnalyzerPage() {
         </CardContent>
       </Card>
 
-      {!canProcess && !isAnalyzing && userProfile && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
+      {!userProfileLoading && userProfile && !canProcess && !isAnalyzing && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
          <Alert variant="destructive" className="shadow-md">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Günlük Kota Doldu</AlertTitle>
@@ -206,13 +216,13 @@ export default function ExamReportAnalyzerPage() {
           <CardContent className="pt-6 space-y-4">
             <div className="space-y-2">
                 <Label htmlFor="reportUpload" className="sr-only">Sınav Raporu PDF</Label>
-                <Input 
+                <ShadInput 
                     id="reportUpload"
                     type="file"
                     accept="application/pdf"
                     onChange={handleFileChange}
                     className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-                    disabled={isAnalyzing || !canProcess}
+                    disabled={isFormElementsDisabled}
                 />
                 {currentFileName && (
                   <div className="mt-2 flex items-center text-sm text-muted-foreground bg-muted p-2 rounded-md">
@@ -221,7 +231,7 @@ export default function ExamReportAnalyzerPage() {
                   </div>
                 )}
             </div>
-            <Button type="submit" className="w-full" disabled={isSubmitDisabled}>
+            <Button type="submit" className="w-full" disabled={isSubmitButtonDisabled}>
               {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
               Sınav Raporunu Analiz Et
             </Button>
@@ -296,7 +306,7 @@ export default function ExamReportAnalyzerPage() {
           </CardContent>
         </Card>
       )}
-       {!isAnalyzing && !analysisOutput && !userProfileLoading && (
+       {!isAnalyzing && !analysisOutput && !userProfileLoading && (userProfile || !userProfile) &&(
          <Alert className="mt-6">
           <ClipboardCheck className="h-4 w-4" />
           <AlertTitle>Analize Hazır!</AlertTitle>
@@ -308,3 +318,5 @@ export default function ExamReportAnalyzerPage() {
     </div>
   );
 }
+
+    

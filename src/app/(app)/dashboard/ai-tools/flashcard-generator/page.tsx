@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { generateFlashcards, type GenerateFlashcardsOutput, type GenerateFlashcardsInput } from "@/ai/flows/flashcard-generator-flow";
 
-const MIN_TEXT_LENGTH = 20; // Minimum karakter limiti 20'ye düşürüldü
+const MIN_TEXT_LENGTH = 20;
 
 export default function FlashcardGeneratorPage() {
   const [inputText, setInputText] = useState("");
@@ -41,7 +41,7 @@ export default function FlashcardGeneratorPage() {
           setCanProcess((updatedProfile?.dailyRemainingQuota ?? 0) > 0);
         });
       } else {
-        setCanProcess(false); // No user, cannot process
+        setCanProcess(false); 
       }
     }
   }, [userProfile, userProfileLoading, memoizedCheckAndResetQuota]);
@@ -134,9 +134,15 @@ export default function FlashcardGeneratorPage() {
     inputText.trim().length < MIN_TEXT_LENGTH ||
     numFlashcards < 3 ||
     numFlashcards > 15 ||
-    (!userProfileLoading && userProfile && !canProcess);
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
 
-  const isModelSelectDisabled = isGenerating || !userProfile?.isAdmin || (!userProfileLoading && userProfile && !canProcess);
+
+  const isModelSelectDisabled = 
+    isGenerating || 
+    !userProfile?.isAdmin ||
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
 
 
   if (userProfileLoading && !userProfile) {
@@ -203,7 +209,7 @@ export default function FlashcardGeneratorPage() {
               onChange={(e) => setInputText(e.target.value)}
               rows={8}
               className="text-base"
-              disabled={isGenerating || (!userProfileLoading && userProfile && !canProcess)}
+              disabled={isGenerating || (!userProfileLoading && userProfile && !canProcess) || (!userProfileLoading && !userProfile)}
             />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -219,7 +225,7 @@ export default function FlashcardGeneratorPage() {
                   min="3"
                   max="15"
                   className="w-full p-2 border rounded-md bg-input border-border"
-                  disabled={isGenerating || (!userProfileLoading && userProfile && !canProcess)}
+                  disabled={isGenerating || (!userProfileLoading && userProfile && !canProcess) || (!userProfileLoading && !userProfile)}
                 />
               </div>
               <div>
@@ -227,7 +233,7 @@ export default function FlashcardGeneratorPage() {
                 <Select
                   value={difficulty}
                   onValueChange={(value: GenerateFlashcardsInput["difficulty"]) => setDifficulty(value)}
-                  disabled={isGenerating || (!userProfileLoading && userProfile && !canProcess)}
+                  disabled={isGenerating || (!userProfileLoading && userProfile && !canProcess) || (!userProfileLoading && !userProfile)}
                 >
                   <SelectTrigger id="difficulty">
                     <SelectValue placeholder="Zorluk seçin" />
@@ -315,10 +321,19 @@ export default function FlashcardGeneratorPage() {
           </CardContent>
         </Card>
       )}
+      {!isGenerating && !flashcardsOutput && !userProfileLoading && (
+         <Alert className="mt-6">
+          <LayoutGrid className="h-4 w-4" />
+          <AlertTitle>Kartlara Hazır!</AlertTitle>
+          <AlertDescription>
+            Yukarıya bir metin girerek ve ayarları yaparak kişiselleştirilmiş bilgi kartlarınızı oluşturun.
+          </AlertDescription>
+        </Alert>
+      )}
       {/* Global styles for the 3D flip effect */}
       <style jsx global>{`
         .perspective {
-          perspective: 1200px; /* Increased perspective for a more pronounced 3D effect */
+          perspective: 1200px;
         }
         .transform-style-3d {
           transform-style: preserve-3d;
@@ -328,10 +343,11 @@ export default function FlashcardGeneratorPage() {
         }
         .backface-hidden {
           backface-visibility: hidden;
-          -webkit-backface-visibility: hidden; /* Safari */
+          -webkit-backface-visibility: hidden;
         }
       `}</style>
     </div>
   );
 }
+
     

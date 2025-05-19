@@ -27,17 +27,21 @@ export default function TopicSummarizerPage() {
   const [canProcess, setCanProcess] = useState(false);
 
   const memoizedCheckAndResetQuota = useCallback(async () => {
-    if (checkAndResetQuota) return checkAndResetQuota();
-    return Promise.resolve(userProfile);
+    if (!checkAndResetQuota) return userProfile;
+    return checkAndResetQuota();
   }, [checkAndResetQuota, userProfile]);
 
   useEffect(() => {
-    if (userProfile) {
-      memoizedCheckAndResetQuota().then(updatedProfile => {
-        setCanProcess((updatedProfile?.dailyRemainingQuota ?? 0) > 0);
-      });
+    if (!userProfileLoading) {
+      if (userProfile) {
+        memoizedCheckAndResetQuota().then(updatedProfile => {
+          setCanProcess((updatedProfile?.dailyRemainingQuota ?? 0) > 0);
+        });
+      } else {
+        setCanProcess(false);
+      }
     }
-  }, [userProfile, memoizedCheckAndResetQuota]);
+  }, [userProfile, userProfileLoading, memoizedCheckAndResetQuota]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,20 +92,32 @@ export default function TopicSummarizerPage() {
       }
     } catch (error: any) {
       console.error("Konu özetleme hatası:", error);
-      toast({
-        title: "Özetleme Hatası",
-        description: error.message || "Konu özetlenirken beklenmedik bir hata oluştu.",
-        variant: "destructive",
-      });
+      toast({ title: "Özetleme Hatası", description: error.message || "Konu özetlenirken beklenmedik bir hata oluştu.", variant: "destructive" });
        setSummaryOutput({ topicSummary: error.message || "Beklenmedik bir hata oluştu.", keyConcepts: [], yksConnections: [], sourceReliability: "Hata oluştu." });
     } finally {
       setIsSummarizing(false);
     }
   };
   
-  const isSubmitDisabled = isSummarizing || !topicOrText.trim() || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
+  const isSubmitButtonDisabled = 
+    isSummarizing || 
+    !topicOrText.trim() ||
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
 
-  if (userProfileLoading) {
+  const isModelSelectDisabled = 
+    isSummarizing || 
+    !userProfile?.isAdmin ||
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
+
+  const isFormElementsDisabled = 
+    isSummarizing ||
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
+
+
+  if (userProfileLoading && !userProfile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-20rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -129,7 +145,7 @@ export default function TopicSummarizerPage() {
                 <Select 
                   value={adminSelectedModel} 
                   onValueChange={setAdminSelectedModel} 
-                  disabled={isSubmitDisabled || isSummarizing}
+                  disabled={isModelSelectDisabled}
                 >
                   <SelectTrigger id="adminModelSelectTopicSum">
                     <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
@@ -149,7 +165,7 @@ export default function TopicSummarizerPage() {
                 <Select
                 value={summaryLength}
                 onValueChange={(value: SummarizeTopicInput["summaryLength"]) => setSummaryLength(value)}
-                disabled={isSummarizing || !canProcess}
+                disabled={isFormElementsDisabled}
                 >
                 <SelectTrigger id="summaryLength">
                     <SelectValue placeholder="Özet uzunluğunu seçin" />
@@ -166,7 +182,7 @@ export default function TopicSummarizerPage() {
                 <Select
                 value={outputFormat}
                 onValueChange={(value: SummarizeTopicInput["outputFormat"]) => setOutputFormat(value)}
-                disabled={isSummarizing || !canProcess}
+                disabled={isFormElementsDisabled}
                 >
                 <SelectTrigger id="outputFormat">
                     <SelectValue placeholder="Çıktı formatını seçin" />
@@ -181,7 +197,7 @@ export default function TopicSummarizerPage() {
         </CardContent>
       </Card>
 
-       {!canProcess && !isSummarizing && userProfile && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
+       {!userProfileLoading && userProfile && !canProcess && !isSummarizing && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
          <Alert variant="destructive" className="shadow-md">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Günlük Kota Doldu</AlertTitle>
@@ -200,9 +216,9 @@ export default function TopicSummarizerPage() {
               onChange={(e) => setTopicOrText(e.target.value)}
               rows={8}
               className="text-base"
-              disabled={isSummarizing || !canProcess}
+              disabled={isFormElementsDisabled}
             />
-            <Button type="submit" className="w-full" disabled={isSubmitDisabled}>
+            <Button type="submit" className="w-full" disabled={isSubmitButtonDisabled}>
               {isSummarizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Brain className="mr-2 h-4 w-4" />}
               Özetle
             </Button>
@@ -265,6 +281,17 @@ export default function TopicSummarizerPage() {
           </CardContent>
         </Card>
       )}
+      {!isSummarizing && !summaryOutput && !userProfileLoading && (userProfile || !userProfile) &&(
+        <Alert className="mt-6">
+          <Lightbulb className="h-4 w-4" />
+          <AlertTitle>Özete Hazır!</AlertTitle>
+          <AlertDescription>
+            Yukarıdaki metin alanına bir konu veya metin girerek ve ayarları yaparak YKS odaklı özetinizi alın.
+          </AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 }
+
+    

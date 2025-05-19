@@ -44,19 +44,22 @@ export default function TestGeneratorPage() {
   const [showExplanations, setShowExplanations] = useState<{[key: number]: boolean}>({});
   const [isTestFinished, setIsTestFinished] = useState(false);
 
-
   const memoizedCheckAndResetQuota = useCallback(async () => {
-    if (checkAndResetQuota) return checkAndResetQuota();
-    return Promise.resolve(userProfile);
+    if (!checkAndResetQuota) return userProfile;
+    return checkAndResetQuota();
   }, [checkAndResetQuota, userProfile]);
   
   useEffect(() => {
-    if (userProfile) {
-      memoizedCheckAndResetQuota().then(updatedProfile => {
-        setCanProcess((updatedProfile?.dailyRemainingQuota ?? 0) > 0);
-      });
+    if (!userProfileLoading) {
+      if (userProfile) {
+        memoizedCheckAndResetQuota().then(updatedProfile => {
+          setCanProcess((updatedProfile?.dailyRemainingQuota ?? 0) > 0);
+        });
+      } else {
+        setCanProcess(false);
+      }
     }
-  }, [userProfile, memoizedCheckAndResetQuota]);
+  }, [userProfile, userProfileLoading, memoizedCheckAndResetQuota]);
 
   const resetTestState = () => {
     setCurrentQuestionIndex(0);
@@ -65,10 +68,6 @@ export default function TestGeneratorPage() {
     setShowExplanations({});
     setTestOutput(null);
     setIsTestFinished(false);
-    // Optionally reset form inputs if desired
-    // setTopic(""); 
-    // setNumQuestions(5);
-    // setDifficulty("medium");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -124,11 +123,7 @@ export default function TestGeneratorPage() {
       }
     } catch (error: any) {
       console.error("Test oluşturma hatası:", error);
-      toast({
-        title: "Test Oluşturma Hatası",
-        description: error.message || "Test oluşturulurken beklenmedik bir hata oluştu.",
-        variant: "destructive",
-      });
+      toast({ title: "Test Oluşturma Hatası", description: error.message || "Test oluşturulurken beklenmedik bir hata oluştu.", variant: "destructive" });
       setTestOutput({ testTitle: error.message || "Beklenmedik bir hata oluştu.", questions: [] });
     } finally {
       setIsGenerating(false);
@@ -172,9 +167,26 @@ export default function TestGeneratorPage() {
   const isAnswerCheckedForCurrentQuestion = checkedAnswers[currentQuestionIndex] !== undefined;
   const isExplanationShownForCurrentQuestion = showExplanations[currentQuestionIndex] === true;
   
-  const isSubmitDisabled = isGenerating || !topic.trim() || (numQuestions < 3 || numQuestions > 20) || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <=0);
+  const isSubmitButtonDisabled = 
+    isGenerating || 
+    !topic.trim() || 
+    (numQuestions < 3 || numQuestions > 20) ||
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
 
-  if (userProfileLoading) {
+  const isModelSelectDisabled = 
+    isGenerating || 
+    !userProfile?.isAdmin ||
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
+
+  const isFormElementsDisabled = 
+    isGenerating ||
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
+
+
+  if (userProfileLoading && !userProfile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-20rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -203,11 +215,7 @@ export default function TestGeneratorPage() {
     let correctCount = 0;
     testOutput.questions.forEach((q, index) => {
         const answerInfo = checkedAnswers[index];
-        if (!answerInfo && userAnswers[index] !== undefined) { // If answer was selected but not explicitly "checked"
-            if(userAnswers[index] === q.correctAnswer) { // Check against correct answer
-                correctCount++;
-            }
-        } else if (answerInfo?.isCorrect) { // If answer was "checked" and is correct
+        if (answerInfo?.isCorrect) {
              correctCount++;
         }
     });
@@ -236,7 +244,7 @@ export default function TestGeneratorPage() {
                                 </AccordionTrigger>
                                 <AccordionContent className="space-y-3 p-4 bg-muted/30 rounded-b-md">
                                     <p className="font-semibold whitespace-pre-line">{q.questionText}</p>
-                                    <p className="text-sm">Verdiğiniz Cevap: <span className={`font-semibold ${checkedInfo.selectedOption === checkedInfo.correctAnswer ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>{userAnswer || "Cevaplanmadı"}</span></p>
+                                    <p className="text-sm">Verdiğiniz Cevap: <span className={`font-semibold ${userAnswer === q.correctAnswer ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>{userAnswer || "Cevaplanmadı"}</span></p>
                                     <p className="text-sm">Doğru Cevap: <span className="font-semibold text-green-700 dark:text-green-400">{q.correctAnswer}</span></p>
                                     {q.explanation && (
                                         <div className="prose prose-sm dark:prose-invert max-w-none mt-2 border-t pt-2">
@@ -274,9 +282,31 @@ export default function TestGeneratorPage() {
             Belirlediğiniz konularda, istediğiniz zorluk seviyesinde ve soru sayısında YKS odaklı pratik testleri anında oluşturun.
           </CardDescription>
         </CardHeader>
+         <CardContent>
+          {userProfile?.isAdmin && (
+            <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
+              <Label htmlFor="adminModelSelectTestGen" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
+              <Select 
+                value={adminSelectedModel} 
+                onValueChange={setAdminSelectedModel} 
+                disabled={isModelSelectDisabled}
+              >
+                <SelectTrigger id="adminModelSelectTestGen">
+                  <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
+                  <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
+                  <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz.</p>
+            </div>
+          )}
+        </CardContent>
       </Card>
 
-      {!canProcess && !isGenerating && userProfile && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
+      {!userProfileLoading && userProfile && !canProcess && !isGenerating && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
          <Alert variant="destructive" className="shadow-md">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Günlük Kota Doldu</AlertTitle>
@@ -290,26 +320,6 @@ export default function TestGeneratorPage() {
         <form onSubmit={handleSubmit}>
             <Card>
             <CardContent className="pt-6 space-y-4">
-                {userProfile?.isAdmin && (
-                <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
-                    <Label htmlFor="adminModelSelectTestGen" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
-                    <Select 
-                      value={adminSelectedModel} 
-                      onValueChange={setAdminSelectedModel} 
-                      disabled={isSubmitDisabled || isGenerating}
-                    >
-                      <SelectTrigger id="adminModelSelectTestGen">
-                        <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
-                        <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
-                        <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz.</p>
-                </div>
-                )}
                 <div>
                 <Label htmlFor="topic" className="block text-sm font-medium text-foreground mb-1">Test Konusu</Label>
                 <Textarea
@@ -319,7 +329,7 @@ export default function TestGeneratorPage() {
                     onChange={(e) => setTopic(e.target.value)}
                     rows={3}
                     className="text-base"
-                    disabled={isGenerating || !canProcess}
+                    disabled={isFormElementsDisabled}
                 />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -336,7 +346,7 @@ export default function TestGeneratorPage() {
                             min="3"
                             max="20"
                             className="w-full p-2 border rounded-md bg-input border-border"
-                            disabled={isGenerating || !canProcess}
+                            disabled={isFormElementsDisabled}
                         />
                     </div>
                     <div>
@@ -344,7 +354,7 @@ export default function TestGeneratorPage() {
                         <Select
                             value={difficulty}
                             onValueChange={(value: GenerateTestInput["difficulty"]) => setDifficulty(value)}
-                            disabled={isGenerating || !canProcess}
+                            disabled={isFormElementsDisabled}
                         >
                             <SelectTrigger id="difficulty">
                                 <SelectValue placeholder="Zorluk seçin" />
@@ -357,7 +367,7 @@ export default function TestGeneratorPage() {
                         </Select>
                     </div>
                 </div>
-                <Button type="submit" className="w-full" disabled={isSubmitDisabled}>
+                <Button type="submit" className="w-full" disabled={isSubmitButtonDisabled}>
                 {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                 YKS Testi Oluştur
                 </Button>
@@ -488,6 +498,17 @@ export default function TestGeneratorPage() {
           </CardContent>
         </Card>
       )}
+      {!testOutput && !isGenerating && !userProfileLoading && (userProfile || !userProfile) && (
+         <Alert className="mt-6">
+          <FileTextIcon className="h-4 w-4" />
+          <AlertTitle>Teste Hazır!</AlertTitle>
+          <AlertDescription>
+            Yukarıya bir YKS konu başlığı girerek ve ayarları yaparak kişiselleştirilmiş testinizi oluşturun.
+          </AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 }
+
+    
