@@ -1,7 +1,6 @@
 
 "use client";
 
-// ... (diğer importlar aynı kalacak)
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
@@ -23,19 +22,20 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Card, CardContent } from "@/components/ui/card"; // Ensure Card is imported
+import { Card, CardContent } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuLabel,
   DropdownMenuTrigger,
   DropdownMenuItem,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation, Timer, CalendarClock, ListChecks, Palette, Youtube, Brain, MessageSquareQuestion } from "lucide-react";
+import { Brain, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation, Timer, CalendarClock, ListChecks, Palette, Youtube, MessageSquareQuestion } from "lucide-react";
 import Link from "next/link";
 import QuotaDisplay from "@/components/dashboard/QuotaDisplay";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
-import { signOut as firebaseSignOut } from "@/hooks/useAuth"; // Renamed to avoid conflict
+import { signOut as firebaseSignOut } from "@/hooks/useAuth";
 import Footer from "@/components/layout/Footer";
 import { SidebarInset } from "@/components/ui/sidebar";
 import { ThemeToggleSidebar } from "@/components/layout/ThemeToggle";
@@ -71,22 +71,14 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     "/dashboard/tools/pomodoro",
     "/dashboard/tools/countdown",
     "/dashboard/tools/goal-tracker",
-    // "/dashboard/tools/whiteboard", // Karalama tahtası kaldırılmıştı
   ];
 
   useEffect(() => {
     if (aiToolPaths.some(path => pathname.startsWith(path))) {
       setIsAiToolsSubmenuOpen(true);
-    } else {
-      // Alt menüyü kapatmak için bu koşul eklenebilir, ancak isteğe bağlıdır.
-      // Mevcut davranış, bir kez açıldıktan sonra manuel olarak kapatılana kadar açık kalmasıdır.
-      // Eğer farklı bir sayfaya gidildiğinde kapanmasını isterseniz buraya setIsAiToolsSubmenuOpen(false); eklenebilir.
     }
-
     if (helperToolPaths.some(path => pathname.startsWith(path))) {
       setIsHelperToolsSubmenuOpen(true);
-    } else {
-      // Benzer şekilde yardımcı araçlar için de kapanma mantığı eklenebilir.
     }
   }, [pathname]);
 
@@ -134,11 +126,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative" title="Bildirimler">
                     <Bell className="h-5 w-5" />
-                    {/* İleride bildirim sayısı için bir badge eklenebilir */}
-                    {/* <span className="absolute top-0 right-0 flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-sky-500"></span>
-                    </span> */}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64">
@@ -146,16 +133,55 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                 <div className="p-2 text-sm text-muted-foreground text-center">
                   Henüz yeni bildiriminiz yok.
                 </div>
-                {/* <DropdownMenuSeparator />
-                <DropdownMenuItem>Örnek Bildirim 1</DropdownMenuItem>
-                <DropdownMenuItem>Örnek Bildirim 2</DropdownMenuItem> */}
               </DropdownMenuContent>
             </DropdownMenu>
-            <Avatar className="h-9 w-9">
-              <AvatarFallback className="bg-primary text-primary-foreground">
-                {getInitials(user.email)}
-              </AvatarFallback>
-            </Avatar>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                 <Avatar className="h-9 w-9 cursor-pointer">
+                  <AvatarFallback className="bg-primary text-primary-foreground">
+                    {getInitials(user.email)}
+                  </AvatarFallback>
+                </Avatar>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56" align="end" forceMount>
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium leading-none">
+                      {userProfile?.displayName || user.email}
+                    </p>
+                    <p className="text-xs leading-none text-muted-foreground">
+                      {user.email}
+                    </p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                 <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link href="/dashboard/subscription">
+                        <CreditCard className="mr-2 h-4 w-4" />
+                        <span>Aboneliğim</span>
+                    </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link href="/dashboard/support">
+                        <LifeBuoy className="mr-2 h-4 w-4" />
+                        <span>Destek</span>
+                    </Link>
+                </DropdownMenuItem>
+                {userProfile?.isAdmin && (
+                    <DropdownMenuItem asChild className="cursor-pointer">
+                        <Link href="/dashboard/admin">
+                            <ShieldCheck className="mr-2 h-4 w-4" />
+                            <span>Admin Paneli</span>
+                        </Link>
+                    </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Çıkış Yap</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 
@@ -163,7 +189,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           <Sidebar collapsible="icon" className="border-r bg-sidebar text-sidebar-foreground">
             <SidebarHeader className="p-4 mb-2">
               <Link href="/dashboard" className="flex items-center gap-2.5 group-data-[collapsible=icon]:justify-center">
-                <Brain className="h-8 w-8 text-primary" />
+                <Brain className="h-7 w-7 md:h-8 md:w-8 text-primary" />
                 <span className="text-xl font-bold text-foreground group-data-[collapsible=icon]:hidden">NeutralEdu AI</span>
               </Link>
             </SidebarHeader>
@@ -272,13 +298,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                           <Link href="/dashboard/tools/goal-tracker"><ListChecks /><span>Hedef Takipçisi</span></Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
-                      {/* Karalama tahtası kaldırıldığı için burası yorum satırı
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/tools/whiteboard"}>
-                          <Link href="/dashboard/tools/whiteboard"><Palette /><span>Dijital Karalama Tahtası</span></Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      */}
                     </SidebarMenuSub>
                   )}
                 </SidebarMenuItem>
@@ -324,17 +343,15 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                   </CardContent>
                 </Card>
                )}
-              {/* AD_PLACEHOLDER_SIDEBAR: Gelecekteki reklam entegrasyonu için bir yer */}
               {userProfile?.plan === 'free' && (
                 <div className="p-2 group-data-[collapsible=icon]:hidden text-center">
-                  {/* Reklam Kodu Buraya Gelecek (örneğin, AdSense) */}
-                  <div style={{width: '100%', height: '100px', background: '#333', color: '#777', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius)', fontSize: '0.8rem'}}>
-                    Reklam Alanı (120x100)
+                  <div style={{width: '100%', height: '100px', background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius)', fontSize: '0.8rem', border: '1px dashed hsl(var(--border))'}}>
+                    Reklam Alanı (Örn: 120x100)
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">Daha iyi bir deneyim için Pro'ya geçin.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Reklamsız deneyim için <Link href="/pricing" className="underline text-primary">Pro'ya</Link> geçin.</p>
                 </div>
               )}
-              <SidebarMenu className="border-t border-border/20 pt-2">
+              <SidebarMenu className="border-t border-sidebar-border/20 pt-2">
                 <SidebarMenuItem>
                     <ThemeToggleSidebar />
                 </SidebarMenuItem>
@@ -348,12 +365,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           </Sidebar>
           <SidebarInset className="flex-1 overflow-y-auto bg-background">
             <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-              {/* AD_PLACEHOLDER_MAIN_CONTENT_TOP: Gelecekteki reklam entegrasyonu için bir yer */}
               {userProfile?.plan === 'free' && (
                 <div className="mb-6 p-3 text-center bg-muted/50 border border-dashed rounded-md">
-                   {/* Reklam Kodu Buraya Gelecek (örneğin, AdSense) */}
-                   <div style={{width: '100%', minHeight: '90px', background: '#333', color: '#777', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius)', fontSize: '0.9rem'}}>
-                    Reklam Alanı (Banner)
+                   <div style={{width: '100%', minHeight: '90px', background: 'hsl(var(--muted))', color: 'hsl(var(--muted-foreground))', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius)', fontSize: '0.9rem', border: '1px dashed hsl(var(--border))'}}>
+                    Reklam Alanı (Örn: Banner 728x90)
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     Reklamsız bir deneyim ve daha fazla özellik için <Link href="/pricing" className="underline text-primary">Premium veya Pro'ya</Link> geçin!

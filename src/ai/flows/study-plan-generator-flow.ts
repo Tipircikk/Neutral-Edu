@@ -13,7 +13,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-// TYT ve AYT Konu Listeleri (Kısaltılmış Örnekler)
+// TYT ve AYT Konu Listeleri
 const yksTopics = {
   tyt: {
     turkce: ["Sözcükte Anlam", "Cümlede Anlam", "Paragraf", "Ses Bilgisi", "Dil Bilgisi Genel", "Anlatım Bozuklukları", "Yazım Kuralları", "Noktalama İşaretleri"],
@@ -149,7 +149,7 @@ export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<
     subjectsToFocus = "Genel YKS konuları (TYT ve AYT tüm dersler)";
   }
 
-  const enrichedInput = {
+  const enrichedInputForPrompt = { // Renamed to avoid conflict with the flow function input
     ...input,
     subjects: subjectsToFocus, 
     isProUser,
@@ -159,7 +159,7 @@ export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<
   
   let flowOutput: GenerateStudyPlanOutput;
   try {
-    flowOutput = await studyPlanGeneratorFlow(enrichedInput);
+    flowOutput = await studyPlanGeneratorFlow(enrichedInputForPrompt); // Pass the enriched input for the prompt
   } catch (error) {
     console.error("[generateStudyPlan Wrapper] Error calling studyPlanGeneratorFlow:", error);
     return {
@@ -171,15 +171,16 @@ export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<
     };
   }
 
+  // Ensure every weekly plan has a 'week' number (redundant if AI behaves, but good fallback)
   if (flowOutput && Array.isArray(flowOutput.weeklyPlans)) {
       flowOutput.weeklyPlans.forEach((plan: any, index) => { 
-          if (plan && (plan.week === undefined || typeof plan.week !== 'number' || isNaN(plan.week))) {
-              console.warn(`Study Plan Generator: AI output for weeklyPlans[${index}] is missing or has an invalid 'week' number. Assigning index+1. Original plan object:`, JSON.stringify(plan).substring(0, 200));
+          if (plan && (typeof plan.week !== 'number' || isNaN(plan.week))) {
+              console.warn(`Study Plan Generator (Wrapper): AI output for weeklyPlans[${index}] is missing or has an invalid 'week' number. Assigning index+1. Original plan object:`, JSON.stringify(plan).substring(0, 200));
               plan.week = index + 1; 
           }
       });
   } else if (flowOutput) {
-      console.warn("Study Plan Generator: AI output for weeklyPlans is not an array or is missing. Defaulting to empty array. Input:", JSON.stringify(enrichedInput).substring(0,200));
+      console.warn("Study Plan Generator (Wrapper): AI output for weeklyPlans is not an array or is missing. Defaulting to empty array.");
       flowOutput.weeklyPlans = [];
       if (!flowOutput.planTitle) {
           flowOutput.planTitle = "Hata: Haftalık Planlar Oluşturulamadı";
@@ -203,7 +204,7 @@ const studyPlanGeneratorPrompt = ai.definePrompt({
   prompt: `Sen, YKS öğrencilerine yönelik, onların girdilerine göre kişiselleştirilmiş, haftalık ve günlük bazda yapılandırılmış, gerçekçi ve motive edici YKS çalışma planları tasarlayan uzman bir AI eğitim koçusun. Cevapların daima Türkçe olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
-{{#if isProUser}}(Pro Kullanıcı Notu: Planı, farklı öğrenme teknikleri ve genel kaynak önerileriyle (spesifik kitap adı olmadan) zenginleştir. Kapsamlı ve stratejik bir plan oluştur.){{/if}}
+{{#if isProUser}}(Pro Kullanıcı Notu: Planı, farklı öğrenme teknikleri ve genel kaynak önerileriyle zenginleştir. Kapsamlı ve stratejik bir plan oluştur.){{/if}}
 {{#if isCustomModelSelected}}(Admin Notu: '{{{customModelIdentifier}}}' modeli kullanılıyor.{{#if isGemini25PreviewSelected}} (Gemini 2.5 Flash Preview Özel Notu: Yanıtlarını ÖZ ama ANLAŞILIR tut. HIZLI yanıtla.){{/if}}){{/if}}
 
 Öğrencinin Girdileri:
@@ -234,8 +235,8 @@ Lütfen bu bilgilere göre, aşağıdaki formatta bir çalışma planı taslağ�
 Planlama İlkeleri:
 *   Verilen {{{userField}}} ve/veya {{{subjects}}} listesine göre, {{{studyDuration}}} süresince, günde ortalama {{{hoursPerDay}}} saat çalışmayı dikkate alarak mantıklı bir plan oluştur.
 *   Konuların zorluk seviyelerine ve bağlantılarına dikkat et. Tekrar ve soru çözümünü dahil et.
-*   Gerçekçi ve uygulanabilir bir plan sun. Süre çok kısaysa veya konu sayısı çok fazlaysa, bunu belirt ve planı optimize et.
-*   Çıktının JSON şemasına HARFİYEN uyduğundan emin ol. Özellikle, 'weeklyPlans' içindeki her haftalık plan objesinin 'week' anahtarını içerdiğinden ve bu anahtarın değerinin bir SAYI olduğundan KESİNLİKLE emin ol.
+*   Gerçekçi ve uygulanabilir bir plan sun. Süre çok kısaysa veya konu sayısı çok fazlaysa, bu durumu nazikçe belirt ve planı en iyi şekilde optimize etmeye çalış veya daha odaklı bir plan öner.
+*   Şemadaki 'required' olarak işaretlenmiş tüm alanların çıktıda bulunduğundan emin ol. Özellikle 'weeklyPlans' içindeki her bir haftanın 'week' numarası MUTLAKA belirtilmelidir ve bir SAYI olmalıdır.
 `,
 });
 
@@ -250,12 +251,12 @@ const studyPlanGeneratorFlow = ai.defineFlow(
     }),
     outputSchema: GenerateStudyPlanOutputSchema,
   },
-  async (enrichedInput: GenerateStudyPlanInput & {subjects?: string; isProUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<GenerateStudyPlanOutput> => {
+  async (input: z.infer<typeof GenerateStudyPlanInputSchema> & {subjects?: string; isProUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<GenerateStudyPlanOutput> => {
     let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
-    if (enrichedInput.customModelIdentifier) {
-      switch (enrichedInput.customModelIdentifier) {
+    if (input.customModelIdentifier) {
+      switch (input.customModelIdentifier) {
         case 'default_gemini_flash':
           modelToUse = 'googleai/gemini-2.0-flash';
           break;
@@ -266,9 +267,9 @@ const studyPlanGeneratorFlow = ai.defineFlow(
           modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
           break;
         default:
-          console.warn(`[Study Plan Generator Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
+          console.warn(`[Study Plan Generator Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (enrichedInput.isProUser) { 
+    } else if (input.isProUser) { 
       modelToUse = 'googleai/gemini-1.5-flash-latest';
     }
     
@@ -284,28 +285,29 @@ const studyPlanGeneratorFlow = ai.defineFlow(
         callOptions.config = {}; 
     }
     
-    console.log(`[Study Plan Generator Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}, PDF context provided: ${!!enrichedInput.pdfContextText}, User Field: ${enrichedInput.userField}, Subjects sent to AI: ${enrichedInput.subjects}`);
+    console.log(`[Study Plan Generator Flow] Using model: ${modelToUse} for plan: ${input.userPlan}, customModel: ${input.customModelIdentifier}, PDF context provided: ${!!input.pdfContextText}, User Field: ${input.userField}, Subjects sent to AI: ${input.subjects}`);
     
     let output: GenerateStudyPlanOutput | undefined;
     try {
-        const result = await prompt(enrichedInput, callOptions);
+        // CORRECTED: Call studyPlanGeneratorPrompt instead of prompt
+        const result = await studyPlanGeneratorPrompt(input, callOptions); 
         output = result.output;
 
         if (!output || !output.weeklyPlans) {
-            console.error("Study Plan Generator: AI output is missing weeklyPlans or output is null. Input:", JSON.stringify(enrichedInput).substring(0, 200), "Raw Output:", JSON.stringify(output).substring(0,300));
+            console.error("Study Plan Generator: AI output is missing weeklyPlans or output is null. Input:", JSON.stringify(input).substring(0, 200), "Raw Output:", JSON.stringify(output).substring(0,300));
             throw new Error("AI Eğitim Koçu, belirtilen girdilerle bir çalışma planı oluşturamadı. Lütfen bilgilerinizi kontrol edin.");
         }
         
         // Ensure every weekly plan has a 'week' number
         if (Array.isArray(output.weeklyPlans)) {
             output.weeklyPlans.forEach((plan: any, index) => { 
-                if (plan && (plan.week === undefined || typeof plan.week !== 'number' || isNaN(plan.week))) {
+                if (plan && (typeof plan.week !== 'number' || isNaN(plan.week))) { // Check if week is not a number or NaN
                     console.warn(`Study Plan Generator Flow (Post-processing): AI output for weeklyPlans[${index}] is missing or has an invalid 'week' number. Assigning index+1. Original plan object:`, JSON.stringify(plan).substring(0, 200));
                     plan.week = index + 1; 
                 }
             });
         } else {
-            console.error("Study Plan Generator: AI output for weeklyPlans is not an array. Defaulting to empty. Input:", JSON.stringify(enrichedInput).substring(0, 200), "Raw Output:", JSON.stringify(output).substring(0,300));
+            console.error("Study Plan Generator: AI output for weeklyPlans is not an array. Defaulting to empty. Input:", JSON.stringify(input).substring(0, 200), "Raw Output:", JSON.stringify(output).substring(0,300));
             output.weeklyPlans = []; 
         }
 
