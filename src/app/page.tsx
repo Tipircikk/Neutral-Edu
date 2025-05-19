@@ -1,14 +1,14 @@
 
-"use client"; // Required for useState and useEffect
+"use client";
 
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Presentation, Sparkles, FileText, HelpCircle, LayoutGrid, ClipboardCheck, CalendarDays, Wand2, FileUp, BotMessageSquare, BookOpenCheck, ArrowRight, Zap, Clock, Brain, ThumbsUp, ListChecks, Palette, Timer, CalendarClock, Users } from "lucide-react";
+import { Presentation, Sparkles, FileText as FileTextIcon, HelpCircle, LayoutGrid, ClipboardCheck, CalendarDays, Wand2, FileUp, BotMessageSquare, BookOpenCheck, ArrowRight, Zap, Clock, Brain, ThumbsUp, Users } from "lucide-react";
 import LandingHeader from "@/components/layout/LandingHeader";
 import Footer from "@/components/layout/Footer";
-import { useState, useEffect } from "react"; // Added useState and useEffect
+import { useState, useEffect, useRef } from "react";
 
 const features = [
   {
@@ -17,29 +17,19 @@ const features = [
     description: "YKS konularını yapay zekadan detaylıca öğrenin veya uzun metinleri/PDF'leri saniyeler içinde anlaşılır özetlere dönüştürün. Farklı anlatım seviyeleri ve hoca tarzları seçin!",
   },
   {
-    icon: <FileText className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
-    title: "AI Test Oluşturucu",
-    description: "Belirlediğiniz YKS konularından, istediğiniz zorluk seviyesinde pratik testler oluşturarak kendinizi sınayın. Detaylı çözümlerle öğrenin.",
+    icon: <FileTextIcon className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
+    title: "AI Test Oluşturucu ve Soru Çözücü",
+    description: "Belirlediğiniz YKS konularından pratik testler oluşturun veya zorlandığınız sorulara adım adım çözümler alın. (Soru Çözücü Beta)",
   },
    {
-    icon: <HelpCircle className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
-    title: "AI Soru Çözücü (Beta)",
-    description: "Zorlandığınız YKS sorularına (metin veya görsel) adım adım, açıklamalı çözümler alın. (Bu özellik geliştirme aşamasındadır).",
-  },
-  {
     icon: <LayoutGrid className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
-    title: "AI Bilgi Kartları",
-    description: "Önemli tanımlardan ve kavramlardan hızlıca çalışmak için etkileşimli bilgi kartları (flashcard) oluşturun.",
-  },
-  {
-    icon: <ClipboardCheck className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
-    title: "AI Sınav Raporu Analizi",
-    description: "Deneme sınavı raporlarınızı (PDF) analiz ederek zayıf olduğunuz konuları ve gelişim alanlarınızı yapay zeka ile keşfedin.",
+    title: "AI Bilgi Kartları ve Sınav Analizi",
+    description: "Önemli kavramlardan etkileşimli bilgi kartları oluşturun veya deneme sınavı raporlarınızı analiz ederek gelişim alanlarınızı keşfedin.",
   },
   {
     icon: <CalendarDays className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
-    title: "AI Çalışma Planı Oluşturucu",
-    description: "Hedeflerinize, konularınıza ve çalışma sürenize özel, kişiselleştirilmiş YKS çalışma planı taslakları edinin.",
+    title: "AI Çalışma Planı ve Yardımcı Araçlar",
+    description: "Kişiselleştirilmiş YKS çalışma planı taslakları edinin ve Pomodoro, Geri Sayım gibi yardımcı araçlarla verimliliğinizi artırın.",
   },
 ];
 
@@ -120,16 +110,31 @@ const testimonials = [
 
 export default function LandingPage() {
   const [currentTestimonialIndex, setCurrentTestimonialIndex] = useState(0);
+  const autoPlayIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    const intervalId = setInterval(() => {
+  const startAutoPlay = () => {
+    stopAutoPlay(); // Clear existing interval before starting a new one
+    autoPlayIntervalRef.current = setInterval(() => {
       setCurrentTestimonialIndex((prevIndex) => (prevIndex + 1) % testimonials.length);
     }, 2500); // Change testimonial every 2.5 seconds
+  };
 
-    return () => clearInterval(intervalId); // Cleanup interval on component unmount
+  const stopAutoPlay = () => {
+    if (autoPlayIntervalRef.current) {
+      clearInterval(autoPlayIntervalRef.current);
+    }
+  };
+
+  useEffect(() => {
+    startAutoPlay();
+    return () => stopAutoPlay(); // Cleanup interval on component unmount
   }, []);
 
-  const currentTestimonial = testimonials[currentTestimonialIndex];
+  const handleDotClick = (index: number) => {
+    setCurrentTestimonialIndex(index);
+    startAutoPlay(); // Restart autoplay timer when a dot is clicked
+  };
+
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
@@ -196,7 +201,7 @@ export default function LandingPage() {
             <p className="text-md sm:text-lg text-muted-foreground text-center mb-10 md:mb-12 max-w-2xl mx-auto">
               Öğrenmenizi hızlandıracak, anlayışınızı artıracak ve sınav performansınızı yükseltecek özelliklerle dolu.
             </p>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-2 gap-6 md:gap-8"> {/* Changed lg:grid-cols-4 to lg:grid-cols-2 for better display */}
               {features.map((feature, index) => (
                 <Card key={index} className="bg-card hover:shadow-xl transition-shadow duration-300 ease-in-out transform hover:-translate-y-1">
                   <CardHeader className="items-center text-center">
@@ -247,31 +252,45 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Testimonials Section */}
+        {/* Testimonials Section - Updated Slider */}
         <section id="testimonials" className="py-12 md:py-16 lg:py-24 bg-background/90">
           <div className="container mx-auto px-4">
             <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4 text-foreground">Sizin Gibi Öğrenciler Tarafından Seviliyor</h2>
             <p className="text-md sm:text-lg text-muted-foreground text-center mb-10 md:mb-12 max-w-2xl mx-auto">
               Başkalarının NeutralEdu AI hakkında ne söylediğini duyun.
             </p>
-            <div className="relative h-48 md:h-40 flex items-center justify-center overflow-hidden">
-              {testimonials.map((testimonial, index) => (
-                <div
-                  key={testimonial.name + "-" + index} // More unique key for transitions
-                  className={`absolute w-full transition-opacity duration-1000 ease-in-out ${index === currentTestimonialIndex ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-                >
-                  <Card className="bg-card flex flex-col max-w-2xl mx-auto">
-                    <CardContent className="pt-6 flex-grow">
-                      <ThumbsUp className="h-8 w-8 text-primary mb-4" />
-                      <blockquote className="text-sm sm:text-base text-muted-foreground italic border-l-4 border-primary pl-4">
-                        "{testimonial.quote}"
-                      </blockquote>
-                    </CardContent>
-                    <CardFooter className="pt-4 mt-auto">
-                      <p className="text-xs sm:text-sm font-semibold text-foreground">{testimonial.name}</p>
-                    </CardFooter>
-                  </Card>
-                </div>
+            <div className="relative w-full max-w-2xl mx-auto overflow-hidden">
+              <div
+                className="flex transition-transform duration-500 ease-in-out"
+                style={{ transform: `translateX(-${currentTestimonialIndex * 100}%)` }}
+              >
+                {testimonials.map((testimonial, index) => (
+                  <div key={testimonial.name + "-" + index} className="w-full flex-shrink-0 px-2">
+                    <Card className="bg-card flex flex-col h-full"> {/* Ensure consistent card height if needed */}
+                      <CardContent className="pt-6 flex-grow">
+                        <ThumbsUp className="h-8 w-8 text-primary mb-4" />
+                        <blockquote className="text-sm sm:text-base text-muted-foreground italic border-l-4 border-primary pl-4">
+                          "{testimonial.quote}"
+                        </blockquote>
+                      </CardContent>
+                      <CardFooter className="pt-4 mt-auto">
+                        <p className="text-xs sm:text-sm font-semibold text-foreground">{testimonial.name}</p>
+                      </CardFooter>
+                    </Card>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-center space-x-2 mt-6">
+              {testimonials.map((_, index) => (
+                <button
+                  key={`dot-${index}`}
+                  onClick={() => handleDotClick(index)}
+                  className={`h-3 w-3 rounded-full transition-colors duration-300 ${
+                    currentTestimonialIndex === index ? 'bg-primary scale-125' : 'bg-muted hover:bg-muted-foreground/50'
+                  }`}
+                  aria-label={`Yorum ${index + 1} git`}
+                />
               ))}
             </div>
           </div>
@@ -294,4 +313,3 @@ export default function LandingPage() {
     </div>
   );
 }
-    

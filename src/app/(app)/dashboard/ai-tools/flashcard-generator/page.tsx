@@ -242,27 +242,27 @@ export default function FlashcardGeneratorPage() {
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {flashcardsOutput.flashcards.map((card, index) => (
                 <div key={index} onClick={() => handleFlipCard(index)} className="cursor-pointer perspective group">
-                  <Card className={`relative w-full h-52 md:h-60 bg-muted/50 transform-style-3d transition-transform duration-700 ${flippedStates[index] ? 'rotate-y-180' : ''}`}>
+                  <div className={`relative w-full h-52 md:h-60 transform-style-3d transition-transform duration-700 ${flippedStates[index] ? 'rotate-y-180' : ''}`}>
                     {/* Front of the card */}
-                    <div className={`absolute w-full h-full backface-hidden flex flex-col p-4 border rounded-lg ${flippedStates[index] ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+                    <Card className={`absolute w-full h-full backface-hidden flex flex-col p-4 border rounded-lg shadow-md ${flippedStates[index] ? 'z-0 opacity-0 pointer-events-none' : 'z-10 opacity-100'}`}>
                       <div className="flex justify-between items-center mb-2">
                          <CardTitle className="text-base text-primary">Ön Yüz</CardTitle>
                          <RotateCw className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
                       </div>
                       <p className="text-sm text-foreground flex-grow overflow-y-auto">{card.front}</p>
-                      {card.topic && <p className="text-xs mt-auto pt-2 text-accent-foreground">Konu: {card.topic}</p>}
-                    </div>
+                      {card.topic && <p className="text-xs mt-auto pt-2 text-accent-foreground/80">Konu: {card.topic}</p>}
+                    </Card>
 
                     {/* Back of the card */}
-                    <div className={`absolute w-full h-full backface-hidden rotate-y-180 flex flex-col p-4 border rounded-lg ${flippedStates[index] ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                    <Card className={`absolute w-full h-full backface-hidden rotate-y-180 flex flex-col p-4 border rounded-lg shadow-md ${flippedStates[index] ? 'z-10 opacity-100' : 'z-0 opacity-0 pointer-events-none'}`}>
                        <div className="flex justify-between items-center mb-2">
                         <CardTitle className="text-base text-primary">Arka Yüz</CardTitle>
                         <RotateCw className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
                       </div>
                       <p className="text-sm text-muted-foreground flex-grow overflow-y-auto">{card.back}</p>
-                      {card.topic && <p className="text-xs mt-auto pt-2 text-accent-foreground">Konu: {card.topic}</p>}
-                    </div>
-                  </Card>
+                      {card.topic && <p className="text-xs mt-auto pt-2 text-accent-foreground/80">Konu: {card.topic}</p>}
+                    </Card>
+                  </div>
                 </div>
               ))}
             </div>
@@ -292,4 +292,3 @@ export default function FlashcardGeneratorPage() {
     </div>
   );
 }
-    
