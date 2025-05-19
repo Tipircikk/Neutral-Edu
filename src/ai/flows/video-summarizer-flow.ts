@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview YouTube videolarındaki eğitimsel içeriği özetleyen bir AI aracı.
@@ -28,27 +27,43 @@ const VideoSummarizerOutputSchema = z.object({
 type VideoSummarizerOutput = z.infer<typeof VideoSummarizerOutputSchema>;
 
 export async function summarizeVideo(input: VideoSummarizerInput): Promise<VideoSummarizerOutput> {
-  return videoSummarizerFlow(input);
+  // Kullanıcı planına ve özel model seçimine göre boolean flag'ler oluştur
+  const isProUser = input.userPlan === 'pro';
+  const isPremiumUser = input.userPlan === 'premium';
+  const isCustomModelSelected = !!input.customModelIdentifier;
+  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+
+  const enrichedInput = {
+    ...input,
+    isProUser,
+    isPremiumUser,
+    isCustomModelSelected,
+    isGemini25PreviewSelected,
+  };
+  return videoSummarizerFlow(enrichedInput);
 }
 
-const prompt = ai.definePrompt({
+const videoSummarizerPrompt = ai.definePrompt({
   name: 'videoSummarizerPrompt',
-  input: {schema: VideoSummarizerInputSchema},
+  input: {schema: VideoSummarizerInputSchema}, // enrichedInput'a göre değil, orijinal input'a göre olmalı
   output: {schema: VideoSummarizerOutputSchema},
   prompt: `Sen, YouTube videolarındaki eğitimsel içeriği (özellikle YKS'ye hazırlanan öğrenciler için) analiz edip özetleyen uzman bir AI eğitim asistanısın.
 Görevin, verilen YouTube video URL'sindeki içeriği (başlık, açıklama ve eğer erişebiliyorsan transkript veya sesli içeriğin metin dökümü üzerinden) değerlendirerek öğrenci için en önemli bilgileri çıkarmaktır.
 
 Kullanıcının Üyelik Planı: {{{userPlan}}}
-{{#ifEquals userPlan "pro"}}
-(Pro Kullanıcılar İçin: Özetini, videonun en derin ve nüanslı noktalarını yakalayacak şekilde, konular arası bağlantıları da dikkate alarak yap. Öğrencinin videodan maksimum faydayı sağlaması için en kapsamlı ve stratejik içgörüleri sun. {{#if customModelIdentifier}}En gelişmiş AI yeteneklerini ve seçilen '{{{customModelIdentifier}}}' modelini kullan.{{else}}En gelişmiş AI yeteneklerini kullan.{{/if}})
-{{else ifEquals userPlan "premium"}}
-(Premium Kullanıcılar İçin: Daha detaylı bir özet, ek örnekler ve videonun farklı açılardan değerlendirilmesini sunmaya özen göster. {{#if customModelIdentifier}}Seçilen '{{{customModelIdentifier}}}' modelini kullan.{{/if}})
+{{#if isProUser}}
+(Pro Kullanıcılar İçin: Özetini, videonun en derin ve nüanslı noktalarını yakalayacak şekilde, konular arası bağlantıları da dikkate alarak yap. Öğrencinin videodan maksimum faydayı sağlaması için en kapsamlı ve stratejik içgörüleri sun. {{#if isCustomModelSelected}}En gelişmiş AI yeteneklerini ve seçilen '{{{customModelIdentifier}}}' modelini kullan.{{else}}En gelişmiş AI yeteneklerini kullan.{{/if}})
+{{else if isPremiumUser}}
+(Premium Kullanıcılar İçin: Daha detaylı bir özet, ek örnekler ve videonun farklı açılardan değerlendirilmesini sunmaya özen göster. {{#if isCustomModelSelected}}Seçilen '{{{customModelIdentifier}}}' modelini kullan.{{/if}})
 {{else}}
-({{{userPlan}}} Kullanıcılar İçin: Videonun ana eğitimsel mesajını ve temel çıkarımlarını özetle. {{#if customModelIdentifier}}Seçilen '{{{customModelIdentifier}}}' modelini kullan.{{/if}})
-{{/ifEquals}}
+({{{userPlan}}} Kullanıcılar İçin: Videonun ana eğitimsel mesajını ve temel çıkarımlarını özetle. {{#if isCustomModelSelected}}Seçilen '{{{customModelIdentifier}}}' modelini kullan.{{/if}})
+{{/if}}
 
-{{#if customModelIdentifier}}
+{{#if isCustomModelSelected}}
 (Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
+  {{#if isGemini25PreviewSelected}}
+  (Gemini 2.5 Flash Preview Özel Notu: Verilen YouTube URL'sindeki videonun BAŞLIĞINI ve AÇIKLAMASINI analiz et. Eğer erişebiliyorsan TRANSKRİPTİNE odaklan. Bu bilgilerden yola çıkarak videonun ANA EĞİTİMSEL konusunu, en önemli 2-3 ANAHTAR ÖĞRENİM NOKTASINI ve genel bir ÖZETİNİ kısa, net ve YKS öğrencisine faydalı olacak şekilde çıkar. Hızlı yanıt vermesi önemlidir.)
+  {{/if}}
 {{/if}}
 
 İşlenecek YouTube Video URL'si:
@@ -68,16 +83,25 @@ Eğer video içeriğine (transkript, başlık, açıklama vb.) erişemiyorsan ve
 const videoSummarizerFlow = ai.defineFlow(
   {
     name: 'videoSummarizerFlow',
-    inputSchema: VideoSummarizerInputSchema,
+    inputSchema: VideoSummarizerInputSchema, // Orijinal input şeması kullanılacak
     outputSchema: VideoSummarizerOutputSchema,
   },
-  async (input: VideoSummarizerInput): Promise<VideoSummarizerOutput> => {
+  async (input: VideoSummarizerInput): Promise<VideoSummarizerOutput> => { // Orijinal input tipi
     let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Genel varsayılan
-    let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
-    const isCustomModelSelected = !!input.customModelIdentifier;
+    // enrichedInput'ı burada, flow içinde oluşturuyoruz.
     const isProUser = input.userPlan === 'pro';
-    // Gemini 2.5 Preview için özel bir boolean'a artık gerek yok, customModelIdentifier üzerinden yönetilecek.
+    const isPremiumUser = input.userPlan === 'premium';
+    const isCustomModelSelected = !!input.customModelIdentifier;
+    const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+
+    const enrichedInputForPrompt = { // Prompt'a göndereceğimiz zenginleştirilmiş input
+      ...input,
+      isProUser,
+      isPremiumUser,
+      isCustomModelSelected,
+      isGemini25PreviewSelected,
+    };
 
     if (input.customModelIdentifier) {
       switch (input.customModelIdentifier) {
@@ -94,40 +118,49 @@ const videoSummarizerFlow = ai.defineFlow(
           console.warn(`[Video Summarizer Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
     } else if (input.userPlan === 'pro') {
-      modelToUse = 'googleai/gemini-1.5-flash-latest'; // Pro kullanıcılar için varsayılan daha iyi model
+      modelToUse = 'googleai/gemini-1.5-flash-latest';
     }
-    // Free ve Premium kullanıcılar için (özel model seçilmemişse) genel varsayılan (gemini-1.5-flash-latest) zaten ayarlı.
 
-    callOptions.model = modelToUse;
-
-    // Sadece gemini-2.5-flash-preview modeli için config gönderme
-    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
-      callOptions.config = {
-        generationConfig: {
-          maxOutputTokens: 4096, // Diğer modeller için
-        }
-      };
-    } else {
+    let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
+    
+    // "Invalid JSON payload" hatasını çözmek için gemini-1.5-flash-latest için config göndermeyi DENEYELİM.
+    // Eğer sorun devam ederse, bu modeli de preview modeli gibi config olmadan çağıracağız.
+    // Şimdilik, sadece preview modeli için config'i kaldırıyoruz.
+    if (modelToUse === 'googleai/gemini-2.5-flash-preview-04-17') {
         callOptions.config = {}; // Preview modeli için boş config
+    } else {
+      // Diğer tüm Google modelleri için (gemini-1.5-flash-latest dahil) config'i kaldırmayı deneyelim.
+      // Bu, "Invalid JSON payload" hatasının kaynağının generationConfig olup olmadığını test eder.
+       callOptions.config = {}; 
+       // Eğer yukarıdaki satır Invalid JSON payload hatasını çözmezse ve sorun
+       // gemini-1.5-flash-latest ile devam ederse, bu modelin kendisiyle veya Genkit'in bu modelle
+       // etkileşimiyle ilgili daha derin bir sorun olabilir.
+       // Orijinal config (maxOutputTokens ile) şuydu:
+       /*
+       callOptions.config = {
+         generationConfig: {
+           maxOutputTokens: 4096,
+         }
+       };
+       */
     }
     
-    console.log(`[Video Summarizer Flow] Using model: ${modelToUse} for plan: ${input.userPlan}, customModel: ${input.customModelIdentifier}`);
+    console.log(`[Video Summarizer Flow] Using model: ${modelToUse} for plan: ${input.userPlan}, customModel: ${input.customModelIdentifier} with callOptions:`, JSON.stringify(callOptions));
 
     try {
-      // `ai.generate` veya `prompt` çağrısını yaparken model ve config'i ilet.
-      // Burada, prompt objesini doğrudan çağırmak daha doğru, çünkü prompt'un kendi içinde input/output şemaları tanımlı.
-      const {output} = await prompt(input, callOptions); 
+      const {output} = await videoSummarizerPrompt(enrichedInputForPrompt, callOptions); 
       
       if (!output) {
+         console.warn(`[Video Summarizer Flow] AI model (${modelToUse}) returned null or undefined output.`);
         return {
           warnings: [`Yapay zeka modeli (${modelToUse}) bir yanıt üretemedi.`]
         };
       }
-      // Eğer summary ve keyPoints boşsa ve uyarı da yoksa genel bir uyarı ekle
+      
       if (!output.summary && (!output.keyPoints || output.keyPoints.length === 0) && (!output.warnings || output.warnings.length === 0)) {
          return {
           ...output,
-          warnings: [...(output.warnings || []), "Video içeriği özetlenemedi veya erişilemedi. Lütfen URL'yi kontrol edin veya farklı bir video deneyin."]
+          warnings: [...(output.warnings || []), `Video içeriği (${modelToUse} ile) özetlenemedi veya erişilemedi. Lütfen URL'yi kontrol edin veya farklı bir video deneyin.`]
         };
       }
       return output;
@@ -135,7 +168,10 @@ const videoSummarizerFlow = ai.defineFlow(
       console.error(`[Video Summarizer Flow] CRITICAL error during prompt execution with model ${modelToUse}:`, error);
       let errorMessage = `Video özetlenirken sunucu tarafında beklenmedik bir hata oluştu (Model: ${modelToUse}).`;
       if (error.message) {
-        errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
+        errorMessage += ` Detay: ${error.message.substring(0, 250)}`;
+        if (error.message.includes('Invalid JSON payload')) {
+            errorMessage += ` (JSON Hatası algılandı. Geliştiriciye bildirin.)`;
+        }
       }
       return {
         warnings: [errorMessage]
