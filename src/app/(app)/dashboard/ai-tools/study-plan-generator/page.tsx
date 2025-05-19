@@ -212,26 +212,58 @@ export default function StudyPlanGeneratorPage() {
 
  const renderFormattedText = (text: string | undefined): React.ReactNode => {
     if (!text) return null;
-    return text.split('\n').map((line, index, arr) => {
+    const lines = text.split('\n');
+    const elements: JSX.Element[] = [];
+    let listItems: string[] = [];
+    let keyCounter = 0;
+
+    const flushList = () => {
+      if (listItems.length > 0) {
+        elements.push(
+          <ul key={`ul-${keyCounter++}`} className="list-disc pl-5 my-2 space-y-1 text-muted-foreground">
+            {listItems.map((item, idx) => <li key={`li-${keyCounter}-${idx}`}>{item}</li>)}
+          </ul>
+        );
+        listItems = [];
+      }
+    };
+
+    lines.forEach((line, index) => {
       const trimmedLine = line.trim();
       if (trimmedLine.toUpperCase().startsWith("PRO KULLANICI İÇİN STRATEJİLER:") || 
+          trimmedLine.toUpperCase().startsWith("PRO İPUCU:") || 
           trimmedLine.toUpperCase().startsWith("PREMIUM KULLANICI İÇİN STRATEJİLER:") ||
           trimmedLine.toUpperCase().startsWith("ÜCRETSİZ KULLANICI İÇİN STRATEJİLER:") ||
-          trimmedLine.toUpperCase().startsWith("PRO İPUCU:") || 
           trimmedLine.toUpperCase().startsWith("ÖNEMLİ NOT:") ||
           trimmedLine.toUpperCase().startsWith("UNUTMA:") ||
           trimmedLine.toUpperCase().startsWith("GENEL STRATEJİLER VE YKS TAKTİKLERİ:")
         ) {
-        return <p key={index} className="my-2 text-primary font-semibold"><strong className="font-bold">{trimmedLine.substring(0, trimmedLine.indexOf(':') + 1)}</strong>{trimmedLine.substring(trimmedLine.indexOf(':') + 1)}</p>;
+        flushList();
+        const labelEndIndex = trimmedLine.indexOf(':') + 1;
+        const label = trimmedLine.substring(0, labelEndIndex);
+        const content = trimmedLine.substring(labelEndIndex);
+        elements.push(<p key={`p-${keyCounter++}`} className="my-2 text-primary"><strong className="font-bold">{label}</strong>{content}</p>);
+      } else if (trimmedLine.startsWith("* ") || trimmedLine.startsWith("- ")) {
+        listItems.push(trimmedLine.substring(line.indexOf(' ') + 1));
+      } else if (trimmedLine.startsWith("## ")) {
+         flushList();
+         elements.push(<h3 key={`h3-${keyCounter++}`} className="text-lg font-semibold mt-3 mb-1 text-foreground">{trimmedLine.substring(3)}</h3>);
+      } else if (trimmedLine.startsWith("### ")) {
+         flushList();
+         elements.push(<h4 key={`h4-${keyCounter++}`} className="text-md font-semibold mt-2 mb-1 text-foreground">{trimmedLine.substring(4)}</h4>);
+      } else if (trimmedLine === "") {
+         flushList();
+         if (index < lines.length -1 && lines[index+1].trim() !== "") {
+            elements.push(<div key={`space-${keyCounter++}`} className="h-3"></div>); 
+         }
       }
-      if (trimmedLine.startsWith("* ") || trimmedLine.startsWith("- ")) {
-        return <li key={index} className="ml-5 list-disc text-muted-foreground">{trimmedLine.substring(line.indexOf(' ') + 1)}</li>;
+      else {
+        flushList();
+        elements.push(<p key={`p-${keyCounter++}`} className="my-1 text-muted-foreground leading-relaxed">{line || <Fragment key={`empty-${keyCounter++}`}>&nbsp;</Fragment>}</p>); 
       }
-       if (trimmedLine === "" && index < arr.length -1 && arr[index+1].trim() !== "") { 
-          return <div key={index} className="h-3"></div>; 
-      }
-      return <p key={index} className="my-1.5 text-muted-foreground leading-relaxed">{line || <>&nbsp;</>}</p>; 
     });
+    flushList(); 
+    return elements;
   };
 
   if (userProfileLoading && !userProfile) {
@@ -402,10 +434,11 @@ export default function StudyPlanGeneratorPage() {
                     </CardContent>
                 </Card>
              )}
-            <ScrollArea className="h-auto max-h-[700px] w-full rounded-md border p-0">
-              <div className="space-y-6 p-4">
-                {planOutput.weeklyPlans.map((weekPlan, weekIndex) => (
-                  <Card key={weekPlan.week ?? weekIndex} className="bg-card shadow-md">
+            
+            <ScrollArea className="h-[700px] w-full rounded-md border p-4">
+              {planOutput.weeklyPlans && planOutput.weeklyPlans.length > 0 ? (
+                planOutput.weeklyPlans.map((weekPlan, weekIndex) => (
+                  <Card key={weekPlan.week ?? weekIndex} className="bg-card shadow-md mb-6 last:mb-0">
                     <CardHeader>
                         <CardTitle className="text-lg text-primary">
                         {weekPlan.week}. Hafta
@@ -413,30 +446,37 @@ export default function StudyPlanGeneratorPage() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        {weekPlan.dailyTasks.map((dayTask, dayIndex) => (
-                        <div key={dayIndex} className="p-3 border-t border-border first:border-t-0">
-                            <h4 className="font-semibold text-foreground mb-1">{dayTask.day}</h4>
-                            <p className="text-sm text-muted-foreground">
-                            <strong className="text-foreground/90">Odak Konular:</strong> {dayTask.focusTopics.join(", ")}
-                            </p>
-                            {dayTask.activities && dayTask.activities.length > 0 && (
-                            <div className="mt-1">
-                                <p className="text-xs text-foreground/80">Aktiviteler:</p>
-                                <ul className="list-disc list-inside pl-4 text-xs text-muted-foreground">
-                                {dayTask.activities.map((activity, actIndex) => <li key={actIndex}>{activity}</li>)}
-                                </ul>
+                        {weekPlan.dailyTasks && weekPlan.dailyTasks.length > 0 ? (
+                          weekPlan.dailyTasks.map((dayTask, dayIndex) => (
+                            <div key={dayIndex} className="p-3 border-t border-border first:border-t-0">
+                              <h4 className="font-semibold text-foreground mb-1">{dayTask.day}</h4>
+                              <p className="text-sm text-muted-foreground">
+                                <strong className="text-foreground/90">Odak Konular:</strong> {dayTask.focusTopics.join(", ")}
+                              </p>
+                              {dayTask.activities && dayTask.activities.length > 0 && (
+                                <div className="mt-1">
+                                  <p className="text-xs text-foreground/80">Aktiviteler:</p>
+                                  <ul className="list-disc list-inside pl-4 text-xs text-muted-foreground">
+                                    {dayTask.activities.map((activity, actIndex) => <li key={actIndex}>{activity}</li>)}
+                                  </ul>
+                                </div>
+                              )}
+                              {dayTask.estimatedTime && <p className="text-xs text-muted-foreground mt-1"><strong className="text-foreground/80">Tahmini Süre:</strong> {dayTask.estimatedTime}</p>}
+                              {dayTask.notes && <div className="text-xs italic text-muted-foreground mt-2 prose prose-xs dark:prose-invert max-w-none whitespace-pre-line">{renderFormattedText(dayTask.notes)}</div>}
                             </div>
-                            )}
-                            {dayTask.estimatedTime && <p className="text-xs text-muted-foreground mt-1"><strong className="text-foreground/80">Tahmini Süre:</strong> {dayTask.estimatedTime}</p>}
-                            {dayTask.notes && <div className="text-xs italic text-muted-foreground mt-2 prose prose-xs dark:prose-invert max-w-none whitespace-pre-line">{renderFormattedText(dayTask.notes)}</div>}
-                        </div>
-                        ))}
+                          ))
+                        ) : (
+                           <p className="text-sm text-muted-foreground italic">Bu hafta için günlük görev bulunmuyor.</p>
+                        )}
                     </CardContent>
                   </Card>
-                ))}
-              </div>
+                ))
+              ) : (
+                 <p className="text-center text-muted-foreground">Haftalık planlar oluşturulamadı veya bulunamadı.</p>
+              )}
             </ScrollArea>
-             <p className="text-sm text-muted-foreground mt-2">{planOutput.disclaimer}</p>
+
+             {planOutput.disclaimer && <p className="text-sm text-muted-foreground mt-2">{planOutput.disclaimer}</p>}
             <div className="mt-4 p-3 text-xs text-destructive-foreground bg-destructive/80 rounded-md flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
               <span>NeutralEdu AI bir yapay zekadır bu nedenle hata yapabilir, bu yüzden verdiği bilgileri doğrulayınız ve bu planı bir başlangıç noktası olarak kullanınız.</span>
