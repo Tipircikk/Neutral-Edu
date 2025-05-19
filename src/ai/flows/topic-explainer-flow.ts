@@ -20,6 +20,10 @@ const ExplainTopicInputSchema = z.object({
   customPersonaDescription: z.string().optional().describe("Eğer 'teacherPersona' olarak 'ozel' seçildiyse, kullanıcının istediği hoca kişiliğinin detaylı açıklaması."),
   userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
   customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi."),
+  // Internal fields, not directly set by user UI for this flow but used by other flows
+  isProUser: z.boolean().optional(),
+  isCustomModelSelected: z.boolean().optional(),
+  isGemini25PreviewSelected: z.boolean().optional(),
 });
 export type ExplainTopicInput = z.infer<typeof ExplainTopicInputSchema>;
 
@@ -47,14 +51,17 @@ Anlatımın sonunda, konuyu pekiştirmek için 2-3 adet çeşitli (kısa cevapl�
 Matematiksel ifadeleri (örn: x^2 için x^2, H_2O için H_2O, karekök için √, pi için π, artı-eksi için ±, küçük eşit için ≤, büyük eşit için ≥) metin içinde okunabilir şekilde belirtmeye özen göster.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
-{{#ifEquals userPlan "pro"}}
+{{#if isProUser}}
 (Pro Kullanıcı Notu: Anlatımını en üst düzeyde akademik zenginlikle, konunun felsefi temellerine, diğer disiplinlerle bağlantılarına ve YKS'deki en zorlayıcı soru tiplerine odaklanarak yap. {{{explanationLevel}}} seviyesini "detayli" kabul et ve buna ek olarak daha derinlemesine, analitik ve eleştirel düşünmeyi teşvik eden bir bakış açısı sun. Öğrencinin sadece bilgi edinmesini değil, aynı zamanda konuyu derinlemesine sorgulamasını ve analitik düşünme becerilerini geliştirmesini sağla. En gelişmiş AI yeteneklerini kullanarak, adeta bir başyapıt niteliğinde bir konu anlatımı sun. Seçilen hoca tarzını bu derinlikle birleştir.)
-{{else ifEquals userPlan "premium"}}
+{{else if isPremiumUser}} 
 (Premium Kullanıcı Notu: {{{explanationLevel}}} seviyesine ve seçilen hoca tarzına uygun olarak, anlatımına daha fazla örnek, YKS'de çıkmış benzer sorulara atıflar ve konunun püf noktalarını içeren ekstra ipuçları ekle. Öğrencinin konuyu farklı açılardan görmesini sağla.)
-{{/ifEquals}}
+{{/if}}
 
-{{#if customModelIdentifier}}
+{{#if isCustomModelSelected}}
 (Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
+  {{#if isGemini25PreviewSelected}}
+  ÖZEL NOT (Gemini 2.5 Flash Preview için): Açıklamayı olabildiğince ÖZ ama ANLAŞILIR yap. Aşırı detaydan kaçın, doğrudan ve net bir anlatım sun. HIZLI YANIT VERMESİ ÖNEMLİDİR.
+  {{/if}}
 {{/if}}
 
 Hoca Tarzı ({{{teacherPersona}}}):
@@ -85,7 +92,7 @@ Lütfen bu konuyu aşağıdaki format ve prensiplere uygun olarak, seçilen "{{{
 1.  **Anlatım Başlığı (explanationTitle)**: Konuyla ilgili ilgi çekici ve açıklayıcı bir başlık. Örneğin, "{{{topicName}}} - {{{explanationLevel}}} Seviye YKS Konu Anlatımı ({{{teacherPersona}}} Tarzı)".
 2.  **Kapsamlı Konu Anlatımı (explanation)**:
     *   **Giriş**: Konunun YKS müfredatındaki yeri, önemi ve genel bir tanıtımı (seviyeye ve tarza uygun).
-    *   **Temel Tanımlar ve İlkeler**: Konuyla ilgili bilinmesi gereken tüm temel tanımları, formülleri, kuralları veya prensipleri açık ve net bir dille ifade et (seviyeye ve tarza uygun).
+    *   **Temel Tanımlar ve İlkeler**: Konuyla ilgili bilinmesi gereken tüm temel tanımları, formülleri, kuralları veya prensipleri açık ve net bir dille ifade et (seviyeye ve tarza uygun). Matematiksel gösterimleri (x^2, H_2O, √π) kullan.
     *   **Alt Başlıklar ve Detaylar**: Konuyu mantıksal alt başlıklara ayırarak her birini detaylı bir şekilde, bol örnekle (seviyeye ve tarza uygun) ve YKS'de çıkabilecek noktaları vurgulayarak açıkla.
     *   **Örnekler ve Uygulamalar**: Konuyu somutlaştırmak için YKS düzeyine uygun, seçilen "{{{explanationLevel}}}" seviyesine göre çeşitlenen zorlukta örnekler ver.
     *   **Bağlantılar (özellikle 'detayli' seviyede)**: Konunun diğer YKS konularıyla (varsa) nasıl ilişkili olduğunu belirt.
@@ -93,7 +100,7 @@ Lütfen bu konuyu aşağıdaki format ve prensiplere uygun olarak, seçilen "{{{
 3.  **Anahtar Kavramlar (keyConcepts) (isteğe bağlı, seviyeye göre)**: Konuyla ilgili en az 3-5 adet YKS için kritik öneme sahip anahtar kavramı veya terimi listele. Her birini kısaca açıkla. 'Temel' seviyede daha az ve basit kavramlar olabilir.
 4.  **Sık Yapılan Hatalar (commonMistakes) (isteğe bağlı, 'orta' ve 'detayli' seviyede)**: Öğrencilerin bu konuyla ilgili sınavlarda veya öğrenme sürecinde en sık yaptığı 2-3 hatayı ve bu hatalardan nasıl kaçınılacağını belirt.
 5.  **YKS İpuçları ve Stratejileri (yksTips) (isteğe bağlı, seviyeye göre)**: Bu konudan YKS'de nasıl sorular gelebileceği, çalışırken nelere öncelik verilmesi gerektiği gibi 2-3 stratejik ipucu ver. 'Temel' seviyede çok genel, 'detayli' seviyede daha spesifik olabilir.
-6.  **Aktif Hatırlama Soruları (activeRecallQuestions)**: Anlatımın sonunda, konuyu pekiştirmek ve öğrencinin aktif katılımını sağlamak için 2-3 adet çeşitli (kısa cevaplı, boşluk doldurma, doğru/yanlış vb.), doğrudan konuyla ilgili ve cevabı anlatımın içinde bulunabilecek soru sor. Bu sorular öğrencinin konuyu anlayıp anlamadığını test etmelidir.
+6.  **Aktif Hatırlama Soruları (activeRecallQuestions)**: Anlatımın sonunda, konuyu pekiştirmek ve öğrencinin aktif katılımını sağlamak için **2-3 adet çeşitli (kısa cevaplı, boşluk doldurma, doğru/yanlış vb.)**, doğrudan konuyla ilgili ve cevabı anlatımın içinde bulunabilecek soru sor. Bu sorular öğrencinin konuyu anlayıp anlamadığını test etmelidir.
 
 Anlatım Tarzı:
 *   Seçilen "{{{teacherPersona}}}" hoca tarzına ve (eğer varsa) "{{{customPersonaDescription}}}" tanımına harfiyen uy.
@@ -111,20 +118,16 @@ const topicExplainerFlow = ai.defineFlow(
     inputSchema: ExplainTopicInputSchema,
     outputSchema: ExplainTopicOutputSchema,
   },
-  async (input: ExplainTopicInput): Promise<ExplainTopicOutput> => {
+  async (rawInput: ExplainTopicInput): Promise<ExplainTopicOutput> => {
+    const input = {
+        ...rawInput,
+        isProUser: rawInput.userPlan === 'pro',
+        isCustomModelSelected: !!rawInput.customModelIdentifier,
+        isGemini25PreviewSelected: rawInput.customModelIdentifier === 'experimental_gemini_2_5_flash_preview',
+    };
+
     let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Varsayılan
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
-
-    const isCustomModelSelected = !!input.customModelIdentifier;
-    const isProUser = input.userPlan === 'pro';
-    const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
-
-    const enrichedInput = {
-      ...input,
-      isProUser,
-      isCustomModelSelected,
-      isGemini25PreviewSelected,
-    };
 
     if (input.customModelIdentifier) {
       switch (input.customModelIdentifier) {
@@ -141,7 +144,7 @@ const topicExplainerFlow = ai.defineFlow(
           console.warn(`[Topic Explainer Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
     } else if (input.userPlan === 'pro') {
-      modelToUse = 'googleai/gemini-1.5-flash-latest';
+      modelToUse = 'googleai/gemini-1.5-flash-latest'; // Pro kullanıcılar için daha iyi bir model varsayılanı
     }
     
     callOptions.model = modelToUse;
@@ -153,13 +156,13 @@ const topicExplainerFlow = ai.defineFlow(
         }
       };
     } else {
-        callOptions.config = {};
+        callOptions.config = {}; // Preview modeli için özel config yok
     }
 
     console.log(`[Topic Explainer Flow] Using model: ${modelToUse} for plan: ${input.userPlan}, customModel: ${input.customModelIdentifier}, level: ${input.explanationLevel}, persona: ${input.teacherPersona}`);
     
     try {
-        const {output} = await prompt(enrichedInput, callOptions);
+        const {output} = await prompt(input, callOptions); // `input` zaten zenginleştirilmiş
         if (!output || !output.explanation) {
         throw new Error("AI YKS Süper Öğretmeni, belirtilen konu için bir anlatım oluşturamadı. Lütfen konuyu ve ayarları kontrol edin.");
         }
@@ -169,6 +172,9 @@ const topicExplainerFlow = ai.defineFlow(
         let errorMessage = `AI modeli (${modelToUse}) ile konu anlatımı oluşturulurken bir hata oluştu.`;
         if (error.message) {
             errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
+             if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
+              errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
+            }
         }
         return {
             explanationTitle: `Hata: ${errorMessage}`,

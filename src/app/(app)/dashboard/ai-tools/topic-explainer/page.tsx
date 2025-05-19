@@ -43,23 +43,43 @@ export default function TopicExplainerPage() {
   }, [userProfile, memoizedCheckAndResetQuota]);
 
   const parseInlineFormatting = (line: string | undefined | null): React.ReactNode[] => {
-    if (!line) return [];
-    const parts = line.split(/(\S+\^\S+|\S+_\d+)/g);
+    if (!line) return [<React.Fragment key="empty-line"></React.Fragment>];
+    // Regex to split by `text^number` or `text_number` while keeping delimiters part of the split array for easier processing
+    // This regex looks for:
+    // 1. text_number (e.g., H_2O, CO_2) - captures base (H), underscore, number (2), and any trailing characters (O)
+    // 2. text^number (e.g., x^2, y^10) - captures base (x), caret, number (2), and any trailing characters
+    // It uses capturing groups to make these parts accessible.
+    const parts = line.split(/(\S+[_^]\d+[\s.,;:!?)]*|\S+[_^]\d+)/g);
+
     return parts.map((part, index) => {
-      if (part.includes('^')) {
-        const [base, exponent] = part.split('^');
-        return <Fragment key={index}>{base}<sup>{exponent}</sup></Fragment>;
-      } else if (part.match(/(\S+)_(\d+)/)) {
-        const match = part.match(/(\S+)_(\d+)(.*)/);
-        if (match) {
-            return <Fragment key={index}>{match[1]}<sub>{match[2]}</sub>{match[3]}</Fragment>;
-        }
+      // Try to match subscript: e.g., H_2O, CO_2
+      const subMatch = part.match(/^(\S+?)_(\d+)(.*)$/);
+      if (subMatch) {
+        return (
+          <React.Fragment key={`${index}-sub`}>
+            {subMatch[1]}
+            <sub>{subMatch[2]}</sub>
+            {subMatch[3]}
+          </React.Fragment>
+        );
       }
-      return <Fragment key={index}>{part}</Fragment>;
+      // Try to match superscript: e.g., x^2, y^10
+      const supMatch = part.match(/^(\S*)\^(\S+)(.*)$/);
+      if (supMatch) {
+        return (
+          <React.Fragment key={`${index}-sup`}>
+            {supMatch[1]}
+            <sup>{supMatch[2]}</sup>
+            {supMatch[3]}
+          </React.Fragment>
+        );
+      }
+      return <React.Fragment key={`${index}-text`}>{part}</React.Fragment>;
     });
   };
 
-  const formatExplanationForDisplay = (text: string): JSX.Element[] => {
+
+  const formatExplanationForDisplay = (text: string | undefined | null): JSX.Element[] => {
     if (!text) return [];
     const lines = text.split('\n');
     const elements: JSX.Element[] = [];
@@ -86,8 +106,7 @@ export default function TopicExplainerPage() {
       } else if (line.trim().startsWith('* ') || line.trim().startsWith('- ')) {
         listItems.push(parseInlineFormatting(line.substring(line.indexOf(' ') + 1)));
       } else if (line.trim() === "") {
-        flushList();
-        // elements.push(<div key={index} className="h-2"></div>); // Omit empty lines if preferred
+        // flushList(); // Decide if empty lines should end lists or just be space
       } else {
         flushList();
         elements.push(<p key={index} className="mb-2 last:mb-0 text-muted-foreground">{parseInlineFormatting(line)}</p>);
@@ -173,7 +192,7 @@ export default function TopicExplainerPage() {
         format: 'a4',
       });
       
-      doc.setFont('Helvetica', 'normal');
+      doc.setFont('Helvetica', 'normal'); // Using a standard font
 
       const pageHeight = doc.internal.pageSize.height;
       const pageWidth = doc.internal.pageSize.width;
@@ -191,7 +210,7 @@ export default function TopicExplainerPage() {
         let { y = currentY } = options;
 
         doc.setFontSize(fontSize);
-        doc.setFont('Helvetica', fontStyle);
+        doc.setFont('Helvetica', fontStyle); // Ensure font is set for each text block
         doc.setTextColor(color);
 
         const lines = doc.splitTextToSize(text, maxWidth);
@@ -200,10 +219,14 @@ export default function TopicExplainerPage() {
           if (y + lineHeight > pageHeight - margin) { 
             doc.addPage();
             y = margin; 
+            // Re-apply font settings on new page
+            doc.setFontSize(fontSize);
+            doc.setFont('Helvetica', fontStyle);
+            doc.setTextColor(color);
           }
           const lineText = isListItem && index === 0 ? `• ${line}` : line;
-          const xOffset = isTitle ? (pageWidth - doc.getTextWidth(lineText)) / 2 : (isListItem ? 2 : 0);
-          doc.text(lineText, x + xOffset, y);
+          const xOffset = isTitle ? (pageWidth - doc.getTextWidth(lineText)) / 2 : (isListItem ? margin + 2 : margin); // Adjusted x for list items
+          doc.text(lineText, xOffset, y);
           y += lineHeight; 
         });
         currentY = y;
@@ -217,31 +240,31 @@ export default function TopicExplainerPage() {
 
       if (explanationOutput.explanation) {
         currentY += lineHeight / 2;
-        addWrappedText("Detaylı Konu Anlatımı:", { fontSize: headingFontSize, fontStyle: 'bold' });
+        addWrappedText("Detaylı Konu Anlatımı:", { fontSize: headingFontSize, fontStyle: 'bold', y: currentY });
         addWrappedText(explanationOutput.explanation, { fontSize: textFontSize });
       }
 
       if (explanationOutput.keyConcepts && explanationOutput.keyConcepts.length > 0) {
         currentY += lineHeight;
-        addWrappedText("Anahtar Kavramlar:", { fontSize: headingFontSize, fontStyle: 'bold' });
+        addWrappedText("Anahtar Kavramlar:", { fontSize: headingFontSize, fontStyle: 'bold', y: currentY });
         explanationOutput.keyConcepts.forEach(concept => addWrappedText(concept, { fontSize: textFontSize, isListItem: true }));
       }
 
       if (explanationOutput.commonMistakes && explanationOutput.commonMistakes.length > 0) {
         currentY += lineHeight;
-        addWrappedText("Sık Yapılan Hatalar:", { fontSize: headingFontSize, fontStyle: 'bold' });
+        addWrappedText("Sık Yapılan Hatalar:", { fontSize: headingFontSize, fontStyle: 'bold', y: currentY });
         explanationOutput.commonMistakes.forEach(mistake => addWrappedText(mistake, { fontSize: textFontSize, isListItem: true }));
       }
       
       if (explanationOutput.yksTips && explanationOutput.yksTips.length > 0) {
         currentY += lineHeight;
-        addWrappedText("YKS İpuçları:", { fontSize: headingFontSize, fontStyle: 'bold' });
+        addWrappedText("YKS İpuçları:", { fontSize: headingFontSize, fontStyle: 'bold', y: currentY });
         explanationOutput.yksTips.forEach(tip => addWrappedText(tip, { fontSize: textFontSize, isListItem: true }));
       }
 
       if (explanationOutput.activeRecallQuestions && explanationOutput.activeRecallQuestions.length > 0) {
         currentY += lineHeight;
-        addWrappedText("Aktif Hatırlama Soruları:", { fontSize: headingFontSize, fontStyle: 'bold' });
+        addWrappedText("Aktif Hatırlama Soruları:", { fontSize: headingFontSize, fontStyle: 'bold', y: currentY });
         explanationOutput.activeRecallQuestions.forEach(question => addWrappedText(question, { fontSize: textFontSize, isListItem: true }));
       }
       
@@ -254,7 +277,7 @@ export default function TopicExplainerPage() {
       let descriptionMessage = "PDF oluşturulurken bir hata oluştu.";
        if (error.message && error.message.toLowerCase().includes("module not found") && error.message.toLowerCase().includes("jspdf")) {
         descriptionMessage = "PDF oluşturma kütüphanesi ('jspdf') yüklenemedi. Lütfen 'npm install jspdf' komutunu çalıştırıp tekrar deneyin veya geliştiriciye bildirin.";
-      } else if (error.message && error.message.includes("jspdf")) {
+      } else if (error.message && error.message.toLowerCase().includes("jspdf")) {
         descriptionMessage = "PDF kütüphanesi ('jspdf') yüklenemedi veya bir sorun oluştu. İnternet bağlantınızı kontrol edin veya geliştiriciye bildirin.";
       }
       toast({
@@ -495,4 +518,3 @@ export default function TopicExplainerPage() {
     </div>
   );
 }
-    
