@@ -35,16 +35,16 @@ const ExamReportAnalyzerOutputSchema = z.object({
 export type ExamReportAnalyzerOutput = z.infer<typeof ExamReportAnalyzerOutputSchema>;
 
 export async function analyzeExamReport(input: ExamReportAnalyzerInput): Promise<ExamReportAnalyzerOutput> {
-  // Boolean flag'leri input'tan türet
+  
   const isProUser = input.userPlan === 'pro';
   const isCustomModelSelected = !!input.customModelIdentifier;
   const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
 
   const enrichedInput = {
     ...input,
-    isProUser, // Prompt içinde kullanılabilir
-    isCustomModelSelected, // Prompt içinde kullanılabilir
-    isGemini25PreviewSelected, // Prompt içinde kullanılabilir
+    isProUser, 
+    isCustomModelSelected, 
+    isGemini25PreviewSelected, 
   };
   return examReportAnalyzerFlow(enrichedInput);
 }
@@ -69,6 +69,9 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 
 {{#if isCustomModelSelected}}
 (Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
+  {{#if isGemini25PreviewSelected}}
+  (Gemini 2.5 Flash Preview Özel Notu: Yanıtlarını olabildiğince ÖZ ama ANLAŞILIR tut. HIZLI yanıt vermesi önemlidir.)
+  {{/if}}
 {{/if}}
 
 Öğrencinin Sınav Raporu Metni:
@@ -96,7 +99,7 @@ Analiz İlkeleri:
 const examReportAnalyzerFlow = ai.defineFlow(
   {
     name: 'examReportAnalyzerFlow',
-    inputSchema: ExamReportAnalyzerInputSchema.extend({ // Enriched input for prompt
+    inputSchema: ExamReportAnalyzerInputSchema.extend({ 
         isProUser: z.boolean().optional(),
         isCustomModelSelected: z.boolean().optional(),
         isGemini25PreviewSelected: z.boolean().optional(),
@@ -121,10 +124,9 @@ const examReportAnalyzerFlow = ai.defineFlow(
         default:
           console.warn(`[Exam Report Analyzer Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (enrichedInput.isProUser) { // Fallback to a better model for Pro if no custom admin model
+    } else if (enrichedInput.isProUser) { 
       modelToUse = 'googleai/gemini-1.5-flash-latest';
     }
-    // For free/premium users without admin override, default is gemini-1.5-flash-latest (set initially)
     
     callOptions.model = modelToUse;
 
@@ -135,7 +137,7 @@ const examReportAnalyzerFlow = ai.defineFlow(
         }
       };
     } else {
-       callOptions.config = {}; // No generationConfig for preview model
+       callOptions.config = {}; 
     }
     
     console.log(`[Exam Report Analyzer Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}`);
@@ -155,7 +157,7 @@ const examReportAnalyzerFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen rapor metnini kontrol edin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
             }
         }
-        // Return a valid ExamReportAnalyzerOutput object even in case of error
+        
         return {
             identifiedTopics: [],
             overallFeedback: errorMessage,
@@ -165,4 +167,5 @@ const examReportAnalyzerFlow = ai.defineFlow(
     }
   }
 );
+
     

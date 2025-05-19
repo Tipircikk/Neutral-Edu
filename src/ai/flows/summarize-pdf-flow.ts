@@ -74,6 +74,9 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 
 {{#if isCustomModelSelected}}
 (Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
+  {{#if isGemini25PreviewSelected}}
+  (Gemini 2.5 Flash Preview Özel Notu: Yanıtlarını olabildiğince ÖZ ama ANLAŞILIR tut. HIZLI yanıt vermesi önemlidir.)
+  {{/if}}
 {{/if}}
 
 Bir PDF'den çıkarılan aşağıdaki metin verildiğinde, {{{summaryLength}}} uzunluk tercihine, {{{outputDetail}}} çıktı detayı isteğine ve varsa {{{keywords}}} anahtar kelimelerine veya {{{pageRange}}} sayfa aralığı bilgisine göre, öğrenci dostu, motive edici ve öğretici bir tonda aşağıdaki görevleri yerine getir. Çıktını, belirtilen şemaya harfiyen uyacak şekilde yapılandır.
@@ -101,7 +104,7 @@ Bir PDF'den çıkarılan aşağıdaki metin verildiğinde, {{{summaryLength}}} u
     *   **Soru Metni**: Açık ve net olmalı.
     *   **Seçenekler**: A, B, C, D, E şeklinde 5 seçenek sun. Çeldiriciler mantıklı ve konuya yakın olmalı.
     *   **Doğru Cevap**: Sadece doğru seçeneğin harfini belirt (örn: "C").
-    *   **Açıklama**: Doğru cevabın neden doğru olduğunu ve diğer seçeneklerin neden yanlış olduğunu kısaca öğrencinin anlayacağı dilde açıkla.
+    *   **Açıklama**: Doğru cevabın neden doğru olduğunu ve diğer seçeneklerin neden yanlış olduğunu kısaca YKS öğrencisinin anlayacağı dilde açıkla.
     Eğer içerik soru üretmeye uygun değilse veya 'outputDetail' bunu istemiyorsa, bu bölümü atla ve 'practiceQuestions' alanını boş bırak.
 6.  **Formatlanmış Çalışma Çıktısı (formattedStudyOutput)**: Yukarıdaki istenen bölümleri ({{{outputDetail}}} seçeneğine göre) net Markdown formatlaması kullanarak tek bir dizede birleştir. "## Detaylı Konu Anlatımı", "## Anahtar Noktalar", "## Ana Fikir", "## Sınav İpuçları", "## Alıştırma Soruları" gibi başlıklar kullan. Bu birleştirilmiş çıktı doğrudan kullanılacaktır. Eğer 'outputDetail' örneğin 'key_points_only' ise, formattedStudyOutput sadece "## Anahtar Noktalar" başlığını ve içeriğini içermelidir.
 
@@ -114,7 +117,7 @@ Unutma, hedefin öğrencinin konuyu derinlemesine anlamasına ve kavramasına ya
 const summarizePdfForStudentFlow = ai.defineFlow(
   {
     name: 'summarizePdfForStudentFlow',
-    inputSchema: SummarizePdfForStudentInputSchema.extend({ // Enriched input for prompt
+    inputSchema: SummarizePdfForStudentInputSchema.extend({ 
         isProUser: z.boolean().optional(),
         isCustomModelSelected: z.boolean().optional(),
         isGemini25PreviewSelected: z.boolean().optional(),
@@ -139,10 +142,9 @@ const summarizePdfForStudentFlow = ai.defineFlow(
         default:
           console.warn(`[Summarize PDF Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (enrichedInput.isProUser) { // Fallback to a better model for Pro if no custom admin model
+    } else if (enrichedInput.isProUser) { 
       modelToUse = 'googleai/gemini-1.5-flash-latest'; 
     }
-    // For free/premium users without admin override, default is gemini-1.5-flash-latest (set initially)
     
     callOptions.model = modelToUse;
 
@@ -173,12 +175,13 @@ const summarizePdfForStudentFlow = ai.defineFlow(
       }
 
       const shouldHaveExamTips = enrichedInput.outputDetail === 'full' || enrichedInput.outputDetail === 'exam_tips_only';
-      if (!shouldHaveExamTips) {
-          // output.examTips = undefined; // Keep as empty array if not requested but potentially returned by schema
-      }
-      if (shouldHaveExamTips && output.examTips === undefined) {
+      if (shouldHaveExamTips && output.examTips === undefined) { // Ensure examTips is an array if expected
           output.examTips = [];
       }
+      if(!shouldHaveExamTips && output.examTips !== undefined){ // Clear if not expected
+         output.examTips = []; // or undefined, depending on schema strictness
+      }
+
 
       if (enrichedInput.outputDetail !== 'full' && enrichedInput.outputDetail !== 'key_points_only') {
           output.keyPoints = [];
@@ -205,7 +208,6 @@ const summarizePdfForStudentFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen PDF içeriğini kontrol edin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
             }
         }
-        // Return a valid SummarizePdfForStudentOutput object even in case of error
         return {
             summary: errorMessage,
             keyPoints: ["Hata oluştu."],
@@ -217,4 +219,5 @@ const summarizePdfForStudentFlow = ai.defineFlow(
     }
   }
 );
+
     

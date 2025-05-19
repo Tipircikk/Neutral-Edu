@@ -44,32 +44,41 @@ export default function TopicExplainerPage() {
 
   const parseInlineFormatting = (line: string | undefined | null): React.ReactNode[] => {
     if (!line) return [<React.Fragment key="empty-line"></React.Fragment>];
-    // Regex to split by `text^number` or `text_number`
-    const parts = line.split(/(\S+[_^]\S+|\S+[_^]\d+[\s.,;:!?)]*|\S+[_^]\d+)/g);
+    
+    const elements: React.ReactNode[] = [];
+    let currentText = "";
 
-    return parts.map((part, index) => {
-      const supMatch = part.match(/^(\S*)\^(\S+)(.*)$/); // x^2, word^something
-      if (supMatch) {
-        return (
-          <React.Fragment key={`${index}-sup`}>
-            {supMatch[1]}
-            <sup>{supMatch[2]}</sup>
-            {supMatch[3]}
-          </React.Fragment>
-        );
-      }
-      const subMatch = part.match(/^(\S+?)_(\d+)(.*)$/); // H_2O, CO_2
-      if (subMatch) {
-        return (
-          <React.Fragment key={`${index}-sub`}>
-            {subMatch[1]}
-            <sub>{subMatch[2]}</sub>
-            {subMatch[3]}
-          </React.Fragment>
-        );
-      }
-      return <React.Fragment key={`${index}-text`}>{part}</React.Fragment>;
-    });
+    for (let i = 0; i < line.length; i++) {
+        if (line[i] === '^' && i + 1 < line.length && !isNaN(parseInt(line[i+1]))) {
+            if (currentText) elements.push(currentText);
+            currentText = "";
+            let supText = "";
+            i++; 
+            while(i < line.length && !isNaN(parseInt(line[i]))) {
+                supText += line[i];
+                i++;
+            }
+            elements.push(<sup key={`sup-${elements.length}-${Math.random()}`}>{supText}</sup>);
+            if (i < line.length) currentText += line[i]; 
+            else i--; 
+        } else if (line[i] === '_' && i + 1 < line.length && !isNaN(parseInt(line[i+1]))) {
+            if (currentText) elements.push(currentText);
+            currentText = "";
+            let subText = "";
+            i++;
+            while(i < line.length && !isNaN(parseInt(line[i]))) {
+                subText += line[i];
+                i++;
+            }
+            elements.push(<sub key={`sub-${elements.length}-${Math.random()}`}>{subText}</sub>);
+            if (i < line.length) currentText += line[i];
+            else i--;
+        } else {
+            currentText += line[i];
+        }
+    }
+    if (currentText) elements.push(currentText);
+    return elements;
   };
 
 
@@ -101,7 +110,7 @@ export default function TopicExplainerPage() {
       } else if (trimmedLine.startsWith('* ') || trimmedLine.startsWith('- ')) {
         listItems.push(parseInlineFormatting(trimmedLine.substring(trimmedLine.indexOf(' ') + 1)));
       } else if (trimmedLine === "") {
-        // flushList(); // Optionally flush list on empty line, or let it create paragraphs
+         flushList(); // Flush list items before an empty line if needed, or let p handle spacing
       } else {
         flushList();
         elements.push(<p key={index} className="mb-2 last:mb-0 text-muted-foreground">{parseInlineFormatting(line)}</p>);
@@ -190,7 +199,7 @@ export default function TopicExplainerPage() {
         format: 'a4',
       });
       
-      doc.setFont('Helvetica', 'normal'); // Using a standard font
+      doc.setFont('Helvetica', 'normal'); 
 
       const pageHeight = doc.internal.pageSize.height;
       const pageWidth = doc.internal.pageSize.width;
@@ -211,10 +220,10 @@ export default function TopicExplainerPage() {
         doc.setFont('Helvetica', fontStyle); 
         doc.setTextColor(color);
 
-        const lines = doc.splitTextToSize(text.replace(/\^(.*?)\^/g, '$1').replace(/_(.*?)_/g, '$1'), maxWidth); // Basic cleanup for PDF
+        const lines = doc.splitTextToSize(text.replace(/\^(\S+)/g, '$1').replace(/_(\d+)/g, '$1'), maxWidth); 
         
         lines.forEach((line: string, index: number) => {
-          if (y + lineHeight > pageHeight - margin - 10) { // Added a bottom margin check
+          if (y + lineHeight > pageHeight - margin - 10) { 
             doc.addPage();
             y = margin; 
             doc.setFontSize(fontSize);
@@ -317,6 +326,7 @@ export default function TopicExplainerPage() {
                 <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled || isGenerating}>
                   <SelectTrigger id="adminModelSelectTopicExp"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="">Varsayılan Modeli Kullan</SelectItem>
                     <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
                     <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
                     <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
@@ -516,3 +526,4 @@ export default function TopicExplainerPage() {
   );
 }
 
+    

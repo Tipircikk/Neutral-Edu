@@ -65,10 +65,6 @@ export default function TestGeneratorPage() {
     setShowExplanations({});
     setTestOutput(null);
     setIsTestFinished(false);
-    // Optionally reset form fields too
-    // setTopic("");
-    // setNumQuestions(5);
-    // setDifficulty("medium");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -203,7 +199,6 @@ export default function TestGeneratorPage() {
     let correctCount = 0;
     testOutput.questions.forEach((_, index) => {
         const answerInfo = checkedAnswers[index];
-        // If answer wasn't checked, check it now for scoring
         if (!answerInfo && userAnswers[index] !== undefined) {
             if(userAnswers[index] === testOutput.questions[index].correctAnswer) {
                 correctCount++;
@@ -297,6 +292,7 @@ export default function TestGeneratorPage() {
                     <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled || isGenerating}>
                     <SelectTrigger id="adminModelSelectTestGen"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>
                     <SelectContent>
+                        <SelectItem value="">Varsayılan Modeli Kullan</SelectItem>
                         <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
                         <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
                         <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
@@ -486,4 +482,5 @@ export default function TestGeneratorPage() {
     </div>
   );
 }
+
     

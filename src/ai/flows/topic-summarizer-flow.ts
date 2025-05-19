@@ -64,6 +64,9 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 
 {{#if isCustomModelSelected}}
 (Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
+  {{#if isGemini25PreviewSelected}}
+  (Gemini 2.5 Flash Preview Özel Notu: Yanıtlarını olabildiğince ÖZ ama ANLAŞILIR tut. HIZLI yanıt vermesi önemlidir.)
+  {{/if}}
 {{/if}}
 
 İstenen Çıktı Bölümleri:
@@ -86,7 +89,7 @@ Yanıtını hazırlarken, öğrencinin konuyu temelden başlayarak en ileri YKS 
 const topicSummarizerFlow = ai.defineFlow(
   {
     name: 'topicSummarizerFlow',
-    inputSchema: SummarizeTopicInputSchema.extend({ // Enriched input for prompt
+    inputSchema: SummarizeTopicInputSchema.extend({ 
         isProUser: z.boolean().optional(),
         isCustomModelSelected: z.boolean().optional(),
         isGemini25PreviewSelected: z.boolean().optional(),
@@ -111,15 +114,14 @@ const topicSummarizerFlow = ai.defineFlow(
         default:
           console.warn(`[Topic Summarizer Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (enrichedInput.isProUser) { // Fallback to a better model for Pro if no custom admin model
+    } else if (enrichedInput.isProUser) { 
       modelToUse = 'googleai/gemini-1.5-flash-latest';
     }
-    // For free/premium users without admin override, default is gemini-1.5-flash-latest (set initially)
-
+    
     callOptions.model = modelToUse;
 
     let maxTokensForOutput = 2048; // Default for medium
-    if (enrichedInput.summaryLength === 'detailed') maxTokensForOutput = 8000; // Cap for most models
+    if (enrichedInput.summaryLength === 'detailed') maxTokensForOutput = 8000; 
     else if (enrichedInput.summaryLength === 'short') maxTokensForOutput = 1024;
 
 
@@ -130,7 +132,7 @@ const topicSummarizerFlow = ai.defineFlow(
         }
       };
     } else {
-        callOptions.config = {}; // No generationConfig for preview model
+        callOptions.config = {}; 
     }
     
     console.log(`[Topic Summarizer Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}`);
@@ -150,7 +152,7 @@ const topicSummarizerFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
             }
         }
-        // Return a valid SummarizeTopicOutput object even in case of error
+        
         return {
             topicSummary: errorMessage,
             keyConcepts: [],
@@ -160,4 +162,5 @@ const topicSummarizerFlow = ai.defineFlow(
     }
   }
 );
+
     

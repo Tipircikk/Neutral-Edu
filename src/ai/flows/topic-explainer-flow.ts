@@ -58,7 +58,7 @@ const prompt = ai.definePrompt({
   prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilere en karmaşık konuları bile en anlaşılır, en akılda kalıcı ve en kapsamlı şekilde öğreten, pedagojik dehası ve alan hakimiyeti tartışılmaz, son derece deneyimli bir AI YKS Süper Öğretmenisin.
 Görevin, öğrencinin belirttiği "{{{topicName}}}" konusunu, seçtiği "{{{explanationLevel}}}" detay seviyesine ve "{{{teacherPersona}}}" hoca tarzına uygun olarak, A'dan Z'ye, sanki özel ders veriyormuşçasına, adım adım, tüm önemli detaylarıyla ve YKS'de başarılı olması için gereken her türlü stratejik bilgiyle birlikte açıklamaktır.
 Anlatımın sonunda, konuyu pekiştirmek için 2-3 adet çeşitli (kısa cevaplı, boşluk doldurma, doğru/yanlış vb.), doğrudan konuyla ilgili ve cevabı anlatımında bulunabilecek soru sorarak öğrencinin aktif katılımını sağla.
-Matematiksel ifadeleri (örn: x^2 için x^2, H_2O için H_2O, karekök için √, pi için π, artı-eksi için ±, küçük eşit için ≤, büyük eşit için ≥) metin içinde okunabilir şekilde belirtmeye özen göster.
+Matematiksel ifadeleri (örn: üslü ifadeler için x^2, alt indisler için H_2O, karekök için √, pi için π, artı-eksi için ±, küçük eşit için ≤, büyük eşit için ≥) metin içinde okunabilir şekilde belirtmeye özen göster.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
@@ -70,7 +70,7 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isCustomModelSelected}}
 (Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
   {{#if isGemini25PreviewSelected}}
-  ÖZEL NOT (Gemini 2.5 Flash Preview için): Açıklamayı olabildiğince ÖZ ama ANLAŞILIR yap. Aşırı detaydan kaçın, doğrudan ve net bir anlatım sun. HIZLI YANIT VERMESİ ÖNEMLİDİR.
+  (Gemini 2.5 Flash Preview Özel Notu: Yanıtlarını olabildiğince ÖZ ama ANLAŞILIR tut. HIZLI yanıt vermesi önemlidir.)
   {{/if}}
 {{/if}}
 
@@ -102,7 +102,7 @@ Lütfen bu konuyu aşağıdaki format ve prensiplere uygun olarak, seçilen "{{{
 1.  **Anlatım Başlığı (explanationTitle)**: Konuyla ilgili ilgi çekici ve açıklayıcı bir başlık. Örneğin, "{{{topicName}}} - {{{explanationLevel}}} Seviye YKS Konu Anlatımı ({{{teacherPersona}}} Tarzı)".
 2.  **Kapsamlı Konu Anlatımı (explanation)**:
     *   **Giriş**: Konunun YKS müfredatındaki yeri, önemi ve genel bir tanıtımı (seviyeye ve tarza uygun).
-    *   **Temel Tanımlar ve İlkeler**: Konuyla ilgili bilinmesi gereken tüm temel tanımları, formülleri, kuralları veya prensipleri açık ve net bir dille ifade et (seviyeye ve tarza uygun). Matematiksel gösterimleri (x^2, H_2O, √π) kullan.
+    *   **Temel Tanımlar ve İlkeler**: Konuyla ilgili bilinmesi gereken tüm temel tanımları, formülleri, kuralları veya prensipleri açık ve net bir dille ifade et (seviyeye ve tarza uygun). Matematiksel gösterimleri (x^2, H_2O, √, π, ±, ≤, ≥) kullan.
     *   **Alt Başlıklar ve Detaylar**: Konuyu mantıksal alt başlıklara ayırarak her birini detaylı bir şekilde, bol örnekle (seviyeye ve tarza uygun) ve YKS'de çıkabilecek noktaları vurgulayarak açıkla.
     *   **Örnekler ve Uygulamalar**: Konuyu somutlaştırmak için YKS düzeyine uygun, seçilen "{{{explanationLevel}}}" seviyesine göre çeşitlenen zorlukta örnekler ver.
     *   **Bağlantılar (özellikle 'detayli' seviyede)**: Konunun diğer YKS konularıyla (varsa) nasıl ilişkili olduğunu belirt.
@@ -125,7 +125,7 @@ Anlatım Tarzı:
 const topicExplainerFlow = ai.defineFlow(
   {
     name: 'topicExplainerFlow',
-    inputSchema: ExplainTopicInputSchema.extend({ // Enriched input for prompt
+    inputSchema: ExplainTopicInputSchema.extend({ 
         isProUser: z.boolean().optional(),
         isCustomModelSelected: z.boolean().optional(),
         isGemini25PreviewSelected: z.boolean().optional(),
@@ -150,10 +150,9 @@ const topicExplainerFlow = ai.defineFlow(
         default:
           console.warn(`[Topic Explainer Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (enrichedInput.isProUser) { // Fallback to a better model for Pro if no custom admin model
+    } else if (enrichedInput.isProUser) { 
       modelToUse = 'googleai/gemini-1.5-flash-latest';
     }
-    // For free/premium users without admin override, default is gemini-1.5-flash-latest (set initially)
     
     callOptions.model = modelToUse;
     
@@ -164,7 +163,7 @@ const topicExplainerFlow = ai.defineFlow(
         }
       };
     } else {
-        callOptions.config = {}; // No generationConfig for preview model
+        callOptions.config = {}; 
     }
 
     console.log(`[Topic Explainer Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}, level: ${enrichedInput.explanationLevel}, persona: ${enrichedInput.teacherPersona}`);
@@ -184,7 +183,7 @@ const topicExplainerFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
             }
         }
-        // Return a valid ExplainTopicOutput object even in case of error
+        
         return {
             explanationTitle: `Hata: ${errorMessage}`,
             explanation: "Bir hata nedeniyle konu anlatımı oluşturulamadı.",
@@ -196,4 +195,5 @@ const topicExplainerFlow = ai.defineFlow(
     }
   }
 );
+
     

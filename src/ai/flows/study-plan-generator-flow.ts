@@ -80,6 +80,9 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 
 {{#if isCustomModelSelected}}
 (Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
+  {{#if isGemini25PreviewSelected}}
+  (Gemini 2.5 Flash Preview Özel Notu: Yanıtlarını olabildiğince ÖZ ama ANLAŞILIR tut. HIZLI yanıt vermesi önemlidir.)
+  {{/if}}
 {{/if}}
 
 Öğrencinin Girdileri:
@@ -119,7 +122,7 @@ Planlama Prensipleri:
 const studyPlanGeneratorFlow = ai.defineFlow(
   {
     name: 'studyPlanGeneratorFlow',
-    inputSchema: GenerateStudyPlanInputSchema.extend({ // Enriched input for prompt
+    inputSchema: GenerateStudyPlanInputSchema.extend({ 
         isProUser: z.boolean().optional(),
         isCustomModelSelected: z.boolean().optional(),
         isGemini25PreviewSelected: z.boolean().optional(),
@@ -144,21 +147,20 @@ const studyPlanGeneratorFlow = ai.defineFlow(
         default:
           console.warn(`[Study Plan Generator Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (enrichedInput.isProUser) { // Fallback to a better model for Pro if no custom admin model
+    } else if (enrichedInput.isProUser) { 
       modelToUse = 'googleai/gemini-1.5-flash-latest';
     }
-    // For free/premium users without admin override, default is gemini-1.5-flash-latest (set initially)
     
     callOptions.model = modelToUse;
 
     if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
       callOptions.config = {
         generationConfig: {
-          maxOutputTokens: 8000, // Increased for longer plans
+          maxOutputTokens: 8000, 
         }
       };
     } else {
-        callOptions.config = {}; // No generationConfig for preview model
+        callOptions.config = {}; 
     }
     
     console.log(`[Study Plan Generator Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}`);
@@ -170,28 +172,25 @@ const studyPlanGeneratorFlow = ai.defineFlow(
         throw new Error("AI Eğitim Koçu, belirtilen girdilerle bir çalışma planı oluşturamadı. Lütfen bilgilerinizi kontrol edin.");
         }
         
-        // Ensure 'week' property is present and is a number in each weeklyPlan
         if (Array.isArray(output.weeklyPlans)) {
-            output.weeklyPlans.forEach((plan: any, index) => { // Use 'any' for plan to access potentially missing 'week'
+            output.weeklyPlans.forEach((plan: any, index) => { 
                 if (plan.week === undefined || typeof plan.week !== 'number' || isNaN(plan.week)) {
-                    console.warn(`Study Plan Generator: AI output for weeklyPlans[${index}] is missing or has an invalid 'week' number. Assigning index+1. Original plan object:`, JSON.stringify(plan));
-                    plan.week = index + 1; // Correct the 'week' number
+                    console.warn(`Study Plan Generator: AI output for weeklyPlans[${index}] is missing or has an invalid 'week' number. Assigning index+1. Original plan object:`, JSON.stringify(plan).substring(0, 200));
+                    plan.week = index + 1; 
                 }
             });
         } else {
-            // This case should ideally not happen if the output schema is respected by the LLM.
-            console.error("Study Plan Generator: AI output for weeklyPlans is not an array or is empty. Input:", JSON.stringify(enrichedInput));
-            // Attempt to create a minimal valid structure to avoid crashing the client.
+            console.error("Study Plan Generator: AI output for weeklyPlans is not an array or is empty. Input:", JSON.stringify(enrichedInput).substring(0, 200));
              return {
                 planTitle: "Hata: Haftalık Planlar Oluşturulamadı",
-                weeklyPlans: [], // Ensure it's an array
+                weeklyPlans: [], 
                 introduction: "AI modeli, haftalık planları beklenen formatta oluşturamadı. Lütfen girdilerinizi kontrol edin veya daha sonra tekrar deneyin.",
                 generalTips: [],
                 disclaimer: "Bir hata nedeniyle plan oluşturulamadı."
             };
         }
 
-        return output as GenerateStudyPlanOutput; // Cast back to the correct type after potential modification
+        return output as GenerateStudyPlanOutput; 
     } catch (error: any) {
         console.error(`[Study Plan Generator Flow] Error during generation with model ${modelToUse}:`, error);
         let errorMessage = `AI modeli (${modelToUse}) ile çalışma planı oluşturulurken bir hata oluştu.`;
@@ -201,7 +200,7 @@ const studyPlanGeneratorFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen girdilerinizi gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
             }
         }
-        // Return a valid GenerateStudyPlanOutput object even in case of error
+        
         return {
             planTitle: `Hata: ${errorMessage}`,
             weeklyPlans: [],
@@ -212,4 +211,5 @@ const studyPlanGeneratorFlow = ai.defineFlow(
     }
   }
 );
+
     

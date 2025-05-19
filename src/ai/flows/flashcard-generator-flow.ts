@@ -66,6 +66,9 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 
 {{#if isCustomModelSelected}}
 (Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
+  {{#if isGemini25PreviewSelected}}
+  (Gemini 2.5 Flash Preview Özel Notu: Yanıtlarını olabildiğince ÖZ ama ANLAŞILIR tut. HIZLI yanıt vermesi önemlidir.)
+  {{/if}}
 {{/if}}
 
 Kullanıcının Girdileri:
@@ -101,7 +104,7 @@ Genel Prensipler:
 const flashcardGeneratorFlow = ai.defineFlow(
   {
     name: 'flashcardGeneratorFlow',
-    inputSchema: GenerateFlashcardsInputSchema.extend({ // Enriched input for prompt
+    inputSchema: GenerateFlashcardsInputSchema.extend({ 
         isProUser: z.boolean().optional(),
         isCustomModelSelected: z.boolean().optional(),
         isGemini25PreviewSelected: z.boolean().optional(),
@@ -126,16 +129,15 @@ const flashcardGeneratorFlow = ai.defineFlow(
         default:
           console.warn(`[Flashcard Generator Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (enrichedInput.isProUser) { // Fallback to a better model for Pro if no custom admin model
+    } else if (enrichedInput.isProUser) { 
       modelToUse = 'googleai/gemini-1.5-flash-latest';
     }
-    // For free/premium users without admin override, default is gemini-1.5-flash-latest (set initially)
-
+    
     callOptions.model = modelToUse;
     
-    let maxTokensForOutput = enrichedInput.numFlashcards * 200; // Estimate
-    if (maxTokensForOutput > 8000) maxTokensForOutput = 8000; // Cap for most models
-    if (maxTokensForOutput < 1024) maxTokensForOutput = 1024; // Ensure a minimum
+    let maxTokensForOutput = enrichedInput.numFlashcards * 200; 
+    if (maxTokensForOutput > 8000) maxTokensForOutput = 8000; 
+    if (maxTokensForOutput < 1024) maxTokensForOutput = 1024; 
 
     if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
       callOptions.config = {
@@ -144,7 +146,7 @@ const flashcardGeneratorFlow = ai.defineFlow(
         }
       };
     } else {
-        callOptions.config = {}; // No generationConfig for preview model
+        callOptions.config = {}; 
     }
     
     console.log(`[Flashcard Generator Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}`);
@@ -164,7 +166,7 @@ const flashcardGeneratorFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
             }
         }
-        // Return a valid GenerateFlashcardsOutput object even in case of error
+        
         return {
             flashcards: [],
             summaryTitle: `Hata: ${errorMessage}`
@@ -172,4 +174,5 @@ const flashcardGeneratorFlow = ai.defineFlow(
     }
   }
 );
+
     

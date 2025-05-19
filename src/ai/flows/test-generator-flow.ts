@@ -45,7 +45,7 @@ export async function generateTest(input: GenerateTestInput): Promise<GenerateTe
 
   const enrichedInput = { 
       ...input, 
-      questionTypes: ["multiple_choice"] as Array<"multiple_choice" | "true_false" | "short_answer">, // Force multiple choice
+      questionTypes: ["multiple_choice"] as Array<"multiple_choice" | "true_false" | "short_answer">, 
       isProUser,
       isCustomModelSelected,
       isGemini25PreviewSelected,
@@ -73,6 +73,9 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 
 {{#if isCustomModelSelected}}
 (Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
+  {{#if isGemini25PreviewSelected}}
+  (Gemini 2.5 Flash Preview Özel Notu: Yanıtlarını olabildiğince ÖZ ama ANLAŞILIR tut. HIZLI yanıt vermesi önemlidir.)
+  {{/if}}
 {{/if}}
 
 Kullanıcının İstekleri:
@@ -106,7 +109,7 @@ Genel Prensipler:
 const testGeneratorFlow = ai.defineFlow(
   {
     name: 'testGeneratorFlow',
-    inputSchema: GenerateTestInputSchema.extend({ // Enriched input for prompt
+    inputSchema: GenerateTestInputSchema.extend({ 
         isProUser: z.boolean().optional(),
         isCustomModelSelected: z.boolean().optional(),
         isGemini25PreviewSelected: z.boolean().optional(),
@@ -131,26 +134,25 @@ const testGeneratorFlow = ai.defineFlow(
         default:
           console.warn(`[Test Generator Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (enrichedInput.isProUser) { // Fallback to a better model for Pro if no custom admin model
+    } else if (enrichedInput.isProUser) { 
       modelToUse = 'googleai/gemini-1.5-flash-latest';
     }
-    // For free/premium users without admin override, default is gemini-1.5-flash-latest (set initially)
-
+    
     callOptions.model = modelToUse;
     
-    let maxTokensForOutput = enrichedInput.numQuestions * 500; // Estimate
-    if (maxTokensForOutput > 8000) maxTokensForOutput = 8000; // Cap for most models
-    if (maxTokensForOutput < 2048) maxTokensForOutput = 2048; // Ensure a minimum for a few questions
+    let maxTokensForOutput = enrichedInput.numQuestions * 500; 
+    if (maxTokensForOutput > 8000) maxTokensForOutput = 8000; 
+    if (maxTokensForOutput < 2048) maxTokensForOutput = 2048; 
 
     if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
        callOptions.config = { 
-         temperature: 0.7, // For some variation but still focused
+         temperature: 0.7, 
          generationConfig: { 
            maxOutputTokens: maxTokensForOutput
           }
         }; 
     } else {
-      callOptions.config = { temperature: 0.7 }; // No generationConfig for preview model
+      callOptions.config = { temperature: 0.7 }; 
     }
     
     console.log(`[Test Generator Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}`);
@@ -164,7 +166,6 @@ const testGeneratorFlow = ai.defineFlow(
         q.questionType = "multiple_choice"; 
         if (!q.options || q.options.length !== 5) {
             console.warn(`Multiple choice question "${q.questionText.substring(0,50)}..." for topic "${enrichedInput.topic}" was expected to have 5 options, but received ${q.options?.length || 0}. Prompt may need adjustment.`);
-            // Optionally, try to pad/truncate options here if necessary, or let it be.
         }
         });
         return output;
@@ -177,7 +178,7 @@ const testGeneratorFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
             }
         }
-        // Return a valid GenerateTestOutput object even in case of error
+        
         return {
             testTitle: `Hata: ${errorMessage}`,
             questions: []
@@ -185,4 +186,5 @@ const testGeneratorFlow = ai.defineFlow(
     }
   }
 );
+
     

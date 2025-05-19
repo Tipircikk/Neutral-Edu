@@ -61,7 +61,7 @@ export default function FlashcardGeneratorPage() {
 
     setIsGenerating(true);
     setFlashcardsOutput(null);
-    setFlippedStates({}); // Reset flipped states for new cards
+    setFlippedStates({}); 
 
     const currentProfile = await memoizedCheckAndResetQuota();
     if (!currentProfile || (currentProfile.dailyRemainingQuota ?? 0) <= 0) {
@@ -143,6 +143,7 @@ export default function FlashcardGeneratorPage() {
               <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled || isGenerating}>
                 <SelectTrigger id="adminModelSelectFlashcard"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="">Varsayılan Modeli Kullan</SelectItem>
                   <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
                   <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
                   <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
@@ -292,3 +293,5 @@ export default function FlashcardGeneratorPage() {
     </div>
   );
 }
+
+    

@@ -156,12 +156,13 @@ export default function PdfSummarizerPage() {
                 <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isProcessingDisabled || isSummarizing}>
                   <SelectTrigger id="adminModelSelectPdf"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="">Varsayılan Modeli Kullan</SelectItem>
                     <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
                     <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
                     <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz. Seçim yapılmazsa kullanıcının planına göre varsayılan model kullanılır.</p>
+                <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz.</p>
               </div>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -270,4 +271,5 @@ export default function PdfSummarizerPage() {
     </div>
   );
 }
+
     

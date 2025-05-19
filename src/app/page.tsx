@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Presentation, Sparkles, FileText as FileTextIcon, HelpCircle, LayoutGrid, ClipboardCheck, CalendarDays, Wand2, FileUp, BotMessageSquare, BookOpenCheck, ArrowRight, Zap, Clock, Brain, ThumbsUp, Users } from "lucide-react";
+import { Presentation, Sparkles, FileTextIcon, HelpCircle, LayoutGrid, ClipboardCheck, CalendarDays, Wand2, FileUp, BotMessageSquare, BookOpenCheck, ArrowRight, Zap, Clock, Brain, ThumbsUp, Users } from "lucide-react";
 import LandingHeader from "@/components/layout/LandingHeader";
 import Footer from "@/components/layout/Footer";
 import { useState, useEffect, useRef } from "react";
@@ -17,9 +17,9 @@ const features = [
     description: "YKS konularını yapay zekadan detaylıca öğrenin veya uzun metinleri/PDF'leri saniyeler içinde anlaşılır özetlere dönüştürün. Farklı anlatım seviyeleri ve hoca tarzları seçin!",
   },
   {
-    icon: <FileTextIcon className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
+    icon: <HelpCircle className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />, // Changed from FileTextIcon to HelpCircle for Soru Çözücü
     title: "AI Test Oluşturucu ve Soru Çözücü",
-    description: "Belirlediğiniz YKS konularından pratik testler oluşturun veya zorlandığınız sorulara adım adım çözümler alın. (Soru Çözücü Beta)",
+    description: "Belirlediğiniz YKS konularından pratik testler oluşturun veya zorlandığınız sorulara adım adım çözümler alın.",
   },
    {
     icon: <LayoutGrid className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
@@ -113,10 +113,10 @@ export default function LandingPage() {
   const autoPlayIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const startAutoPlay = () => {
-    stopAutoPlay(); // Clear existing interval before starting a new one
+    stopAutoPlay(); 
     autoPlayIntervalRef.current = setInterval(() => {
       setCurrentTestimonialIndex((prevIndex) => (prevIndex + 1) % testimonials.length);
-    }, 2500); // Change testimonial every 2.5 seconds
+    }, 5000); // Slider hızı 5 saniyeye çıkarıldı
   };
 
   const stopAutoPlay = () => {
@@ -127,12 +127,12 @@ export default function LandingPage() {
 
   useEffect(() => {
     startAutoPlay();
-    return () => stopAutoPlay(); // Cleanup interval on component unmount
+    return () => stopAutoPlay(); 
   }, []);
 
   const handleDotClick = (index: number) => {
     setCurrentTestimonialIndex(index);
-    startAutoPlay(); // Restart autoplay timer when a dot is clicked
+    startAutoPlay(); 
   };
 
 
@@ -201,7 +201,7 @@ export default function LandingPage() {
             <p className="text-md sm:text-lg text-muted-foreground text-center mb-10 md:mb-12 max-w-2xl mx-auto">
               Öğrenmenizi hızlandıracak, anlayışınızı artıracak ve sınav performansınızı yükseltecek özelliklerle dolu.
             </p>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-2 gap-6 md:gap-8"> {/* Changed lg:grid-cols-4 to lg:grid-cols-2 for better display */}
+            <div className="grid sm:grid-cols-2 lg:grid-cols-2 gap-6 md:gap-8">
               {features.map((feature, index) => (
                 <Card key={index} className="bg-card hover:shadow-xl transition-shadow duration-300 ease-in-out transform hover:-translate-y-1">
                   <CardHeader className="items-center text-center">
@@ -266,7 +266,7 @@ export default function LandingPage() {
               >
                 {testimonials.map((testimonial, index) => (
                   <div key={testimonial.name + "-" + index} className="w-full flex-shrink-0 px-2">
-                    <Card className="bg-card flex flex-col h-full"> {/* Ensure consistent card height if needed */}
+                    <Card className="bg-card flex flex-col h-full">
                       <CardContent className="pt-6 flex-grow">
                         <ThumbsUp className="h-8 w-8 text-primary mb-4" />
                         <blockquote className="text-sm sm:text-base text-muted-foreground italic border-l-4 border-primary pl-4">
@@ -313,3 +313,5 @@ export default function LandingPage() {
     </div>
   );
 }
+
+    

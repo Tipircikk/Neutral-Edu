@@ -147,6 +147,7 @@ export default function StudyPlanGeneratorPage() {
                 <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled || isGenerating}>
                   <SelectTrigger id="adminModelSelectStudyPlan"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="">Varsayılan Modeli Kullan</SelectItem>
                     <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
                     <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
                     <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
@@ -299,4 +300,5 @@ export default function StudyPlanGeneratorPage() {
     </div>
   );
 }
+
     

@@ -9,20 +9,20 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-// Zod şemaları ve tipleri dosya içinde tanımlanır, dışa aktarılmaz.
+
 const VideoSummarizerInputSchema = z.object({
   youtubeUrl: z.string().url({ message: "Lütfen geçerli bir YouTube video URL'si girin." }).describe('Özetlenmesi istenen YouTube videosunun URL adresi.'),
   userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
   customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi."),
 });
-// Input type for the prompt needs to include the boolean flags
+
 const EnrichedVideoSummarizerInputSchema = VideoSummarizerInputSchema.extend({
     isProUser: z.boolean().optional(),
     isCustomModelSelected: z.boolean().optional(),
     isGemini25PreviewSelected: z.boolean().optional(),
 });
 
-type VideoSummarizerInput = z.infer<typeof VideoSummarizerInputSchema>; // This will be used in the page
+type VideoSummarizerInput = z.infer<typeof VideoSummarizerInputSchema>; 
 
 const VideoSummarizerOutputSchema = z.object({
   videoTitle: z.string().optional().describe('AI tarafından bulunabilirse videonun başlığı.'),
@@ -65,7 +65,7 @@ Kullanıcının Üyelik Planı: {{{userPlan}}}
 {{#if isCustomModelSelected}}
 (Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
   {{#if isGemini25PreviewSelected}}
-  (Gemini 2.5 Flash Preview Özel Notu: Verilen YouTube URL'sindeki videonun BAŞLIĞINI ve AÇIKLAMASINI analiz et. Eğer erişebiliyorsan TRANSKRİPTİNE odaklan. Bu bilgilerden yola çıkarak videonun ANA EĞİTİMSEL konusunu, en önemli 2-3 ANAHTAR ÖĞRENİM NOKTASINI ve genel bir ÖZETİNİ kısa, net ve YKS öğrencisine faydalı olacak şekilde çıkar. Hızlı yanıt vermesi önemlidir.)
+  (Gemini 2.5 Flash Preview Özel Notu: Verilen YouTube URL'sindeki videonun BAŞLIĞINI ve AÇIKLAMASINI analiz et. Eğer erişebiliyorsan TRANSKRİPTİNE odaklan. Bu bilgilerden yola çıkarak videonun ANA EĞİTİMSEL konusunu, en önemli 2-3 ANAHTAR ÖĞRENİM NOKTASINI ve genel bir ÖZETİNİ kısa, net ve YKS öğrencisine faydalı olacak şekilde çıkar. HIZLI yanıt vermesi önemlidir.)
   {{/if}}
 {{/if}}
 
@@ -86,7 +86,7 @@ Eğer video içeriğine (transkript, başlık, açıklama vb.) erişemiyorsan ve
 const videoSummarizerFlow = ai.defineFlow(
   {
     name: 'videoSummarizerFlow',
-    inputSchema: EnrichedVideoSummarizerInputSchema, // Use enriched schema for the flow
+    inputSchema: EnrichedVideoSummarizerInputSchema, 
     outputSchema: VideoSummarizerOutputSchema,
   },
   async (enrichedInput: z.infer<typeof EnrichedVideoSummarizerInputSchema>): Promise<VideoSummarizerOutput> => { 
@@ -107,19 +107,15 @@ const videoSummarizerFlow = ai.defineFlow(
         default:
           console.warn(`[Video Summarizer Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (enrichedInput.isProUser) { // Fallback to a better model for Pro if no custom admin model
+    } else if (enrichedInput.isProUser) { 
       modelToUse = 'googleai/gemini-1.5-flash-latest';
     }
-    // For free/premium users without admin override, default is gemini-1.5-flash-latest (set initially)
-
+    
     callOptions.model = modelToUse;
     
-    if (modelToUse === 'googleai/gemini-2.5-flash-preview-04-17') {
-        callOptions.config = {}; 
-    } else {
-       // No specific generationConfig for video summarizer by default for other models to avoid issues
-       callOptions.config = {}; 
-    }
+    // For video summarizer, let's avoid sending generationConfig by default for any Google model for now
+    // as it might be causing issues, especially if the model has specific ways of handling media.
+    callOptions.config = {}; 
     
     console.log(`[Video Summarizer Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier} with callOptions:`, JSON.stringify(callOptions));
 
@@ -151,7 +147,7 @@ const videoSummarizerFlow = ai.defineFlow(
             errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen video içeriğini kontrol edin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
         }
       }
-      // Return a valid VideoSummarizerOutput object even in case of error
+      
       return {
         warnings: [errorMessage]
       };
