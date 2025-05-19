@@ -3,7 +3,6 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CalendarDays, Wand2, Loader2, AlertTriangle, Settings, UploadCloud, FileText } from "lucide-react";
 import { Label } from "@/components/ui/label";
@@ -14,14 +13,13 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { generateStudyPlan, type GenerateStudyPlanOutput, type GenerateStudyPlanInput } from "@/ai/flows/study-plan-generator-flow";
-import { extractTextFromPdf } from "@/lib/pdfUtils"; // PDF metin çıkarma fonksiyonu
+import { extractTextFromPdf } from "@/lib/pdfUtils";
 
 const MAX_PDF_SIZE_MB = 5;
 const MAX_PDF_SIZE_BYTES = MAX_PDF_SIZE_MB * 1024 * 1024;
 
 export default function StudyPlanGeneratorPage() {
-  const [targetExam, setTargetExam] = useState("YKS");
-  const [subjects, setSubjects] = useState("");
+  const [userField, setUserField] = useState<GenerateStudyPlanInput["userField"]>("sayisal");
   const [studyDuration, setStudyDuration] = useState("4_hafta");
   const [hoursPerDay, setHoursPerDay] = useState(4);
   const [planOutput, setPlanOutput] = useState<GenerateStudyPlanOutput | null>(null);
@@ -58,7 +56,7 @@ export default function StudyPlanGeneratorPage() {
       if (file.type !== "application/pdf") {
         toast({ title: "Geçersiz Dosya Türü", description: "Lütfen bir PDF dosyası yükleyin.", variant: "destructive" });
         setPdfFile(null); setPdfFileName(null); setPdfContextText(null);
-        event.target.value = ""; // Reset file input
+        event.target.value = ""; 
         return;
       }
       if (file.size > MAX_PDF_SIZE_BYTES) {
@@ -90,12 +88,8 @@ export default function StudyPlanGeneratorPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!subjects.trim()) {
-      toast({ title: "Konular Gerekli", description: "Lütfen çalışma planı oluşturmak için konuları girin.", variant: "destructive" });
-      return;
-    }
-    if (subjects.trim().length < 5) {
-      toast({ title: "Konular Yetersiz", description: "Lütfen en az 5 karakterden oluşan konular girin.", variant: "destructive" });
+    if (!userField) {
+      toast({ title: "Alan Seçimi Gerekli", description: "Lütfen çalışma planı oluşturmak için bir alan (EA, Sayısal, Sözel, TYT) seçin.", variant: "destructive" });
       return;
     }
     if (hoursPerDay < 1 || hoursPerDay > 12) {
@@ -120,8 +114,7 @@ export default function StudyPlanGeneratorPage() {
         throw new Error("Kullanıcı planı bulunamadı.");
       }
       const input: GenerateStudyPlanInput = {
-        targetExam,
-        subjects,
+        userField,
         studyDuration,
         hoursPerDay,
         userPlan: currentProfile.plan,
@@ -150,7 +143,9 @@ export default function StudyPlanGeneratorPage() {
       let displayErrorMessage = "Çalışma planı oluşturulurken beklenmedik bir hata oluştu.";
       if (typeof error === 'string') {
         displayErrorMessage = error;
-      } else if (error.message) {
+      } else if (error instanceof Error && error.message) {
+        displayErrorMessage = error.message;
+      } else if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
         displayErrorMessage = error.message;
       }
       toast({
@@ -164,25 +159,34 @@ export default function StudyPlanGeneratorPage() {
     }
   };
   
-  const isSubmitDisabled = isGenerating || isProcessingPdf || !subjects.trim() || subjects.trim().length < 5 || (hoursPerDay < 1 || hoursPerDay > 12) || (!userProfileLoading && userProfile && !canProcess);
-  const isFormElementsDisabled = isGenerating || isProcessingPdf || (!userProfileLoading && userProfile && !canProcess);
+  const isSubmitButtonDisabled = 
+    isGenerating || 
+    isProcessingPdf || 
+    !userField ||
+    (hoursPerDay < 1 || hoursPerDay > 12) || 
+    (!userProfileLoading && userProfile && !canProcess);
+  
+  const isFormElementsDisabled = 
+    isGenerating || 
+    isProcessingPdf || 
+    (!userProfileLoading && userProfile && !canProcess);
 
   const renderFormattedText = (text: string | undefined): React.ReactNode => {
     if (!text) return null;
     return text.split('\n').map((line, index) => {
-      if (line.toUpperCase().startsWith("PRO İPUCU:")) {
-        return <p key={index} className="my-1"><strong className="text-primary">{line.substring(0, "PRO İPUCU:".length)}</strong>{line.substring("PRO İPUCU:".length)}</p>;
+      const trimmedLine = line.trim();
+      if (trimmedLine.toUpperCase().startsWith("PRO İPUCU:")) {
+        return <p key={index} className="my-1"><strong className="text-primary">{trimmedLine.substring(0, "PRO İPUCU:".length)}</strong>{trimmedLine.substring("PRO İPUCU:".length)}</p>;
       }
-      if (line.toUpperCase().startsWith("NOT:")) {
-        return <p key={index} className="my-1 italic"><strong className="text-accent-foreground/90">{line.substring(0, "NOT:".length)}</strong>{line.substring("NOT:".length)}</p>;
+      if (trimmedLine.toUpperCase().startsWith("NOT:")) {
+        return <p key={index} className="my-1 italic"><strong className="text-accent-foreground/90">{trimmedLine.substring(0, "NOT:".length)}</strong>{trimmedLine.substring("NOT:".length)}</p>;
       }
-      if (line.trim().startsWith("* ") || line.trim().startsWith("- ")) {
-        return <li key={index} className="ml-4 list-disc">{line.substring(line.indexOf(' ') + 1)}</li>;
+      if (trimmedLine.startsWith("* ") || trimmedLine.startsWith("- ")) {
+        return <li key={index} className="ml-4 list-disc">{trimmedLine.substring(line.indexOf(' ') + 1)}</li>;
       }
-      return <p key={index} className="my-1">{line || <>&nbsp;</>}</p>; // Boş satırlar için
+      return <p key={index} className="my-1">{line || <>&nbsp;</>}</p>; 
     });
   };
-
 
   return (
     <div className="space-y-6">
@@ -193,7 +197,7 @@ export default function StudyPlanGeneratorPage() {
             <CardTitle className="text-2xl">AI Çalışma Planı Oluşturucu</CardTitle>
           </div>
           <CardDescription>
-            Hedef sınavınızı, çalışmak istediğiniz konuları, süreyi ve günlük çalışma saatinizi girin. İsteğe bağlı olarak, konularınızı veya notlarınızı içeren bir PDF yükleyerek AI'nın daha kişisel bir plan oluşturmasına yardımcı olabilirsiniz.
+            YKS alanınızı, toplam çalışma sürenizi ve günlük çalışma saatinizi girin. İsteğe bağlı olarak, konularınızı veya notlarınızı içeren bir PDF yükleyerek AI'nın daha kişisel bir plan oluşturmasına yardımcı olabilirsiniz.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -203,7 +207,7 @@ export default function StudyPlanGeneratorPage() {
                 <Select 
                   value={adminSelectedModel} 
                   onValueChange={setAdminSelectedModel} 
-                  disabled={isSubmitDisabled || isGenerating || isProcessingPdf}
+                  disabled={isSubmitButtonDisabled || isGenerating || isProcessingPdf}
                 >
                   <SelectTrigger id="adminModelSelectStudyPlan">
                     <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
@@ -238,12 +242,22 @@ export default function StudyPlanGeneratorPage() {
           <CardContent className="pt-6 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <Label htmlFor="targetExam">Hedef Sınav</Label>
-                    <Input id="targetExam" value={targetExam} onChange={(e) => setTargetExam(e.target.value)} placeholder="örn: YKS, TYT, AYT" disabled={isFormElementsDisabled} />
+                    <Label htmlFor="userField">YKS Alanınız / Bölümünüz</Label>
+                    <Select value={userField} onValueChange={(value: GenerateStudyPlanInput["userField"]) => setUserField(value)} disabled={isFormElementsDisabled}>
+                        <SelectTrigger id="userField" className="mt-1">
+                            <SelectValue placeholder="Alan seçin" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="sayisal">Sayısal</SelectItem>
+                            <SelectItem value="ea">Eşit Ağırlık</SelectItem>
+                            <SelectItem value="sozel">Sözel</SelectItem>
+                            <SelectItem value="tyt">Sadece TYT</SelectItem>
+                        </SelectContent>
+                    </Select>
                 </div>
                 <div>
                     <Label htmlFor="studyDuration">Çalışma Süresi</Label>
-                    <Select value={studyDuration} onValueChange={setStudyDuration} disabled={isFormElementsDisabled}>
+                    <Select value={studyDuration} onValueChange={setStudyDuration} disabled={isFormElementsDisabled} className="mt-1">
                         <SelectTrigger id="studyDuration">
                             <SelectValue placeholder="Süre seçin" />
                         </SelectTrigger>
@@ -259,20 +273,8 @@ export default function StudyPlanGeneratorPage() {
                 </div>
             </div>
              <div>
-                <Label htmlFor="hoursPerDay">Günlük Ortalama Çalışma Saati</Label>
-                <Input type="number" id="hoursPerDay" value={hoursPerDay} onChange={(e) => setHoursPerDay(parseInt(e.target.value, 10))} min="1" max="12" disabled={isFormElementsDisabled}/>
-            </div>
-            <div>
-                <Label htmlFor="subjects">Çalışılacak Konular (Virgülle ayırın)</Label>
-                <Textarea
-                id="subjects"
-                placeholder="örn: Matematik - Türev, Fizik - Optik, Tarih - Osmanlı Yükselme Dönemi..."
-                value={subjects}
-                onChange={(e) => setSubjects(e.target.value)}
-                rows={5}
-                className="text-base"
-                disabled={isFormElementsDisabled}
-                />
+                <Label htmlFor="hoursPerDay">Günlük Ortalama Çalışma Saati (1-12)</Label>
+                <Input type="number" id="hoursPerDay" value={hoursPerDay} onChange={(e) => setHoursPerDay(parseInt(e.target.value, 10))} min="1" max="12" disabled={isFormElementsDisabled} className="mt-1"/>
             </div>
             <div className="space-y-2">
                 <Label htmlFor="pdfUploadStudyPlan" className="flex items-center gap-2">
@@ -294,7 +296,7 @@ export default function StudyPlanGeneratorPage() {
                   </div>
                 )}
             </div>
-            <Button type="submit" className="w-full" disabled={isSubmitDisabled}>
+            <Button type="submit" className="w-full" disabled={isSubmitButtonDisabled}>
               {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
               Çalışma Planı Oluştur
             </Button>
@@ -353,7 +355,7 @@ export default function StudyPlanGeneratorPage() {
                             </div>
                             )}
                             {dayTask.estimatedTime && <p className="text-xs text-muted-foreground mt-1"><strong className="text-foreground/80">Tahmini Süre:</strong> {dayTask.estimatedTime}</p>}
-                            {dayTask.notes && <div className="text-xs italic text-accent-foreground/80 mt-2 prose prose-xs dark:prose-invert max-w-none">{renderFormattedText(dayTask.notes)}</div>}
+                            {dayTask.notes && <div className="text-xs italic text-accent-foreground/80 mt-2 prose prose-xs dark:prose-invert max-w-none whitespace-pre-line">{renderFormattedText(dayTask.notes)}</div>}
                         </div>
                         ))}
                     </CardContent>
@@ -364,7 +366,7 @@ export default function StudyPlanGeneratorPage() {
                     <CardHeader><CardTitle className="text-lg text-primary">Genel İpuçları</CardTitle></CardHeader>
                     <CardContent>
                         <ul className="list-disc list-inside pl-2 space-y-1 text-sm text-muted-foreground">
-                        {planOutput.generalTips.map((tip, tipIndex) => <li key={tipIndex}>{renderFormattedText(tip)}</li>)}
+                        {planOutput.generalTips.map((tip, tipIndex) => <li key={tipIndex} className="whitespace-pre-line">{renderFormattedText(tip)}</li>)}
                         </ul>
                     </CardContent>
                   </Card>
@@ -379,7 +381,7 @@ export default function StudyPlanGeneratorPage() {
           </CardContent>
         </Card>
       )}
-       {!isGenerating && !isProcessingPdf && !planOutput && !userProfileLoading && (
+       {!isGenerating && !isProcessingPdf && !planOutput && !userProfileLoading && (userProfile || !userProfile) &&(
          <Alert className="mt-6">
           <CalendarDays className="h-4 w-4" />
           <AlertTitle>Plana Hazır!</AlertTitle>

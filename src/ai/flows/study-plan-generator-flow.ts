@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview Kullanıcının YKS hedeflerine, konularına, çalışma süresine ve isteğe bağlı PDF bağlamına göre
+ * @fileOverview Kullanıcının YKS hedeflerine, seçtiği alana (EA, Sayısal, Sözel, TYT), konularına, çalışma süresine ve isteğe bağlı PDF bağlamına göre
  * kişiselleştirilmiş bir çalışma planı taslağı oluşturan AI aracı.
  *
  * - generateStudyPlan - Çalışma planı oluşturma işlemini yöneten fonksiyon.
@@ -11,11 +11,99 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import type { UserProfile } from '@/types';
+
+// TYT ve AYT Konu Listeleri
+const yksTopics = {
+  tyt: {
+    turkce: ["Sözcükte Anlam", "Cümlede Anlam", "Paragraf", "Ses Bilgisi", "Dil Bilgisi Genel", "Anlatım Bozuklukları", "Yazım Kuralları", "Noktalama İşaretleri"],
+    matematik: ["Temel Kavramlar", "Sayılar", "Bölme-Bölünebilme", "Asal Çarpanlar", "OBEB-OKEK", "Rasyonel Sayılar", "Basit Eşitsizlikler", "Mutlak Değer", "Üslü Sayılar", "Köklü Sayılar", "Çarpanlara Ayırma", "Denklem Çözme", "Oran-Orantı", "Problemler (Sayı, Kesir, Yaş, Yüzde, Kâr-Zarar, Faiz, Karışım, Hareket, Grafik)", "Kümeler", "Kartezyen Çarpım", "Mantık", "Sayma ve Olasılık", "Veri"],
+    geometri: ["Doğruda Açılar", "Üçgende Açılar", "Açıortay-Kenarortay", "Üçgende Alan", "Üçgende Açı-Kenar Bağıntıları", "Dik Üçgen", "İkizkenar-Çeşitkenar Üçgen", "Benzerlik", "Pisagor", "Öklid", "Çokgenler", "Dörtgenler (Yamuk, Paralelkenar, Dikdörtgen, Kare, Deltoid)", "Çember ve Daire", "Katı Cisimler", "Koordinat Sistemi", "Analitik Geometri Temel"],
+    fizik: ["Fizik Bilimine Giriş", "Madde ve Özellikleri", "Hareket ve Kuvvet", "Enerji", "Isı ve Sıcaklık", "Elektrostatik"],
+    kimya: ["Kimya Bilimi", "Atom ve Periyodik Sistem", "Kimyasal Türler Arası Etkileşim", "Maddenin Halleri", "Doğa ve Kimya", "Kimyanın Temel Kanunları"],
+    biyoloji: ["Biyoloji Bilimi", "Canlıların Yapısında Bulunan Bileşikler", "Hücre", "Canlıların Temel Bileşenleri", "Hücre Zarından Madde Geçişi", "Canlıların Sınıflandırılması"],
+    tarih: ["Tarih ve Zaman", "İlk Uygarlıklar", "İslamiyet Öncesi Türk Tarihi", "İslam Tarihi ve Uygarlığı", "Türk-İslam Devletleri", "Türkiye Tarihi (Beylikten Devlete, Dünya Gücü Osmanlı)"],
+    cografya: ["Coğrafya: Doğa ve İnsan", "Coğrafi Konum", "Harita Bilgisi", "Atmosfer ve İklim", "Yer Şekilleri", "Beşeri Coğrafya", "Nüfus ve Yerleşme"],
+    felsefe: ["Felsefenin Konusu", "Bilgi Felsefesi", "Varlık Felsefesi", "Ahlak Felsefesi", "Sanat Felsefesi", "Din Felsefesi", "Siyaset Felsefesi"],
+    dinKulturu: ["İslam'da İnanç Esasları", "İbadetler", "Ahlak", "Hz. Muhammed'in Hayatı", "İslam Düşüncesinde Yorumlar", "Dinler Tarihi (Kısaca)"]
+  },
+  ayt: {
+    turkDiliEdebiyati: ["Anlam Bilgisi (AYT)", "Dil Bilgisi (AYT)", "Edebiyatın Tarihi Gelişimi", "Şiir Bilgisi", "Nazım Biçimleri", "Düz Yazı Türleri", "İslamiyet Öncesi Türk Edebiyatı", "Divan Edebiyatı", "Halk Edebiyatı", "Tanzimat Edebiyatı", "Servetifünun Edebiyatı", "Fecriati Edebiyatı", "Milli Edebiyat", "Cumhuriyet Edebiyatı", "Dünya Edebiyatı"],
+    matematik: ["Fonksiyonlar (İleri Düzey)", "Polinomlar", "2. Dereceden Denklemler", "Karmaşık Sayılar", "Binom", "Permütasyon ve Kombinasyon", "Olasılık (AYT)", "Trigonometri", "Logaritma", "Diziler", "Limit ve Süreklilik", "Türev", "İntegral"],
+    geometri: ["Üçgenler (AYT Detay)", "Çokgenler ve Dörtgenler (AYT Detay)", "Çember ve Daire (AYT Detay)", "Analitik Geometri (İleri Düzey)", "Katı Cisimler (AYT Detay)"],
+    fizik: ["Vektörler", "Kuvvet ve Hareket (Newton, İş-Güç-Enerji, Atışlar)", "Elektrik ve Manyetizma (AYT)", "Dalgalar (AYT)", "Optik (AYT)", "Atom Fiziği ve Modern Fizik"],
+    kimya: ["Atomun Yapısı (Modern)", "Periyodik Sistem (AYT)", "Kimyasal Türler Arası Etkileşim (AYT)", "Kimyasal Hesaplamalar (AYT)", "Gazlar", "Çözeltiler", "Kimyasal Tepkimelerde Enerji", "Tepkimelerde Hız", "Kimyasal Denge", "Asit-Baz Dengesi", "Elektrokimya", "Organik Kimya"],
+    biyoloji: ["Hücre (AYT Detay)", "Canlıların Sınıflandırılması (AYT Detay)", "Sistemler (Destek-Hareket, Dolaşım, Solunum, Sindirim, Boşaltım, Sinir, Endokrin)", "Duyu Organları", "Üreme ve Gelişme", "Kalıtım (İleri Düzey)", "Biyoteknoloji", "Ekosistem Ekolojisi", "Canlılar ve Çevre"],
+    tarih: ["Tarih Bilimi (AYT)", "İlk ve Orta Çağlarda Türkler (AYT)", "Osmanlı Kültür ve Medeniyeti", "Osmanlı Siyasi Gelişmeleri (Yükselme, Duraklama, Gerileme, Dağılma)", "19. Yüzyılda Osmanlı", "Kurtuluş Savaşı (Hazırlık, Cepheler)", "Cumhuriyetin İlanı ve Atatürk İlkeleri", "Çok Partili Hayat", "Türkiye’nin Dış Politikası"],
+    cografya: ["Türkiye’nin Yer Şekilleri", "Türkiye İklimi", "Türkiye Nüfusu", "Türkiye'de Tarım ve Hayvancılık", "Türkiye'de Maden ve Enerji Kaynakları", "Türkiye'de Sanayi ve Ulaşım", "Türkiye'de Ticaret ve Turizm", "Türkiye'nin Bölgesel Kalkınma Projeleri", "Doğal Afetler ve Türkiye", "Ekosistem ve Biyoçeşitlilik (AYT)"],
+    felsefeGrubu: {
+      felsefe: ["Felsefeye Giriş (AYT)", "Bilgi Felsefesi (AYT)", "Varlık Felsefesi (AYT)", "Ahlak Felsefesi (AYT)", "Sanat Felsefesi (AYT)", "Din Felsefesi (AYT)", "Siyaset Felsefesi (AYT)", "Bilim Felsefesi"],
+      psikoloji: ["Psikolojinin Temel Süreçleri", "Gelişim Psikolojisi", "Öğrenme Psikolojisi", "Ruh Sağlığı"],
+      sosyoloji: ["Sosyolojiye Giriş", "Toplumsal Yapı", "Toplumsal Değişme ve Gelişme", "Kültür"],
+      mantik: ["Mantığa Giriş", "Klasik Mantık", "Modern Mantık"]
+    }
+  }
+};
+
+function getSubjectsForField(field?: "ea" | "sayisal" | "sozel" | "tyt"): string {
+  if (!field) return "Genel YKS Konuları (Tüm Dersler)";
+
+  let subjects: string[] = [];
+  const addTytCourses = (includeMathGeo: boolean = true, includeFenSos: boolean = true) => {
+    subjects.push("TYT Türkçe (" + yksTopics.tyt.turkce.slice(0, 3).join(', ') + "...)");
+    if (includeMathGeo) {
+      subjects.push("TYT Matematik (" + yksTopics.tyt.matematik.slice(0, 3).join(', ') + "...)");
+      subjects.push("TYT Geometri (" + yksTopics.tyt.geometri.slice(0, 2).join(', ') + "...)");
+    }
+    if (includeFenSos) {
+      subjects.push("TYT Fizik (" + yksTopics.tyt.fizik.slice(0, 2).join(', ') + "...)");
+      subjects.push("TYT Kimya (" + yksTopics.tyt.kimya.slice(0, 2).join(', ') + "...)");
+      subjects.push("TYT Biyoloji (" + yksTopics.tyt.biyoloji.slice(0, 2).join(', ') + "...)");
+      subjects.push("TYT Tarih (" + yksTopics.tyt.tarih.slice(0, 2).join(', ') + "...)");
+      subjects.push("TYT Coğrafya (" + yksTopics.tyt.cografya.slice(0, 2).join(', ') + "...)");
+      subjects.push("TYT Felsefe (" + yksTopics.tyt.felsefe.slice(0, 2).join(', ') + "...)");
+      subjects.push("TYT Din Kültürü");
+    }
+  };
+
+  switch (field) {
+    case "sayisal":
+      addTytCourses();
+      subjects.push("AYT Matematik (" + yksTopics.ayt.matematik.slice(0, 3).join(', ') + "...)");
+      subjects.push("AYT Geometri (" + yksTopics.ayt.geometri.slice(0, 2).join(', ') + "...)");
+      subjects.push("AYT Fizik (" + yksTopics.ayt.fizik.slice(0, 2).join(', ') + "...)");
+      subjects.push("AYT Kimya (" + yksTopics.ayt.kimya.slice(0, 2).join(', ') + "...)");
+      subjects.push("AYT Biyoloji (" + yksTopics.ayt.biyoloji.slice(0, 2).join(', ') + "...)");
+      break;
+    case "ea":
+      addTytCourses(true, false); // TYT Matematik ve Türkçe
+      subjects.push("TYT Sosyal Bilimler (Tarih, Coğrafya, Felsefe, Din K.)"); // TYT Sosyal Bilimler özet
+      subjects.push("AYT Matematik (" + yksTopics.ayt.matematik.slice(0, 3).join(', ') + "...)");
+      subjects.push("AYT Geometri (" + yksTopics.ayt.geometri.slice(0, 2).join(', ') + "...)");
+      subjects.push("AYT Türk Dili ve Edebiyatı (" + yksTopics.ayt.turkDiliEdebiyati.slice(0, 3).join(', ') + "...)");
+      subjects.push("AYT Tarih-1 (" + yksTopics.ayt.tarih.slice(0, 2).join(', ') + "...)");
+      subjects.push("AYT Coğrafya-1 (" + yksTopics.ayt.cografya.slice(0, 2).join(', ') + "...)");
+      break;
+    case "sozel":
+      addTytCourses(false, true); // TYT Türkçe ve Sosyal + Din
+      subjects.push("TYT Matematik (Temel Düzey)");
+      subjects.push("AYT Türk Dili ve Edebiyatı (" + yksTopics.ayt.turkDiliEdebiyati.slice(0, 3).join(', ') + "...)");
+      subjects.push("AYT Tarih-1 ve Tarih-2 (" + yksTopics.ayt.tarih.slice(0, 3).join(', ') + "...)");
+      subjects.push("AYT Coğrafya-1 ve Coğrafya-2 (" + yksTopics.ayt.cografya.slice(0, 3).join(', ') + "...)");
+      subjects.push("AYT Felsefe Grubu (Felsefe, Psikoloji, Sosyoloji, Mantık)");
+      subjects.push("AYT Din Kültürü ve Ahlak Bilgisi");
+      break;
+    case "tyt":
+      addTytCourses();
+      break;
+    default:
+      return "Genel YKS Konuları (Tüm Dersler)";
+  }
+  return subjects.join(", ");
+}
+
 
 const GenerateStudyPlanInputSchema = z.object({
-  targetExam: z.string().default("YKS").describe("Hedeflenen sınav (örn: YKS, TYT, AYT)."),
-  subjects: z.string().min(5).describe("Çalışılması planlanan dersler ve ana konular (virgülle ayrılmış)."),
+  userField: z.enum(["ea", "sayisal", "sozel", "tyt"]).optional().describe("Kullanıcının YKS alanı (Eşit Ağırlık, Sayısal, Sözel, Sadece TYT)."),
   studyDuration: z.string().describe("Toplam çalışma süresi (örn: '4_hafta', '3_ay', '6_ay')."),
   hoursPerDay: z.number().min(1).max(12).describe("Günlük ortalama çalışma saati."),
   userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
@@ -51,9 +139,12 @@ export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<
   const isProUser = input.userPlan === 'pro';
   const isCustomModelSelected = !!input.customModelIdentifier;
   const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+  
+  const subjectsToFocus = getSubjectsForField(input.userField);
 
   const enrichedInput = {
     ...input,
+    subjects: subjectsToFocus, // AI'ya gönderilecek konu listesi
     isProUser,
     isCustomModelSelected,
     isGemini25PreviewSelected,
@@ -64,8 +155,6 @@ export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<
     flowOutput = await studyPlanGeneratorFlow(enrichedInput);
   } catch (error) {
     console.error("[generateStudyPlan Wrapper] Error calling studyPlanGeneratorFlow:", error);
-    // Return a structured error in case the flow itself throws an unhandled exception
-    // that wasn't caught by Genkit's internal error handling for schema validation.
     return {
         planTitle: "Plan Oluşturma Hatası",
         introduction: "Çalışma planı oluşturulurken beklenmedik bir sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.",
@@ -75,7 +164,6 @@ export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<
     };
   }
 
-  // Ensure weeklyPlans array exists and each item has a week number
   if (flowOutput && Array.isArray(flowOutput.weeklyPlans)) {
       flowOutput.weeklyPlans.forEach((plan: any, index) => { 
           if (plan && (plan.week === undefined || typeof plan.week !== 'number' || isNaN(plan.week))) {
@@ -84,7 +172,6 @@ export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<
           }
       });
   } else if (flowOutput) {
-      // If weeklyPlans is not an array or doesn't exist, create an empty one to satisfy the schema.
       console.warn("Study Plan Generator: AI output for weeklyPlans is not an array or is missing. Defaulting to empty array. Input:", JSON.stringify(enrichedInput).substring(0,200));
       flowOutput.weeklyPlans = [];
       if (!flowOutput.planTitle) {
@@ -101,13 +188,14 @@ export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<
 const prompt = ai.definePrompt({
   name: 'studyPlanGeneratorPrompt',
   input: {schema: GenerateStudyPlanInputSchema.extend({
+    subjects: z.string().optional().describe("Çalışılması planlanan dersler ve ana konular (virgülle ayrılmış veya bölüm seçimine göre otomatik oluşturulmuş)."),
     isProUser: z.boolean().optional(),
     isCustomModelSelected: z.boolean().optional(),
     isGemini25PreviewSelected: z.boolean().optional(),
   })},
   output: {schema: GenerateStudyPlanOutputSchema},
-  prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) başta olmak üzere çeşitli sınavlara hazırlanan öğrencilere, onların hedeflerine, mevcut bilgilerine (belirtildiyse), çalışma sürelerine, günlük ayırabilecekleri zamana ve (varsa) sağladıkları ek PDF bağlamına göre son derece detaylı, kişiselleştirilmiş ve etkili çalışma planları tasarlayan, YKS hazırlık sürecinin her aşamasına hakim uzman bir AI eğitim koçu ve stratejistisin.
-Amacın, öğrencinin belirlediği konuları {{{studyDuration}}} içinde, günde ortalama {{{hoursPerDay}}} saat çalışarak en verimli şekilde tamamlamasına yardımcı olacak, haftalık ve günlük bazda yapılandırılmış, gerçekçi bir yol haritası sunmaktır. Plan, YKS (veya {{{targetExam}}}) formatına uygun olmalı ve öğrenciyi motive etmelidir. Cevapların her zaman Türkçe olmalıdır.
+  prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) başta olmak üzere çeşitli sınavlara hazırlanan öğrencilere, onların hedeflerine, seçtikleri alana ({{{userField}}}), mevcut bilgilerine (belirtildiyse), çalışma sürelerine, günlük ayırabilecekleri zamana ve (varsa) sağladıkları ek PDF bağlamına göre son derece detaylı, kişiselleştirilmiş ve etkili çalışma planları tasarlayan, YKS hazırlık sürecinin her aşamasına hakim uzman bir AI eğitim koçu ve stratejistisin.
+Amacın, öğrencinin belirlediği veya seçtiği alana göre belirlenen konuları ({{{subjects}}}) {{{studyDuration}}} içinde, günde ortalama {{{hoursPerDay}}} saat çalışarak en verimli şekilde tamamlamasına yardımcı olacak, haftalık ve günlük bazda yapılandırılmış, gerçekçi bir yol haritası sunmaktır. Plan, YKS (veya {{{userField}}} alanına uygun sınavlar) formatına uygun olmalı ve öğrenciyi motive etmelidir. Cevapların her zaman Türkçe olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
@@ -124,8 +212,8 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 {{/if}}
 
 Öğrencinin Girdileri:
-Hedef Sınav: {{{targetExam}}}
-Çalışılacak Konular/Dersler: {{{subjects}}}
+YKS Alanı: {{{userField}}}
+Çalışılacak Ana Dersler/Konular (Bu listeye göre planı oluştur): {{{subjects}}}
 Toplam Çalışma Süresi: {{{studyDuration}}}
 Günlük Ortalama Çalışma Saati: {{{hoursPerDay}}}
 
@@ -137,7 +225,7 @@ Lütfen bu ek bağlamı, öğrencinin özellikle odaklanmak istediği veya eksik
 
 Lütfen bu bilgilere göre, aşağıdaki formatta bir çalışma planı taslağı oluştur: Çıktı, JSON şemasına HARFİYEN uymalıdır. Özellikle 'weeklyPlans' dizisindeki her bir obje, 'week' (hafta numarası, SAYI olarak), 'weeklyGoal' (isteğe bağlı) ve 'dailyTasks' (günlük görevler dizisi) alanlarını içermelidir. 'dailyTasks' içindeki her obje de 'day', 'focusTopics' ve isteğe bağlı diğer alanları içermelidir. Şemada 'required' olarak belirtilen tüm alanlar MUTLAKA çıktıda bulunmalıdır. HER BİR HAFTALIK PLAN OBJESİ 'week' ANAHTARINA SAHİP OLMALI VE BU ANAHTARIN DEĞERİ BİR SAYI (NUMBER) OLMALIDIR. Örneğin: { "week": 1, ... }, { "week": 2, ... } gibi.
 
-1.  **Plan Başlığı (planTitle)**: Örneğin, "Kişiye Özel {{{targetExam}}} Hazırlık Planı ({{{studyDuration}}})". Bu alan ZORUNLUDUR.
+1.  **Plan Başlığı (planTitle)**: Örneğin, "Kişiye Özel {{{userField}}} Hazırlık Planı ({{{studyDuration}}})". Bu alan ZORUNLUDUR.
 2.  **Giriş (introduction) (isteğe bağlı)**: Öğrenciyi motive eden, planın genel mantığını açıklayan kısa bir giriş. "PRO İPUCU:" veya "Not:" gibi etiketlerle önemli noktaları vurgulayabilirsin.
 3.  **Haftalık Planlar (weeklyPlans)**: ÇOK ÖNEMLİ: Bu dizideki HER BİR obje, MUTLAKA 'week' adında bir alana sahip olmalı ve bu alanın değeri bir SAYI (örneğin 1, 2, 3...) olmalıdır. Çalışma süresine göre haftalara bölünmüş planlar. Her hafta için:
     *   **Hafta Numarası (week)**: Örneğin, 1, 2, 3... Bu alan HER HAFTALIK PLAN OBJESİNDE ZORUNLUDUR VE MUTLAKA BİR SAYI OLMALIDIR. Bu değerin kesinlikle bir sayı olduğundan ve her haftalık plan için mevcut olduğundan emin ol.
@@ -153,7 +241,7 @@ Lütfen bu bilgilere göre, aşağıdaki formatta bir çalışma planı taslağ�
 5.  **Sorumluluk Reddi (disclaimer)**: "Bu, yapay zeka tarafından oluşturulmuş bir taslak plandır..." şeklinde standart bir uyarı.
 
 Planlama Prensipleri:
-*   {{{subjects}}} listesindeki konuları ve (varsa) {{{pdfContextText}}} içeriğindeki öğrenci odaklarını {{{studyDuration}}} içine mantıklı bir şekilde dağıt. {{{hoursPerDay}}} saatlik günlük çalışmayı göz önünde bulundur.
+*   AI, kendisine verilen {{{userField}}} alanına ve {{{subjects}}} listesindeki konulara göre, {{{studyDuration}}} süresince, günde ortalama {{{hoursPerDay}}} saat çalışmayı dikkate alarak mantıklı bir plan oluşturmalıdır.
 *   Konuların zorluk seviyelerine ve birbirleriyle bağlantılarına dikkat et.
 *   Tekrar ve soru çözümünü plana dahil et.
 *   Öğrencinin sıkılmaması için çeşitlilik sağlamaya çalış.
@@ -167,13 +255,14 @@ const studyPlanGeneratorFlow = ai.defineFlow(
   {
     name: 'studyPlanGeneratorFlow',
     inputSchema: GenerateStudyPlanInputSchema.extend({ 
+        subjects: z.string().optional(),
         isProUser: z.boolean().optional(),
         isCustomModelSelected: z.boolean().optional(),
         isGemini25PreviewSelected: z.boolean().optional(),
     }),
     outputSchema: GenerateStudyPlanOutputSchema,
   },
-  async (enrichedInput: GenerateStudyPlanInput & {isProUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<GenerateStudyPlanOutput> => {
+  async (enrichedInput: GenerateStudyPlanInput & {subjects?: string; isProUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<GenerateStudyPlanOutput> => {
     let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
@@ -207,7 +296,7 @@ const studyPlanGeneratorFlow = ai.defineFlow(
         callOptions.config = {}; 
     }
     
-    console.log(`[Study Plan Generator Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}, PDF context provided: ${!!enrichedInput.pdfContextText}`);
+    console.log(`[Study Plan Generator Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}, PDF context provided: ${!!enrichedInput.pdfContextText}, User Field: ${enrichedInput.userField}, Subjects sent to AI: ${enrichedInput.subjects}`);
     
     let output: GenerateStudyPlanOutput | undefined;
     try {
@@ -219,7 +308,6 @@ const studyPlanGeneratorFlow = ai.defineFlow(
             throw new Error("AI Eğitim Koçu, belirtilen girdilerle bir çalışma planı oluşturamadı. Lütfen bilgilerinizi kontrol edin.");
         }
         
-        // Ensure 'week' property is present and a number for all weekly plans
         if (Array.isArray(output.weeklyPlans)) {
             output.weeklyPlans.forEach((plan: any, index) => { 
                 if (plan && (plan.week === undefined || typeof plan.week !== 'number' || isNaN(plan.week))) {
@@ -229,15 +317,14 @@ const studyPlanGeneratorFlow = ai.defineFlow(
             });
         } else {
             console.error("Study Plan Generator: AI output for weeklyPlans is not an array. Defaulting to empty. Input:", JSON.stringify(enrichedInput).substring(0, 200), "Raw Output:", JSON.stringify(output).substring(0,300));
-            output.weeklyPlans = []; // Ensure it's an array to prevent further errors
+            output.weeklyPlans = []; 
         }
 
-        return output as GenerateStudyPlanOutput; // Cast to ensure type compliance after potential modifications
+        return output as GenerateStudyPlanOutput; 
     } catch (error: any) {
         console.error(`[Study Plan Generator Flow] Error during generation with model ${modelToUse}:`, error);
         let errorMessage = `AI modeli (${modelToUse}) ile çalışma planı oluşturulurken bir hata oluştu.`;
         if (error.message) {
-            // Check if the error is a GenkitError and has schema validation details
             if (error.name === 'GenkitError' && error.details && Array.isArray(error.details)) {
                 const validationErrors = error.details.map((detail: any) => detail.message || JSON.stringify(detail)).join('; ');
                 errorMessage += ` Şema Doğrulama Hatası: ${validationErrors.substring(0, 300)}`;
