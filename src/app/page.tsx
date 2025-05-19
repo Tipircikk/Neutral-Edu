@@ -1,13 +1,14 @@
 
-"use client";
+"use client"; // Required for useState and useEffect
 
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Presentation, Sparkles, FileText, HelpCircle, LayoutGrid, ClipboardCheck, CalendarDays, Wand2, FileUp, BotMessageSquare, BookOpenCheck, ArrowRight, Zap, Clock, Brain, ThumbsUp, ListChecks, Palette, Timer, CalendarClock } from "lucide-react";
+import { Presentation, Sparkles, FileText, HelpCircle, LayoutGrid, ClipboardCheck, CalendarDays, Wand2, FileUp, BotMessageSquare, BookOpenCheck, ArrowRight, Zap, Clock, Brain, ThumbsUp, ListChecks, Palette, Timer, CalendarClock, Users } from "lucide-react";
 import LandingHeader from "@/components/layout/LandingHeader";
 import Footer from "@/components/layout/Footer";
+import { useState, useEffect } from "react"; // Added useState and useEffect
 
 const features = [
   {
@@ -63,12 +64,12 @@ const benefits = [
 const howItWorksSteps = [
   {
     icon: <Wand2 className="h-10 w-10 md:h-12 md:w-12 text-primary mb-4" />,
-    title: "1. İhtiyacınız Olan Aracı Seçin",
-    description: "Konu anlatımı, test oluşturma, PDF özetleme, sınav analizi veya çalışma planı gibi birçok YKS odaklı AI aracımızdan birini seçin.",
+    title: "1. Aracınızı Seçin",
+    description: "İhtiyacınıza uygun AI aracını (Konu Anlatımı, Soru Çözücü, Test Oluşturucu vb.) seçin.",
   },
   {
     icon: <FileUp className="h-10 w-10 md:h-12 md:w-12 text-primary mb-4" />,
-    title: "2. Gerekli Bilgileri Sağlayın",
+    title: "2. Girdinizi Sağlayın",
     description: "Öğrenmek istediğiniz konuyu, PDF'inizi, soru metnini/görselini, sınav raporunuzu veya çalışma tercihlerinizi sisteme girin.",
   },
   {
@@ -94,10 +95,42 @@ const testimonials = [
     name: "Zeynep T., Üniversite Hazırlık",
     avatarFallback: "ZT",
   },
+  {
+    quote: "AI Soru Çözücü, takıldığım en zor soruları bile anlamamı sağladı. Kesinlikle tavsiye ederim.",
+    name: "Burak S., Öğrenci",
+    avatarFallback: "BS",
+  },
+  {
+    quote: "Çalışma planı oluşturucu sayesinde hangi konuya ne zaman çalışacağımı artık biliyorum. Çok organize oldum!",
+    name: "Selin M., Öğrenci",
+    avatarFallback: "SM",
+  },
+   {
+    quote: "Bilgi kartları özelliği konuları tekrar etmek için mükemmel. Çok pratik!",
+    name: "Fatma G., Öğrenci",
+    avatarFallback: "FG",
+  },
+  {
+    quote: "Bu platform sayesinde YKS'ye daha bilinçli ve motive bir şekilde hazırlanıyorum. Emeği geçenlere teşekkürler!",
+    name: "Mehmet K., Öğrenci",
+    avatarFallback: "MK",
+  }
 ];
 
 
 export default function LandingPage() {
+  const [currentTestimonialIndex, setCurrentTestimonialIndex] = useState(0);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setCurrentTestimonialIndex((prevIndex) => (prevIndex + 1) % testimonials.length);
+    }, 2500); // Change testimonial every 2.5 seconds
+
+    return () => clearInterval(intervalId); // Cleanup interval on component unmount
+  }, []);
+
+  const currentTestimonial = testimonials[currentTestimonialIndex];
+
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <LandingHeader />
@@ -164,7 +197,7 @@ export default function LandingPage() {
               Öğrenmenizi hızlandıracak, anlayışınızı artıracak ve sınav performansınızı yükseltecek özelliklerle dolu.
             </p>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-              {features.map((feature, index) => ( 
+              {features.map((feature, index) => (
                 <Card key={index} className="bg-card hover:shadow-xl transition-shadow duration-300 ease-in-out transform hover:-translate-y-1">
                   <CardHeader className="items-center text-center">
                     {feature.icon}
@@ -221,19 +254,24 @@ export default function LandingPage() {
             <p className="text-md sm:text-lg text-muted-foreground text-center mb-10 md:mb-12 max-w-2xl mx-auto">
               Başkalarının NeutralEdu AI hakkında ne söylediğini duyun.
             </p>
-            <div className="grid md:grid-cols-3 gap-6 md:gap-8">
+            <div className="relative h-48 md:h-40 flex items-center justify-center overflow-hidden">
               {testimonials.map((testimonial, index) => (
-                <Card key={index} className="bg-card flex flex-col">
-                  <CardContent className="pt-6 flex-grow">
-                    <ThumbsUp className="h-8 w-8 text-primary mb-4" />
-                    <blockquote className="text-sm sm:text-base text-muted-foreground italic border-l-4 border-primary pl-4">
-                      "{testimonial.quote}"
-                    </blockquote>
-                  </CardContent>
-                  <CardFooter className="pt-4 mt-auto">
-                    <p className="text-xs sm:text-sm font-semibold text-foreground">{testimonial.name}</p>
-                  </CardFooter>
-                </Card>
+                <div
+                  key={testimonial.name + "-" + index} // More unique key for transitions
+                  className={`absolute w-full transition-opacity duration-1000 ease-in-out ${index === currentTestimonialIndex ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                >
+                  <Card className="bg-card flex flex-col max-w-2xl mx-auto">
+                    <CardContent className="pt-6 flex-grow">
+                      <ThumbsUp className="h-8 w-8 text-primary mb-4" />
+                      <blockquote className="text-sm sm:text-base text-muted-foreground italic border-l-4 border-primary pl-4">
+                        "{testimonial.quote}"
+                      </blockquote>
+                    </CardContent>
+                    <CardFooter className="pt-4 mt-auto">
+                      <p className="text-xs sm:text-sm font-semibold text-foreground">{testimonial.name}</p>
+                    </CardFooter>
+                  </Card>
+                </div>
               ))}
             </div>
           </div>
@@ -256,5 +294,4 @@ export default function LandingPage() {
     </div>
   );
 }
-
     
