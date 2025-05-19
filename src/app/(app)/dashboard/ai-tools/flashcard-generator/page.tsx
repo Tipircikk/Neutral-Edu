@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { LayoutGrid, Wand2, Loader2, AlertTriangle, Settings, RotateCw } from "lucide-react";
+import { LayoutGrid, Wand2, Loader2, AlertTriangle, Settings, RotateCw, Repeat } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input as ShadInput } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,6 +13,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { generateFlashcards, type GenerateFlashcardsOutput, type GenerateFlashcardsInput } from "@/ai/flows/flashcard-generator-flow";
+
+const MIN_TEXT_LENGTH = 20; // Minimum karakter limiti 20'ye düşürüldü
 
 export default function FlashcardGeneratorPage() {
   const [inputText, setInputText] = useState("");
@@ -33,13 +35,14 @@ export default function FlashcardGeneratorPage() {
   }, [checkAndResetQuota, userProfile]);
 
   useEffect(() => {
-    if (userProfile) {
-      memoizedCheckAndResetQuota().then(updatedProfile => {
-        setCanProcess((updatedProfile?.dailyRemainingQuota ?? 0) > 0);
-      });
-    } else if (!userProfileLoading) {
-      // If userProfile is null and not loading, means no user or error, so cannot process.
-      setCanProcess(false);
+    if (!userProfileLoading) {
+      if (userProfile) {
+        memoizedCheckAndResetQuota().then(updatedProfile => {
+          setCanProcess((updatedProfile?.dailyRemainingQuota ?? 0) > 0);
+        });
+      } else {
+        setCanProcess(false); // No user, cannot process
+      }
     }
   }, [userProfile, userProfileLoading, memoizedCheckAndResetQuota]);
 
@@ -53,8 +56,8 @@ export default function FlashcardGeneratorPage() {
       toast({ title: "Metin Gerekli", description: "Lütfen bilgi kartı oluşturmak için bir metin girin.", variant: "destructive" });
       return;
     }
-    if (inputText.trim().length < 50) {
-      toast({ title: "Metin Çok Kısa", description: "Lütfen en az 50 karakterlik bir metin girin.", variant: "destructive" });
+    if (inputText.trim().length < MIN_TEXT_LENGTH) {
+      toast({ title: "Metin Çok Kısa", description: `Lütfen en az ${MIN_TEXT_LENGTH} karakterlik bir metin girin.`, variant: "destructive" });
       return;
     }
     if (numFlashcards < 3 || numFlashcards > 15) {
@@ -125,29 +128,18 @@ export default function FlashcardGeneratorPage() {
     }
   };
 
-  let isSubmitButtonDisabled = isGenerating;
-  if (!isSubmitButtonDisabled) {
-    if (
-      !inputText.trim() ||
-      inputText.trim().length < 50 ||
-      numFlashcards < 3 ||
-      numFlashcards > 15
-    ) {
-      isSubmitButtonDisabled = true;
-    }
-  }
-  if (!isSubmitButtonDisabled && !userProfileLoading && userProfile) {
-    if (!canProcess) {
-      isSubmitButtonDisabled = true;
-    }
-  }
-   // If profile is still loading, we don't disable based on quota yet.
-   // The `handleSubmit` will re-check quota.
+  const isSubmitButtonDisabled = 
+    isGenerating ||
+    !inputText.trim() ||
+    inputText.trim().length < MIN_TEXT_LENGTH ||
+    numFlashcards < 3 ||
+    numFlashcards > 15 ||
+    (!userProfileLoading && userProfile && !canProcess);
 
   const isModelSelectDisabled = isGenerating || !userProfile?.isAdmin || (!userProfileLoading && userProfile && !canProcess);
 
 
-  if (userProfileLoading && !userProfile) { // Show loader only if userProfile is not yet available
+  if (userProfileLoading && !userProfile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-20rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -165,7 +157,7 @@ export default function FlashcardGeneratorPage() {
             <CardTitle className="text-2xl">AI Bilgi Kartı Oluşturucu</CardTitle>
           </div>
           <CardDescription>
-            Öğrenmek istediğiniz metni girin (en az 50 karakter), yapay zeka sizin için önemli kavramlardan etkileşimli bilgi kartları (flashcards) oluştursun. Kartlara tıklayarak ön ve arka yüzlerini görebilirsiniz.
+            Öğrenmek istediğiniz metni girin (en az ${MIN_TEXT_LENGTH} karakter), yapay zeka sizin için önemli kavramlardan etkileşimli bilgi kartları (flashcards) oluştursun. Kartlara veya altındaki butona tıklayarak ön ve arka yüzlerini görebilirsiniz.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -206,7 +198,7 @@ export default function FlashcardGeneratorPage() {
         <Card>
           <CardContent className="pt-6 space-y-4">
             <Textarea
-              placeholder="Bilgi kartlarına dönüştürmek istediğiniz metni, tanımları veya anahtar noktaları buraya yapıştırın (en az 50 karakter)..."
+              placeholder={`Bilgi kartlarına dönüştürmek istediğiniz metni, tanımları veya anahtar noktaları buraya yapıştırın (en az ${MIN_TEXT_LENGTH} karakter)...`}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               rows={8}
@@ -274,33 +266,45 @@ export default function FlashcardGeneratorPage() {
         <Card className="mt-6">
           <CardHeader>
             <CardTitle>{flashcardsOutput.summaryTitle || "Oluşturulan Bilgi Kartları"}</CardTitle>
-            <CardDescription>{flashcardsOutput.flashcards.length} adet bilgi kartı oluşturuldu. Kartlara tıklayarak çevirebilirsiniz.</CardDescription>
+            <CardDescription>{flashcardsOutput.flashcards.length} adet bilgi kartı oluşturuldu. Kartlara veya altındaki butona tıklayarak çevirebilirsiniz.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {flashcardsOutput.flashcards.map((card, index) => (
-                <div key={index} onClick={() => handleFlipCard(index)} className="cursor-pointer perspective group">
-                  <div className={`relative w-full h-52 md:h-60 transform-style-3d transition-transform duration-700 ${flippedStates[index] ? 'rotate-y-180' : ''}`}>
+                <div key={index} className="perspective group flex flex-col">
+                  <div 
+                    onClick={() => handleFlipCard(index)} 
+                    className={`relative w-full h-56 md:h-64 transform-style-3d transition-transform duration-700 ease-in-out rounded-lg shadow-lg cursor-pointer ${flippedStates[index] ? 'rotate-y-180' : ''}`}
+                  >
                     {/* Front of the card */}
-                    <Card className={`absolute w-full h-full backface-hidden flex flex-col p-4 border rounded-lg shadow-md ${flippedStates[index] ? 'z-0 opacity-0 pointer-events-none' : 'z-10 opacity-100'}`}>
+                    <Card className={`absolute w-full h-full backface-hidden flex flex-col p-4 border ${flippedStates[index] ? 'z-0 opacity-0 pointer-events-none' : 'z-10 opacity-100'}`}>
                       <div className="flex justify-between items-center mb-2">
                          <CardTitle className="text-base text-primary">Ön Yüz</CardTitle>
                          <RotateCw className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
                       </div>
                       <p className="text-sm text-foreground flex-grow overflow-y-auto">{card.front}</p>
-                      {card.topic && <p className="text-xs mt-auto pt-2 text-accent-foreground/80">Konu: {card.topic}</p>}
+                      {card.topic && <p className="text-xs mt-auto pt-2 text-muted-foreground">Konu: {card.topic}</p>}
                     </Card>
 
                     {/* Back of the card */}
-                    <Card className={`absolute w-full h-full backface-hidden rotate-y-180 flex flex-col p-4 border rounded-lg shadow-md ${flippedStates[index] ? 'z-10 opacity-100' : 'z-0 opacity-0 pointer-events-none'}`}>
+                    <Card className={`absolute w-full h-full backface-hidden rotate-y-180 flex flex-col p-4 border ${flippedStates[index] ? 'z-10 opacity-100' : 'z-0 opacity-0 pointer-events-none'}`}>
                        <div className="flex justify-between items-center mb-2">
                         <CardTitle className="text-base text-primary">Arka Yüz</CardTitle>
                         <RotateCw className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
                       </div>
                       <p className="text-sm text-muted-foreground flex-grow overflow-y-auto">{card.back}</p>
-                      {card.topic && <p className="text-xs mt-auto pt-2 text-accent-foreground/80">Konu: {card.topic}</p>}
+                      {card.topic && <p className="text-xs mt-auto pt-2 text-muted-foreground">Konu: {card.topic}</p>}
                     </Card>
                   </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => handleFlipCard(index)} 
+                    className="mt-2 w-full"
+                  >
+                    <Repeat className="mr-2 h-4 w-4" />
+                    {flippedStates[index] ? "Ön Yüze Döndür" : "Arka Yüze Döndür"}
+                  </Button>
                 </div>
               ))}
             </div>
@@ -314,7 +318,7 @@ export default function FlashcardGeneratorPage() {
       {/* Global styles for the 3D flip effect */}
       <style jsx global>{`
         .perspective {
-          perspective: 1000px;
+          perspective: 1200px; /* Increased perspective for a more pronounced 3D effect */
         }
         .transform-style-3d {
           transform-style: preserve-3d;
@@ -330,6 +334,4 @@ export default function FlashcardGeneratorPage() {
     </div>
   );
 }
-    
-
     
