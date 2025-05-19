@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { LayoutGrid, Wand2, Loader2, AlertTriangle, Settings, RotateCw } from "lucide-react";
 import { Label } from "@/components/ui/label";
-import { Input as ShadInput } from "@/components/ui/input"; // Renamed to avoid conflict if HTML Input is ever used
+import { Input as ShadInput } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -28,7 +28,7 @@ export default function FlashcardGeneratorPage() {
   const [canProcess, setCanProcess] = useState(false);
 
   const memoizedCheckAndResetQuota = useCallback(async () => {
-    if (!checkAndResetQuota) return userProfile; // Return current profile if function doesn't exist
+    if (!checkAndResetQuota) return userProfile;
     return checkAndResetQuota();
   }, [checkAndResetQuota, userProfile]);
 
@@ -37,8 +37,11 @@ export default function FlashcardGeneratorPage() {
       memoizedCheckAndResetQuota().then(updatedProfile => {
         setCanProcess((updatedProfile?.dailyRemainingQuota ?? 0) > 0);
       });
+    } else if (!userProfileLoading) {
+      // If userProfile is null and not loading, means no user or error, so cannot process.
+      setCanProcess(false);
     }
-  }, [userProfile, memoizedCheckAndResetQuota]);
+  }, [userProfile, userProfileLoading, memoizedCheckAndResetQuota]);
 
   const handleFlipCard = (index: number) => {
     setFlippedStates(prev => ({ ...prev, [index]: !prev[index] }));
@@ -122,9 +125,29 @@ export default function FlashcardGeneratorPage() {
     }
   };
 
-  const isSubmitDisabled = isGenerating || !inputText.trim() || inputText.trim().length < 50 || numFlashcards < 3 || numFlashcards > 15 || (!canProcess && !userProfileLoading && (userProfile?.dailyRemainingQuota ?? 0) <= 0);
+  let isSubmitButtonDisabled = isGenerating;
+  if (!isSubmitButtonDisabled) {
+    if (
+      !inputText.trim() ||
+      inputText.trim().length < 50 ||
+      numFlashcards < 3 ||
+      numFlashcards > 15
+    ) {
+      isSubmitButtonDisabled = true;
+    }
+  }
+  if (!isSubmitButtonDisabled && !userProfileLoading && userProfile) {
+    if (!canProcess) {
+      isSubmitButtonDisabled = true;
+    }
+  }
+   // If profile is still loading, we don't disable based on quota yet.
+   // The `handleSubmit` will re-check quota.
 
-  if (userProfileLoading) {
+  const isModelSelectDisabled = isGenerating || !userProfile?.isAdmin || (!userProfileLoading && userProfile && !canProcess);
+
+
+  if (userProfileLoading && !userProfile) { // Show loader only if userProfile is not yet available
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-20rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -152,7 +175,7 @@ export default function FlashcardGeneratorPage() {
               <Select
                 value={adminSelectedModel}
                 onValueChange={setAdminSelectedModel}
-                disabled={isGenerating || !canProcess}
+                disabled={isModelSelectDisabled}
               >
                 <SelectTrigger id="adminModelSelectFlashcard">
                   <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
@@ -169,7 +192,7 @@ export default function FlashcardGeneratorPage() {
         </CardContent>
       </Card>
 
-      {!canProcess && !isGenerating && userProfile && (userProfile.dailyRemainingQuota ?? 0) <= 0 && (
+      {!userProfileLoading && userProfile && !canProcess && !isGenerating && (userProfile.dailyRemainingQuota ?? 0) <= 0 && (
         <Alert variant="destructive" className="shadow-md">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Günlük Kota Doldu</AlertTitle>
@@ -188,7 +211,7 @@ export default function FlashcardGeneratorPage() {
               onChange={(e) => setInputText(e.target.value)}
               rows={8}
               className="text-base"
-              disabled={isGenerating || !canProcess}
+              disabled={isGenerating || (!userProfileLoading && userProfile && !canProcess)}
             />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -199,12 +222,12 @@ export default function FlashcardGeneratorPage() {
                   value={numFlashcards}
                   onChange={(e) => {
                     const val = parseInt(e.target.value, 10);
-                    setNumFlashcards(isNaN(val) ? 3 : val); // Ensure it's a number, default to 3 if NaN
+                    setNumFlashcards(isNaN(val) ? 3 : val); 
                   }}
                   min="3"
                   max="15"
                   className="w-full p-2 border rounded-md bg-input border-border"
-                  disabled={isGenerating || !canProcess}
+                  disabled={isGenerating || (!userProfileLoading && userProfile && !canProcess)}
                 />
               </div>
               <div>
@@ -212,7 +235,7 @@ export default function FlashcardGeneratorPage() {
                 <Select
                   value={difficulty}
                   onValueChange={(value: GenerateFlashcardsInput["difficulty"]) => setDifficulty(value)}
-                  disabled={isGenerating || !canProcess}
+                  disabled={isGenerating || (!userProfileLoading && userProfile && !canProcess)}
                 >
                   <SelectTrigger id="difficulty">
                     <SelectValue placeholder="Zorluk seçin" />
@@ -225,7 +248,7 @@ export default function FlashcardGeneratorPage() {
                 </Select>
               </div>
             </div>
-            <Button type="submit" className="w-full" disabled={isSubmitDisabled}>
+            <Button type="submit" className="w-full" disabled={isSubmitButtonDisabled}>
               {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
               Bilgi Kartları Oluştur
             </Button>
@@ -307,5 +330,6 @@ export default function FlashcardGeneratorPage() {
     </div>
   );
 }
+    
 
     
