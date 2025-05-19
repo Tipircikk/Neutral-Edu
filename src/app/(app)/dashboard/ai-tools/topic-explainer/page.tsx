@@ -44,33 +44,27 @@ export default function TopicExplainerPage() {
 
   const parseInlineFormatting = (line: string | undefined | null): React.ReactNode[] => {
     if (!line) return [<React.Fragment key="empty-line"></React.Fragment>];
-    // Regex to split by `text^number` or `text_number` while keeping delimiters part of the split array for easier processing
-    // This regex looks for:
-    // 1. text_number (e.g., H_2O, CO_2) - captures base (H), underscore, number (2), and any trailing characters (O)
-    // 2. text^number (e.g., x^2, y^10) - captures base (x), caret, number (2), and any trailing characters
-    // It uses capturing groups to make these parts accessible.
-    const parts = line.split(/(\S+[_^]\d+[\s.,;:!?)]*|\S+[_^]\d+)/g);
+    // Regex to split by `text^number` or `text_number`
+    const parts = line.split(/(\S+[_^]\S+|\S+[_^]\d+[\s.,;:!?)]*|\S+[_^]\d+)/g);
 
     return parts.map((part, index) => {
-      // Try to match subscript: e.g., H_2O, CO_2
-      const subMatch = part.match(/^(\S+?)_(\d+)(.*)$/);
-      if (subMatch) {
-        return (
-          <React.Fragment key={`${index}-sub`}>
-            {subMatch[1]}
-            <sub>{subMatch[2]}</sub>
-            {subMatch[3]}
-          </React.Fragment>
-        );
-      }
-      // Try to match superscript: e.g., x^2, y^10
-      const supMatch = part.match(/^(\S*)\^(\S+)(.*)$/);
+      const supMatch = part.match(/^(\S*)\^(\S+)(.*)$/); // x^2, word^something
       if (supMatch) {
         return (
           <React.Fragment key={`${index}-sup`}>
             {supMatch[1]}
             <sup>{supMatch[2]}</sup>
             {supMatch[3]}
+          </React.Fragment>
+        );
+      }
+      const subMatch = part.match(/^(\S+?)_(\d+)(.*)$/); // H_2O, CO_2
+      if (subMatch) {
+        return (
+          <React.Fragment key={`${index}-sub`}>
+            {subMatch[1]}
+            <sub>{subMatch[2]}</sub>
+            {subMatch[3]}
           </React.Fragment>
         );
       }
@@ -97,16 +91,17 @@ export default function TopicExplainerPage() {
     };
 
     lines.forEach((line, index) => {
-      if (line.trim().startsWith('### ')) {
+      const trimmedLine = line.trim();
+      if (trimmedLine.startsWith('### ')) {
         flushList();
-        elements.push(<h4 key={index} className="text-md font-semibold mt-3 mb-1 text-foreground">{parseInlineFormatting(line.substring(4))}</h4>);
-      } else if (line.trim().startsWith('## ')) {
+        elements.push(<h4 key={index} className="text-md font-semibold mt-3 mb-1 text-foreground">{parseInlineFormatting(trimmedLine.substring(4))}</h4>);
+      } else if (trimmedLine.startsWith('## ')) {
         flushList();
-        elements.push(<h3 key={index} className="text-lg font-semibold mt-4 mb-2 text-foreground">{parseInlineFormatting(line.substring(3))}</h3>);
-      } else if (line.trim().startsWith('* ') || line.trim().startsWith('- ')) {
-        listItems.push(parseInlineFormatting(line.substring(line.indexOf(' ') + 1)));
-      } else if (line.trim() === "") {
-        // flushList(); // Decide if empty lines should end lists or just be space
+        elements.push(<h3 key={index} className="text-lg font-semibold mt-4 mb-2 text-foreground">{parseInlineFormatting(trimmedLine.substring(3))}</h3>);
+      } else if (trimmedLine.startsWith('* ') || trimmedLine.startsWith('- ')) {
+        listItems.push(parseInlineFormatting(trimmedLine.substring(trimmedLine.indexOf(' ') + 1)));
+      } else if (trimmedLine === "") {
+        // flushList(); // Optionally flush list on empty line, or let it create paragraphs
       } else {
         flushList();
         elements.push(<p key={index} className="mb-2 last:mb-0 text-muted-foreground">{parseInlineFormatting(line)}</p>);
@@ -164,7 +159,9 @@ export default function TopicExplainerPage() {
           setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
         }
       } else {
-        throw new Error(result?.explanationTitle || "Yapay zeka bir konu anlatımı üretemedi.");
+        const errorMessage = result?.explanationTitle || "Yapay zeka bir konu anlatımı üretemedi.";
+        toast({ title: "Anlatım Sonucu Yetersiz", description: errorMessage, variant: "destructive"});
+        setExplanationOutput({ explanationTitle: errorMessage, explanation: "Hata oluştu.", keyConcepts:[], commonMistakes: [], yksTips:[], activeRecallQuestions: [] });
       }
     } catch (error: any) {
       console.error("Konu anlatımı oluşturma hatası:", error);
@@ -173,6 +170,7 @@ export default function TopicExplainerPage() {
         description: error.message || "Konu anlatımı oluşturulurken beklenmedik bir hata oluştu.",
         variant: "destructive",
       });
+      setExplanationOutput({ explanationTitle: error.message || "Beklenmedik bir hata oluştu.", explanation: "Hata oluştu.", keyConcepts:[], commonMistakes: [], yksTips:[], activeRecallQuestions: [] });
     } finally {
       setIsGenerating(false);
     }
@@ -210,22 +208,21 @@ export default function TopicExplainerPage() {
         let { y = currentY } = options;
 
         doc.setFontSize(fontSize);
-        doc.setFont('Helvetica', fontStyle); // Ensure font is set for each text block
+        doc.setFont('Helvetica', fontStyle); 
         doc.setTextColor(color);
 
-        const lines = doc.splitTextToSize(text, maxWidth);
+        const lines = doc.splitTextToSize(text.replace(/\^(.*?)\^/g, '$1').replace(/_(.*?)_/g, '$1'), maxWidth); // Basic cleanup for PDF
         
         lines.forEach((line: string, index: number) => {
-          if (y + lineHeight > pageHeight - margin) { 
+          if (y + lineHeight > pageHeight - margin - 10) { // Added a bottom margin check
             doc.addPage();
             y = margin; 
-            // Re-apply font settings on new page
             doc.setFontSize(fontSize);
             doc.setFont('Helvetica', fontStyle);
             doc.setTextColor(color);
           }
           const lineText = isListItem && index === 0 ? `• ${line}` : line;
-          const xOffset = isTitle ? (pageWidth - doc.getTextWidth(lineText)) / 2 : (isListItem ? margin + 2 : margin); // Adjusted x for list items
+          const xOffset = isTitle ? (pageWidth - doc.getTextWidth(lineText)) / 2 : (isListItem ? margin + 3 : margin); 
           doc.text(lineText, xOffset, y);
           y += lineHeight; 
         });
@@ -317,7 +314,7 @@ export default function TopicExplainerPage() {
          {userProfile?.isAdmin && (
               <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
                 <Label htmlFor="adminModelSelectTopicExp" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
-                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled}>
+                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled || isGenerating}>
                   <SelectTrigger id="adminModelSelectTopicExp"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
@@ -442,7 +439,7 @@ export default function TopicExplainerPage() {
         <Card className="mt-6">
           <CardHeader className="flex flex-row justify-between items-center">
             <CardTitle>{explanationOutput.explanationTitle}</CardTitle>
-            <Button onClick={handleExportToPdf} variant="outline" size="sm" disabled={isExportingPdf}>
+            <Button onClick={handleExportToPdf} variant="outline" size="sm" disabled={isExportingPdf || isGenerating}>
               {isExportingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
               PDF Olarak İndir
             </Button>
@@ -518,3 +515,4 @@ export default function TopicExplainerPage() {
     </div>
   );
 }
+

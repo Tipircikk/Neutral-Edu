@@ -47,24 +47,38 @@ const GenerateStudyPlanOutputSchema = z.object({
 export type GenerateStudyPlanOutput = z.infer<typeof GenerateStudyPlanOutputSchema>;
 
 export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<GenerateStudyPlanOutput> {
-  return studyPlanGeneratorFlow(input);
+  const isProUser = input.userPlan === 'pro';
+  const isCustomModelSelected = !!input.customModelIdentifier;
+  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+
+  const enrichedInput = {
+    ...input,
+    isProUser,
+    isCustomModelSelected,
+    isGemini25PreviewSelected,
+  };
+  return studyPlanGeneratorFlow(enrichedInput);
 }
 
 const prompt = ai.definePrompt({
   name: 'studyPlanGeneratorPrompt',
-  input: {schema: GenerateStudyPlanInputSchema},
+  input: {schema: GenerateStudyPlanInputSchema.extend({
+    isProUser: z.boolean().optional(),
+    isCustomModelSelected: z.boolean().optional(),
+    isGemini25PreviewSelected: z.boolean().optional(),
+  })},
   output: {schema: GenerateStudyPlanOutputSchema},
   prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) başta olmak üzere çeşitli sınavlara hazırlanan öğrencilere, onların hedeflerine, mevcut bilgilerine (belirtildiyse), çalışma sürelerine ve günlük ayırabilecekleri zamana göre son derece detaylı, kişiselleştirilmiş ve etkili çalışma planları tasarlayan, YKS hazırlık sürecinin her aşamasına hakim uzman bir AI eğitim koçu ve stratejistisin.
 Amacın, öğrencinin belirlediği konuları {{{studyDuration}}} içinde, günde ortalama {{{hoursPerDay}}} saat çalışarak en verimli şekilde tamamlamasına yardımcı olacak, haftalık ve günlük bazda yapılandırılmış, gerçekçi bir yol haritası sunmaktır. Plan, YKS (veya {{{targetExam}}}) formatına uygun olmalı ve öğrenciyi motive etmelidir. Cevapların her zaman Türkçe olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
-{{#ifEquals userPlan "pro"}}
+{{#if isProUser}}
 (Pro Kullanıcı Notu: Planı, en karmaşık konuların bile nasıl parçalara ayrılarak çalışılabileceğini gösterecek şekilde, farklı öğrenme teknikleri (örn: Pomodoro, Feynman Tekniği) ve genel türde kaynak önerileriyle (spesifik kitap adı olmadan) zenginleştir. Öğrencinin potansiyel darboğazlarını, zaman yönetimi zorluklarını ve motivasyon düşüşlerini öngörerek proaktif çözümler ve alternatif yaklaşımlar sun. En kapsamlı ve stratejik planı oluştur.)
 {{else ifEquals userPlan "premium"}}
 (Premium Kullanıcı Notu: Haftalık hedefleri daha net belirle, günlük aktivitelere örnek soru çözüm sayıları veya tekrar stratejileri ekle. Motivasyonel ipuçlarını artır.)
-{{/ifEquals}}
+{{/if}}
 
-{{#if customModelIdentifier}}
+{{#if isCustomModelSelected}}
 (Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
 {{/if}}
 
@@ -98,33 +112,26 @@ Planlama Prensipleri:
 *   Öğrencinin sıkılmaması için çeşitlilik sağlamaya çalış.
 *   Gerçekçi ve uygulanabilir bir plan oluştur.
 *   Eğer verilen süre çok kısaysa veya konu sayısı çok fazlaysa, bu durumu nazikçe belirt ve planı en iyi şekilde optimize etmeye çalış veya daha odaklı bir plan öner.
-*   Şemadaki 'required' olarak işaretlenmiş tüm alanların çıktıda bulunduğundan emin ol. Özellikle 'weeklyPlans' içindeki her bir haftanın 'week' numarası MUTLAKA BİR SAYI OLARAK belirtilmelidir. Çıktıyı oluşturmadan önce, 'weeklyPlans' dizisindeki her bir objenin 'week' anahtarını ve bunun sayısal bir değer içerdiğini SON KEZ KONTROL ET.
+*   Çıktının JSON şemasına HARFİYEN uyduğundan emin ol. Özellikle, 'weeklyPlans' dizisindeki HER BİR haftalık plan objesinin 'week' anahtarını içerdiğinden ve bu anahtarın değerinin bir SAYI olduğundan KESİNLİKLE emin ol. Çıktıyı oluşturmadan önce bunu son kez kontrol et.
 `,
 });
 
 const studyPlanGeneratorFlow = ai.defineFlow(
   {
     name: 'studyPlanGeneratorFlow',
-    inputSchema: GenerateStudyPlanInputSchema,
+    inputSchema: GenerateStudyPlanInputSchema.extend({ // Enriched input for prompt
+        isProUser: z.boolean().optional(),
+        isCustomModelSelected: z.boolean().optional(),
+        isGemini25PreviewSelected: z.boolean().optional(),
+    }),
     outputSchema: GenerateStudyPlanOutputSchema,
   },
-  async (input: GenerateStudyPlanInput): Promise<GenerateStudyPlanOutput> => {
+  async (enrichedInput: GenerateStudyPlanInput & {isProUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<GenerateStudyPlanOutput> => {
     let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
-    const isCustomModelSelected = !!input.customModelIdentifier;
-    const isProUser = input.userPlan === 'pro';
-    const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
-
-    const enrichedInput = {
-      ...input,
-      isProUser,
-      isCustomModelSelected,
-      isGemini25PreviewSelected,
-    };
-
-    if (input.customModelIdentifier) {
-      switch (input.customModelIdentifier) {
+    if (enrichedInput.customModelIdentifier) {
+      switch (enrichedInput.customModelIdentifier) {
         case 'default_gemini_flash':
           modelToUse = 'googleai/gemini-2.0-flash';
           break;
@@ -135,25 +142,26 @@ const studyPlanGeneratorFlow = ai.defineFlow(
           modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
           break;
         default:
-          console.warn(`[Study Plan Generator Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting to ${modelToUse}`);
+          console.warn(`[Study Plan Generator Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (input.userPlan === 'pro') {
+    } else if (enrichedInput.isProUser) { // Fallback to a better model for Pro if no custom admin model
       modelToUse = 'googleai/gemini-1.5-flash-latest';
     }
+    // For free/premium users without admin override, default is gemini-1.5-flash-latest (set initially)
     
     callOptions.model = modelToUse;
 
     if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
       callOptions.config = {
         generationConfig: {
-          maxOutputTokens: 8000, 
+          maxOutputTokens: 8000, // Increased for longer plans
         }
       };
     } else {
-        callOptions.config = {};
+        callOptions.config = {}; // No generationConfig for preview model
     }
     
-    console.log(`[Study Plan Generator Flow] Using model: ${modelToUse} for plan: ${input.userPlan}, customModel: ${input.customModelIdentifier}`);
+    console.log(`[Study Plan Generator Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}`);
     
     try {
         const {output} = await prompt(enrichedInput, callOptions);
@@ -162,27 +170,28 @@ const studyPlanGeneratorFlow = ai.defineFlow(
         throw new Error("AI Eğitim Koçu, belirtilen girdilerle bir çalışma planı oluşturamadı. Lütfen bilgilerinizi kontrol edin.");
         }
         
-        // Ensure 'week' property is present and is a number
+        // Ensure 'week' property is present and is a number in each weeklyPlan
         if (Array.isArray(output.weeklyPlans)) {
-            output.weeklyPlans.forEach((plan, index) => {
+            output.weeklyPlans.forEach((plan: any, index) => { // Use 'any' for plan to access potentially missing 'week'
                 if (plan.week === undefined || typeof plan.week !== 'number' || isNaN(plan.week)) {
                     console.warn(`Study Plan Generator: AI output for weeklyPlans[${index}] is missing or has an invalid 'week' number. Assigning index+1. Original plan object:`, JSON.stringify(plan));
-                    plan.week = index + 1; 
+                    plan.week = index + 1; // Correct the 'week' number
                 }
             });
         } else {
-            console.error("Study Plan Generator: AI output for weeklyPlans is not an array or is empty. Input:", JSON.stringify(input));
-            // Attempt to create a minimal valid structure to avoid crashing the client, though this is not ideal.
+            // This case should ideally not happen if the output schema is respected by the LLM.
+            console.error("Study Plan Generator: AI output for weeklyPlans is not an array or is empty. Input:", JSON.stringify(enrichedInput));
+            // Attempt to create a minimal valid structure to avoid crashing the client.
              return {
                 planTitle: "Hata: Haftalık Planlar Oluşturulamadı",
-                weeklyPlans: [],
+                weeklyPlans: [], // Ensure it's an array
                 introduction: "AI modeli, haftalık planları beklenen formatta oluşturamadı. Lütfen girdilerinizi kontrol edin veya daha sonra tekrar deneyin.",
                 generalTips: [],
                 disclaimer: "Bir hata nedeniyle plan oluşturulamadı."
             };
         }
 
-        return output;
+        return output as GenerateStudyPlanOutput; // Cast back to the correct type after potential modification
     } catch (error: any) {
         console.error(`[Study Plan Generator Flow] Error during generation with model ${modelToUse}:`, error);
         let errorMessage = `AI modeli (${modelToUse}) ile çalışma planı oluşturulurken bir hata oluştu.`;
@@ -192,6 +201,7 @@ const studyPlanGeneratorFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen girdilerinizi gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
             }
         }
+        // Return a valid GenerateStudyPlanOutput object even in case of error
         return {
             planTitle: `Hata: ${errorMessage}`,
             weeklyPlans: [],

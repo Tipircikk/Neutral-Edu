@@ -118,7 +118,9 @@ export default function TestGeneratorPage() {
           setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
         }
       } else {
-        throw new Error(result?.testTitle || "Yapay zeka bir test üretemedi veya format hatalı.");
+        const errorMessage = result?.testTitle || "Yapay zeka bir test üretemedi veya format hatalı.";
+        toast({ title: "Test Oluşturma Sonucu Yetersiz", description: errorMessage, variant: "destructive"});
+        setTestOutput({ testTitle: errorMessage, questions: [] });
       }
     } catch (error: any) {
       console.error("Test oluşturma hatası:", error);
@@ -127,6 +129,7 @@ export default function TestGeneratorPage() {
         description: error.message || "Test oluşturulurken beklenmedik bir hata oluştu.",
         variant: "destructive",
       });
+      setTestOutput({ testTitle: error.message || "Beklenmedik bir hata oluştu.", questions: [] });
     } finally {
       setIsGenerating(false);
     }
@@ -199,8 +202,14 @@ export default function TestGeneratorPage() {
   if (isTestFinished && testOutput) {
     let correctCount = 0;
     testOutput.questions.forEach((_, index) => {
-        if (checkedAnswers[index]?.isCorrect) {
-            correctCount++;
+        const answerInfo = checkedAnswers[index];
+        // If answer wasn't checked, check it now for scoring
+        if (!answerInfo && userAnswers[index] !== undefined) {
+            if(userAnswers[index] === testOutput.questions[index].correctAnswer) {
+                correctCount++;
+            }
+        } else if (answerInfo?.isCorrect) {
+             correctCount++;
         }
     });
     const scorePercentage = (correctCount / testOutput.questions.length) * 100;
@@ -216,8 +225,8 @@ export default function TestGeneratorPage() {
             <CardContent className="space-y-6">
                 <Accordion type="multiple" className="w-full">
                     {testOutput.questions.map((q, index) => {
-                        const userAnswerInfo = userAnswers[index];
-                        const checkedInfo = checkedAnswers[index] || {isCorrect: userAnswerInfo === q.correctAnswer, selectedOption: userAnswerInfo, correctAnswer: q.correctAnswer};
+                        const userAnswer = userAnswers[index];
+                        const checkedInfo = checkedAnswers[index] || {isCorrect: userAnswer === q.correctAnswer, selectedOption: userAnswer || "Cevaplanmadı", correctAnswer: q.correctAnswer};
                         return (
                             <AccordionItem value={`item-${index}`} key={`review-${index}`}>
                                 <AccordionTrigger className={`text-left ${checkedInfo.isCorrect ? 'text-green-600' : 'text-red-600'} hover:no-underline`}>
@@ -228,7 +237,7 @@ export default function TestGeneratorPage() {
                                 </AccordionTrigger>
                                 <AccordionContent className="space-y-3 p-4 bg-muted/30 rounded-b-md">
                                     <p className="font-semibold whitespace-pre-line">{q.questionText}</p>
-                                    <p className="text-sm">Verdiğiniz Cevap: <span className={`font-semibold ${checkedInfo.selectedOption === checkedInfo.correctAnswer ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>{userAnswers[index] || "Cevaplanmadı"}</span></p>
+                                    <p className="text-sm">Verdiğiniz Cevap: <span className={`font-semibold ${checkedInfo.selectedOption === checkedInfo.correctAnswer ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>{userAnswer || "Cevaplanmadı"}</span></p>
                                     <p className="text-sm">Doğru Cevap: <span className="font-semibold text-green-700 dark:text-green-400">{q.correctAnswer}</span></p>
                                     {q.explanation && (
                                         <div className="prose prose-sm dark:prose-invert max-w-none mt-2 border-t pt-2">
@@ -285,7 +294,7 @@ export default function TestGeneratorPage() {
                 {userProfile?.isAdmin && (
                 <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
                     <Label htmlFor="adminModelSelectTestGen" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
-                    <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled}>
+                    <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled || isGenerating}>
                     <SelectTrigger id="adminModelSelectTestGen"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
@@ -360,7 +369,7 @@ export default function TestGeneratorPage() {
                 <CardDescription>Soru {currentQuestionIndex + 1} / {testOutput.questions.length}</CardDescription>
             </div>
             <Button onClick={resetTestState} variant="outline" size="sm">
-                <RotateCcw className="mr-2 h-4 w-4" /> Yeni Test Oluştur
+                <RotateCcw className="mr-2 h-4 w-4" /> Testi Sıfırla / Yeni Test
             </Button>
           </CardHeader>
           <CardContent className="space-y-4">

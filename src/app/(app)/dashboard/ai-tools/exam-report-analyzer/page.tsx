@@ -123,7 +123,9 @@ export default function ExamReportAnalyzerPage() {
           setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
         }
       } else {
-        throw new Error(result?.overallFeedback || "Yapay zeka bir analiz üretemedi veya format hatalı.");
+        const errorMessage = result?.overallFeedback || "Yapay zeka bir analiz üretemedi veya format hatalı.";
+        toast({ title: "Analiz Sonucu Yetersiz", description: errorMessage, variant: "destructive"});
+        setAnalysisOutput({ identifiedTopics: [], overallFeedback: errorMessage, studySuggestions: ["Lütfen rapor metnini kontrol edin veya farklı bir rapor deneyin."], reportSummaryTitle:"Analiz Başarısız"});
       }
     } catch (error: any) {
       console.error("Sınav raporu analiz hatası:", error);
@@ -132,6 +134,7 @@ export default function ExamReportAnalyzerPage() {
         description: error.message || "Rapor analiz edilirken beklenmedik bir hata oluştu.",
         variant: "destructive",
       });
+      setAnalysisOutput({ identifiedTopics: [], overallFeedback: error.message || "Beklenmedik bir hata oluştu.", studySuggestions: ["Tekrar deneyin."], reportSummaryTitle:"Analiz Hatası"});
     } finally {
       setIsAnalyzing(false);
     }
@@ -164,7 +167,7 @@ export default function ExamReportAnalyzerPage() {
          {userProfile?.isAdmin && (
               <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
                 <Label htmlFor="adminModelSelectExamReport" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
-                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled}>
+                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled || isAnalyzing}>
                   <SelectTrigger id="adminModelSelectExamReport"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>

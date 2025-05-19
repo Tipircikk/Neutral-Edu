@@ -20,10 +20,6 @@ const ExplainTopicInputSchema = z.object({
   customPersonaDescription: z.string().optional().describe("Eğer 'teacherPersona' olarak 'ozel' seçildiyse, kullanıcının istediği hoca kişiliğinin detaylı açıklaması."),
   userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
   customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi."),
-  // Internal fields, not directly set by user UI for this flow but used by other flows
-  isProUser: z.boolean().optional(),
-  isCustomModelSelected: z.boolean().optional(),
-  isGemini25PreviewSelected: z.boolean().optional(),
 });
 export type ExplainTopicInput = z.infer<typeof ExplainTopicInputSchema>;
 
@@ -38,12 +34,26 @@ const ExplainTopicOutputSchema = z.object({
 export type ExplainTopicOutput = z.infer<typeof ExplainTopicOutputSchema>;
 
 export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTopicOutput> {
-  return topicExplainerFlow(input);
+  const isProUser = input.userPlan === 'pro';
+  const isCustomModelSelected = !!input.customModelIdentifier;
+  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+
+  const enrichedInput = {
+    ...input,
+    isProUser,
+    isCustomModelSelected,
+    isGemini25PreviewSelected,
+  };
+  return topicExplainerFlow(enrichedInput);
 }
 
 const prompt = ai.definePrompt({
   name: 'topicExplainerPrompt',
-  input: {schema: ExplainTopicInputSchema},
+  input: {schema: ExplainTopicInputSchema.extend({
+    isProUser: z.boolean().optional(),
+    isCustomModelSelected: z.boolean().optional(),
+    isGemini25PreviewSelected: z.boolean().optional(),
+  })},
   output: {schema: ExplainTopicOutputSchema},
   prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilere en karmaşık konuları bile en anlaşılır, en akılda kalıcı ve en kapsamlı şekilde öğreten, pedagojik dehası ve alan hakimiyeti tartışılmaz, son derece deneyimli bir AI YKS Süper Öğretmenisin.
 Görevin, öğrencinin belirttiği "{{{topicName}}}" konusunu, seçtiği "{{{explanationLevel}}}" detay seviyesine ve "{{{teacherPersona}}}" hoca tarzına uygun olarak, A'dan Z'ye, sanki özel ders veriyormuşçasına, adım adım, tüm önemli detaylarıyla ve YKS'de başarılı olması için gereken her türlü stratejik bilgiyle birlikte açıklamaktır.
@@ -53,7 +63,7 @@ Matematiksel ifadeleri (örn: x^2 için x^2, H_2O için H_2O, karekök için √
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
 (Pro Kullanıcı Notu: Anlatımını en üst düzeyde akademik zenginlikle, konunun felsefi temellerine, diğer disiplinlerle bağlantılarına ve YKS'deki en zorlayıcı soru tiplerine odaklanarak yap. {{{explanationLevel}}} seviyesini "detayli" kabul et ve buna ek olarak daha derinlemesine, analitik ve eleştirel düşünmeyi teşvik eden bir bakış açısı sun. Öğrencinin sadece bilgi edinmesini değil, aynı zamanda konuyu derinlemesine sorgulamasını ve analitik düşünme becerilerini geliştirmesini sağla. En gelişmiş AI yeteneklerini kullanarak, adeta bir başyapıt niteliğinde bir konu anlatımı sun. Seçilen hoca tarzını bu derinlikle birleştir.)
-{{else if isPremiumUser}} 
+{{else ifEquals userPlan "premium"}} 
 (Premium Kullanıcı Notu: {{{explanationLevel}}} seviyesine ve seçilen hoca tarzına uygun olarak, anlatımına daha fazla örnek, YKS'de çıkmış benzer sorulara atıflar ve konunun püf noktalarını içeren ekstra ipuçları ekle. Öğrencinin konuyu farklı açılardan görmesini sağla.)
 {{/if}}
 
@@ -78,7 +88,7 @@ Samimi ve Destekleyici Hoca Tarzı: Öğrenciyle empati kuran, onu motive eden, 
 Eğlenceli ve Motive Edici Hoca Tarzı: Konuyu esprili bir dille, ilginç benzetmelerle ve günlük hayattan örneklerle anlat. Öğrencinin dikkatini canlı tutacak, enerjik ve pozitif bir üslup kullan. "Bu konu roket bilimi değil, hadi halledelim!", "Bu formül adeta bir sihir gibi çalışıyor!" gibi ifadeler kullanabilirsin.
 {{else ifEquals teacherPersona "ciddi"}}
 Ciddi ve Odaklı Hoca Tarzı: Konuyu doğrudan, net ve akademik bir dille anlat. Gereksiz detaylardan ve konudan sapmalardan kaçın. Bilgiyi en saf ve en doğru şekilde aktarmaya odaklan. Disiplinli ve resmi bir üslup kullan.
-{{/ifEquals}}
+{{/if}}
 
 Anlatım Seviyesi ve İçeriği ({{{explanationLevel}}}):
 *   'temel': Konunun sadece en temel kavramlarını, ana tanımlarını ve en basit düzeyde YKS için ne ifade ettiğini açıkla. Çok fazla detaya girme.
@@ -115,22 +125,19 @@ Anlatım Tarzı:
 const topicExplainerFlow = ai.defineFlow(
   {
     name: 'topicExplainerFlow',
-    inputSchema: ExplainTopicInputSchema,
+    inputSchema: ExplainTopicInputSchema.extend({ // Enriched input for prompt
+        isProUser: z.boolean().optional(),
+        isCustomModelSelected: z.boolean().optional(),
+        isGemini25PreviewSelected: z.boolean().optional(),
+    }),
     outputSchema: ExplainTopicOutputSchema,
   },
-  async (rawInput: ExplainTopicInput): Promise<ExplainTopicOutput> => {
-    const input = {
-        ...rawInput,
-        isProUser: rawInput.userPlan === 'pro',
-        isCustomModelSelected: !!rawInput.customModelIdentifier,
-        isGemini25PreviewSelected: rawInput.customModelIdentifier === 'experimental_gemini_2_5_flash_preview',
-    };
-
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Varsayılan
+  async (enrichedInput: ExplainTopicInput & {isProUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<ExplainTopicOutput> => {
+    let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
-    if (input.customModelIdentifier) {
-      switch (input.customModelIdentifier) {
+    if (enrichedInput.customModelIdentifier) {
+      switch (enrichedInput.customModelIdentifier) {
         case 'default_gemini_flash':
           modelToUse = 'googleai/gemini-2.0-flash';
           break;
@@ -141,28 +148,29 @@ const topicExplainerFlow = ai.defineFlow(
           modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
           break;
         default:
-          console.warn(`[Topic Explainer Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting to ${modelToUse}`);
+          console.warn(`[Topic Explainer Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (input.userPlan === 'pro') {
-      modelToUse = 'googleai/gemini-1.5-flash-latest'; // Pro kullanıcılar için daha iyi bir model varsayılanı
+    } else if (enrichedInput.isProUser) { // Fallback to a better model for Pro if no custom admin model
+      modelToUse = 'googleai/gemini-1.5-flash-latest';
     }
+    // For free/premium users without admin override, default is gemini-1.5-flash-latest (set initially)
     
     callOptions.model = modelToUse;
     
     if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
       callOptions.config = {
         generationConfig: {
-          maxOutputTokens: input.explanationLevel === 'detayli' ? 8000 : input.explanationLevel === 'orta' ? 4096 : 2048,
+          maxOutputTokens: enrichedInput.explanationLevel === 'detayli' ? 8000 : enrichedInput.explanationLevel === 'orta' ? 4096 : 2048,
         }
       };
     } else {
-        callOptions.config = {}; // Preview modeli için özel config yok
+        callOptions.config = {}; // No generationConfig for preview model
     }
 
-    console.log(`[Topic Explainer Flow] Using model: ${modelToUse} for plan: ${input.userPlan}, customModel: ${input.customModelIdentifier}, level: ${input.explanationLevel}, persona: ${input.teacherPersona}`);
+    console.log(`[Topic Explainer Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}, level: ${enrichedInput.explanationLevel}, persona: ${enrichedInput.teacherPersona}`);
     
     try {
-        const {output} = await prompt(input, callOptions); // `input` zaten zenginleştirilmiş
+        const {output} = await prompt(enrichedInput, callOptions); 
         if (!output || !output.explanation) {
         throw new Error("AI YKS Süper Öğretmeni, belirtilen konu için bir anlatım oluşturamadı. Lütfen konuyu ve ayarları kontrol edin.");
         }
@@ -176,6 +184,7 @@ const topicExplainerFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
             }
         }
+        // Return a valid ExplainTopicOutput object even in case of error
         return {
             explanationTitle: `Hata: ${errorMessage}`,
             explanation: "Bir hata nedeniyle konu anlatımı oluşturulamadı.",

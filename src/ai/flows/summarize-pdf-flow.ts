@@ -42,23 +42,37 @@ const SummarizePdfForStudentOutputSchema = z.object({
 export type SummarizePdfForStudentOutput = z.infer<typeof SummarizePdfForStudentOutputSchema>;
 
 export async function summarizePdfForStudent(input: SummarizePdfForStudentInput): Promise<SummarizePdfForStudentOutput> {
-  return summarizePdfForStudentFlow(input);
+  const isProUser = input.userPlan === 'pro';
+  const isCustomModelSelected = !!input.customModelIdentifier;
+  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+
+  const enrichedInput = {
+    ...input,
+    isProUser,
+    isCustomModelSelected,
+    isGemini25PreviewSelected,
+  };
+  return summarizePdfForStudentFlow(enrichedInput);
 }
 
 const prompt = ai.definePrompt({
   name: 'detailedTopicExplainerFromPdfPrompt',
-  input: {schema: SummarizePdfForStudentInputSchema},
+  input: {schema: SummarizePdfForStudentInputSchema.extend({
+    isProUser: z.boolean().optional(),
+    isCustomModelSelected: z.boolean().optional(),
+    isGemini25PreviewSelected: z.boolean().optional(),
+  })},
   output: {schema: SummarizePdfForStudentOutputSchema},
   prompt: `Sen, sana sunulan akademik metinlerdeki konuları son derece detaylı, kapsamlı ve anlaşılır bir şekilde açıklayan, alanında otorite sahibi bir AI konu uzmanısın. Amacın, metindeki bilgileri sadece özetlemek değil, aynı zamanda konuyu derinlemesine öğretmek, temel kavramları, prensipleri, önemli alt başlıkları, örnekleri ve (varsa) diğer disiplinler veya konularla bağlantılarıyla birlikte sunmaktır. Öğrencinin metindeki konuyu tam anlamıyla kavramasına yardımcı ol. Cevapların her zaman Türkçe dilinde olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
-{{#ifEquals userPlan "pro"}}
+{{#if isProUser}}
 (Pro Kullanıcı Notu: Açıklamanı en üst düzeyde akademik zenginlikle, konunun felsefi temellerine, tarihsel gelişimine ve en karmaşık detaylarına değinerek yap. Sunduğun anlatım, bir ders kitabının ilgili bölümü kadar kapsamlı ve derinlemesine olmalı. {{{summaryLength}}} "detailed" ise, mümkün olan en uzun ve en kapsamlı çıktıyı üret. En gelişmiş AI yeteneklerini kullan.)
 {{else ifEquals userPlan "premium"}}
 (Premium Kullanıcı Notu: Açıklamalarını daha fazla örnekle, konunun farklı yönlerini ele alarak ve önemli bağlantıları vurgulayarak zenginleştir. {{{summaryLength}}} "detailed" ise, standart kullanıcıya göre belirgin şekilde daha uzun ve detaylı bir çıktı üret.)
-{{/ifEquals}}
+{{/if}}
 
-{{#if customModelIdentifier}}
+{{#if isCustomModelSelected}}
 (Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
 {{/if}}
 
@@ -100,26 +114,19 @@ Unutma, hedefin öğrencinin konuyu derinlemesine anlamasına ve kavramasına ya
 const summarizePdfForStudentFlow = ai.defineFlow(
   {
     name: 'summarizePdfForStudentFlow',
-    inputSchema: SummarizePdfForStudentInputSchema,
+    inputSchema: SummarizePdfForStudentInputSchema.extend({ // Enriched input for prompt
+        isProUser: z.boolean().optional(),
+        isCustomModelSelected: z.boolean().optional(),
+        isGemini25PreviewSelected: z.boolean().optional(),
+    }),
     outputSchema: SummarizePdfForStudentOutputSchema,
   },
-  async (input: SummarizePdfForStudentInput): Promise<SummarizePdfForStudentOutput> => {
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Varsayılan
+  async (enrichedInput: SummarizePdfForStudentInput & {isProUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<SummarizePdfForStudentOutput> => {
+    let modelToUse = 'googleai/gemini-1.5-flash-latest';
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
-    const isCustomModelSelected = !!input.customModelIdentifier;
-    const isProUser = input.userPlan === 'pro';
-    const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
-
-    const enrichedInput = {
-      ...input,
-      isProUser,
-      isCustomModelSelected,
-      isGemini25PreviewSelected,
-    };
-
-    if (input.customModelIdentifier) {
-      switch (input.customModelIdentifier) {
+    if (enrichedInput.customModelIdentifier) {
+      switch (enrichedInput.customModelIdentifier) {
         case 'default_gemini_flash':
           modelToUse = 'googleai/gemini-2.0-flash';
           break;
@@ -130,25 +137,26 @@ const summarizePdfForStudentFlow = ai.defineFlow(
           modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
           break;
         default:
-          console.warn(`[Summarize PDF Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting to ${modelToUse}`);
+          console.warn(`[Summarize PDF Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (input.userPlan === 'pro') {
+    } else if (enrichedInput.isProUser) { // Fallback to a better model for Pro if no custom admin model
       modelToUse = 'googleai/gemini-1.5-flash-latest'; 
     }
+    // For free/premium users without admin override, default is gemini-1.5-flash-latest (set initially)
     
     callOptions.model = modelToUse;
 
     if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
       callOptions.config = {
         generationConfig: {
-          maxOutputTokens: input.summaryLength === 'detailed' ? 8000 : input.summaryLength === 'medium' ? 4096 : 2048,
+          maxOutputTokens: enrichedInput.summaryLength === 'detailed' ? 8000 : enrichedInput.summaryLength === 'medium' ? 4096 : 2048,
         }
       };
     } else {
        callOptions.config = {}; 
     }
 
-    console.log(`[Summarize PDF Flow] Using model: ${modelToUse} with input:`, { summaryLength: input.summaryLength, outputDetail: input.outputDetail, keywords: !!input.keywords, pageRange: !!input.pageRange, userPlan: input.userPlan, customModel: input.customModelIdentifier });
+    console.log(`[Summarize PDF Flow] Using model: ${modelToUse} with input:`, { summaryLength: enrichedInput.summaryLength, outputDetail: enrichedInput.outputDetail, keywords: !!enrichedInput.keywords, pageRange: !!enrichedInput.pageRange, userPlan: enrichedInput.userPlan, customModel: enrichedInput.customModelIdentifier });
 
     try {
       const {output} = await prompt(enrichedInput, callOptions);
@@ -156,7 +164,7 @@ const summarizePdfForStudentFlow = ai.defineFlow(
         throw new Error("AI, PDF içeriği için şemaya uygun bir açıklama üretemedi.");
       }
 
-      const shouldHaveQuestions = input.outputDetail === 'full' || input.outputDetail === 'questions_only';
+      const shouldHaveQuestions = enrichedInput.outputDetail === 'full' || enrichedInput.outputDetail === 'questions_only';
       if (shouldHaveQuestions && output.practiceQuestions === undefined) {
           output.practiceQuestions = [];
       }
@@ -164,22 +172,29 @@ const summarizePdfForStudentFlow = ai.defineFlow(
           output.practiceQuestions = undefined;
       }
 
-      const shouldHaveExamTips = input.outputDetail === 'full' || input.outputDetail === 'exam_tips_only';
+      const shouldHaveExamTips = enrichedInput.outputDetail === 'full' || enrichedInput.outputDetail === 'exam_tips_only';
       if (!shouldHaveExamTips) {
-          output.examTips = []; // Keep as empty array if not requested but potentially returned by schema
+          // output.examTips = undefined; // Keep as empty array if not requested but potentially returned by schema
       }
       if (shouldHaveExamTips && output.examTips === undefined) {
           output.examTips = [];
       }
 
-      if (input.outputDetail !== 'full' && input.outputDetail !== 'key_points_only') {
+      if (enrichedInput.outputDetail !== 'full' && enrichedInput.outputDetail !== 'key_points_only') {
           output.keyPoints = [];
       }
       
-      if (input.outputDetail === 'key_points_only' || input.outputDetail === 'exam_tips_only' || input.outputDetail === 'questions_only') {
-          if(input.outputDetail !== 'full') output.summary = "Sadece istenen bölüm üretildi."; 
-          if(input.outputDetail !== 'full') output.mainIdea = "Sadece istenen bölüm üretildi."; 
+      if (enrichedInput.outputDetail === 'key_points_only' || enrichedInput.outputDetail === 'exam_tips_only' || enrichedInput.outputDetail === 'questions_only') {
+          if(enrichedInput.outputDetail !== 'full' && !output.summary) output.summary = "Sadece istenen bölüm üretildi."; 
+          if(enrichedInput.outputDetail !== 'full' && !output.mainIdea) output.mainIdea = "Sadece istenen bölüm üretildi."; 
       }
+
+      if(!output.summary) output.summary = "Bu içerik için bir anlatım üretilemedi. Lütfen PDF'i kontrol edin veya farklı bir çıktı detayı deneyin.";
+      if(!output.mainIdea) output.mainIdea = "Ana fikir belirlenemedi.";
+      if(!output.keyPoints) output.keyPoints = ["Anahtar noktalar belirlenemedi."];
+      if(!output.formattedStudyOutput) output.formattedStudyOutput = `## Hata\n\nİstenen detayda bir çıktı oluşturulamadı. Lütfen PDF içeriğinizi ve seçtiğiniz ayarları kontrol edin.`;
+
+
       return output;
     } catch (error: any) {
         console.error(`[Summarize PDF Flow] Error during generation with model ${modelToUse}:`, error);
@@ -190,6 +205,7 @@ const summarizePdfForStudentFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen PDF içeriğini kontrol edin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
             }
         }
+        // Return a valid SummarizePdfForStudentOutput object even in case of error
         return {
             summary: errorMessage,
             keyPoints: ["Hata oluştu."],

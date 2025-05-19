@@ -15,7 +15,14 @@ const VideoSummarizerInputSchema = z.object({
   userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
   customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi."),
 });
-type VideoSummarizerInput = z.infer<typeof VideoSummarizerInputSchema>;
+// Input type for the prompt needs to include the boolean flags
+const EnrichedVideoSummarizerInputSchema = VideoSummarizerInputSchema.extend({
+    isProUser: z.boolean().optional(),
+    isCustomModelSelected: z.boolean().optional(),
+    isGemini25PreviewSelected: z.boolean().optional(),
+});
+
+type VideoSummarizerInput = z.infer<typeof VideoSummarizerInputSchema>; // This will be used in the page
 
 const VideoSummarizerOutputSchema = z.object({
   videoTitle: z.string().optional().describe('AI tarafından bulunabilirse videonun başlığı.'),
@@ -27,14 +34,12 @@ type VideoSummarizerOutput = z.infer<typeof VideoSummarizerOutputSchema>;
 
 export async function summarizeVideo(input: VideoSummarizerInput): Promise<VideoSummarizerOutput> {
   const isProUser = input.userPlan === 'pro';
-  const isPremiumUser = input.userPlan === 'premium';
   const isCustomModelSelected = !!input.customModelIdentifier;
   const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
 
   const enrichedInputForPrompt = {
     ...input,
     isProUser,
-    isPremiumUser,
     isCustomModelSelected,
     isGemini25PreviewSelected,
   };
@@ -43,7 +48,7 @@ export async function summarizeVideo(input: VideoSummarizerInput): Promise<Video
 
 const videoSummarizerPrompt = ai.definePrompt({
   name: 'videoSummarizerPrompt',
-  input: {schema: VideoSummarizerInputSchema}, 
+  input: {schema: EnrichedVideoSummarizerInputSchema}, 
   output: {schema: VideoSummarizerOutputSchema},
   prompt: `Sen, YouTube videolarındaki eğitimsel içeriği (özellikle YKS'ye hazırlanan öğrenciler için) analiz edip özetleyen uzman bir AI eğitim asistanısın.
 Görevin, verilen YouTube video URL'sindeki içeriği (başlık, açıklama ve eğer erişebiliyorsan transkript veya sesli içeriğin metin dökümü üzerinden) değerlendirerek öğrenci için en önemli bilgileri çıkarmaktır.
@@ -51,7 +56,7 @@ Görevin, verilen YouTube video URL'sindeki içeriği (başlık, açıklama ve e
 Kullanıcının Üyelik Planı: {{{userPlan}}}
 {{#if isProUser}}
 (Pro Kullanıcılar İçin: Özetini, videonun en derin ve nüanslı noktalarını yakalayacak şekilde, konular arası bağlantıları da dikkate alarak yap. Öğrencinin videodan maksimum faydayı sağlaması için en kapsamlı ve stratejik içgörüleri sun. {{#if isCustomModelSelected}}En gelişmiş AI yeteneklerini ve seçilen '{{{customModelIdentifier}}}' modelini kullan.{{else}}En gelişmiş AI yeteneklerini kullan.{{/if}})
-{{else if isPremiumUser}}
+{{else ifEquals userPlan "premium"}}
 (Premium Kullanıcılar İçin: Daha detaylı bir özet, ek örnekler ve videonun farklı açılardan değerlendirilmesini sunmaya özen göster. {{#if isCustomModelSelected}}Seçilen '{{{customModelIdentifier}}}' modelini kullan.{{/if}})
 {{else}}
 ({{{userPlan}}} Kullanıcılar İçin: Videonun ana eğitimsel mesajını ve temel çıkarımlarını özetle. {{#if isCustomModelSelected}}Seçilen '{{{customModelIdentifier}}}' modelini kullan.{{/if}})
@@ -81,14 +86,15 @@ Eğer video içeriğine (transkript, başlık, açıklama vb.) erişemiyorsan ve
 const videoSummarizerFlow = ai.defineFlow(
   {
     name: 'videoSummarizerFlow',
-    inputSchema: VideoSummarizerInputSchema, 
+    inputSchema: EnrichedVideoSummarizerInputSchema, // Use enriched schema for the flow
     outputSchema: VideoSummarizerOutputSchema,
   },
-  async (input: VideoSummarizerInput): Promise<VideoSummarizerOutput> => { 
+  async (enrichedInput: z.infer<typeof EnrichedVideoSummarizerInputSchema>): Promise<VideoSummarizerOutput> => { 
     let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
+    let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
-    if (input.customModelIdentifier) {
-      switch (input.customModelIdentifier) {
+    if (enrichedInput.customModelIdentifier) {
+      switch (enrichedInput.customModelIdentifier) {
         case 'default_gemini_flash':
           modelToUse = 'googleai/gemini-2.0-flash';
           break;
@@ -99,25 +105,26 @@ const videoSummarizerFlow = ai.defineFlow(
           modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
           break;
         default:
-          console.warn(`[Video Summarizer Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting to ${modelToUse}`);
+          console.warn(`[Video Summarizer Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (input.userPlan === 'pro') {
+    } else if (enrichedInput.isProUser) { // Fallback to a better model for Pro if no custom admin model
       modelToUse = 'googleai/gemini-1.5-flash-latest';
     }
+    // For free/premium users without admin override, default is gemini-1.5-flash-latest (set initially)
 
-    let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
+    callOptions.model = modelToUse;
     
     if (modelToUse === 'googleai/gemini-2.5-flash-preview-04-17') {
         callOptions.config = {}; 
     } else {
+       // No specific generationConfig for video summarizer by default for other models to avoid issues
        callOptions.config = {}; 
     }
     
-    console.log(`[Video Summarizer Flow] Using model: ${modelToUse} for plan: ${input.userPlan}, customModel: ${input.customModelIdentifier} with callOptions:`, JSON.stringify(callOptions));
+    console.log(`[Video Summarizer Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier} with callOptions:`, JSON.stringify(callOptions));
 
     try {
-      // Input zaten zenginleştirilmiş olarak geliyor `summarizeVideo` fonksiyonundan
-      const {output} = await videoSummarizerPrompt(input, callOptions); 
+      const {output} = await prompt(enrichedInput, callOptions); 
       
       if (!output) {
          console.warn(`[Video Summarizer Flow] AI model (${modelToUse}) returned null or undefined output.`);
@@ -144,6 +151,7 @@ const videoSummarizerFlow = ai.defineFlow(
             errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen video içeriğini kontrol edin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
         }
       }
+      // Return a valid VideoSummarizerOutput object even in case of error
       return {
         warnings: [errorMessage]
       };

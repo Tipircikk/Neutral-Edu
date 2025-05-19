@@ -31,24 +31,38 @@ const SummarizeTopicOutputSchema = z.object({
 export type SummarizeTopicOutput = z.infer<typeof SummarizeTopicOutputSchema>;
 
 export async function summarizeTopic(input: SummarizeTopicInput): Promise<SummarizeTopicOutput> {
-  return topicSummarizerFlow(input);
+  const isProUser = input.userPlan === 'pro';
+  const isCustomModelSelected = !!input.customModelIdentifier;
+  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+
+  const enrichedInput = {
+    ...input,
+    isProUser,
+    isCustomModelSelected,
+    isGemini25PreviewSelected,
+  };
+  return topicSummarizerFlow(enrichedInput);
 }
 
 const prompt = ai.definePrompt({
   name: 'topicSummarizerPrompt',
-  input: {schema: SummarizeTopicInputSchema},
+  input: {schema: SummarizeTopicInputSchema.extend({
+    isProUser: z.boolean().optional(),
+    isCustomModelSelected: z.boolean().optional(),
+    isGemini25PreviewSelected: z.boolean().optional(),
+  })},
   output: {schema: SummarizeTopicOutputSchema},
   prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilere karmaşık akademik konuları ve uzun metinleri en hızlı ve etkili şekilde özümsetme, bilginin özünü damıtma, en kritik noktaları belirleme ve YKS bağlantılarını kurma konusunda uzmanlaşmış, son derece bilgili ve pedagojik yetenekleri gelişmiş bir AI YKS danışmanısın.
 Görevin, {{{inputText}}} girdisini (bu bir YKS konu başlığı veya doğrudan bir metin olabilir) derinlemesine analiz etmek ve öğrencinin YKS'de başarılı olmasına yardımcı olacak şekilde, seçilen {{{summaryLength}}} uzunluğuna ve {{{outputFormat}}} çıktı formatına uygun, kapsamlı bir yanıt hazırlamaktır. Cevapların her zaman Türkçe olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
-{{#ifEquals userPlan "pro"}}
-(Pro Kullanıcı Notu: {{{inputText}}} konusunu veya metnini, bir üniversite profesörünün titizliğiyle, en ince ayrıntılarına kadar analiz et. Konunun felsefi temellerine, tarihsel gelişimine ve YKS dışındaki akademik dünyadaki yerine dahi değin. En kapsamlı, en derin ve en düşündürücü özeti sunmak için en gelişmiş AI yeteneklerini kullan.)
+{{#if isProUser}}
+(Pro Kullanıcı Notu: {{{inputText}}} konusunu veya metnini, bir üniversite profesörünün titizliğiyle, en ince ayrıntılarına kadar analiz et. Konunun felsefi temellerine, tarihsel gelişimine ve YKS dışındaki akademik dünyadaki yerine dahi değin. En kapsamlı, en derin ve en düşündürücü özeti sunmak için en gelişmiş AI yeteneklerini kullan. Metindeki örtük anlamları, farklı disiplinlerle olan kesişimlerini ve konunun YKS ötesindeki akademik önemini dahi analizine dahil et.)
 {{else ifEquals userPlan "premium"}}
 (Premium Kullanıcı Notu: Özetlerin derinliğini artır, daha fazla bağlantı kur, farklı bakış açıları sun ve konuyu daha geniş bir perspektiften ele al. Standart kullanıcıya göre daha zenginleştirilmiş ve detaylı bir içerik sağla.)
-{{/ifEquals}}
+{{/if}}
 
-{{#if customModelIdentifier}}
+{{#if isCustomModelSelected}}
 (Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
 {{/if}}
 
@@ -72,26 +86,19 @@ Yanıtını hazırlarken, öğrencinin konuyu temelden başlayarak en ileri YKS 
 const topicSummarizerFlow = ai.defineFlow(
   {
     name: 'topicSummarizerFlow',
-    inputSchema: SummarizeTopicInputSchema,
+    inputSchema: SummarizeTopicInputSchema.extend({ // Enriched input for prompt
+        isProUser: z.boolean().optional(),
+        isCustomModelSelected: z.boolean().optional(),
+        isGemini25PreviewSelected: z.boolean().optional(),
+    }),
     outputSchema: SummarizeTopicOutputSchema,
   },
-  async (input: SummarizeTopicInput): Promise<SummarizeTopicOutput> => {
+  async (enrichedInput: SummarizeTopicInput & {isProUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<SummarizeTopicOutput> => {
     let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
-    const isCustomModelSelected = !!input.customModelIdentifier;
-    const isProUser = input.userPlan === 'pro';
-    const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
-
-    const enrichedInput = {
-      ...input,
-      isProUser,
-      isCustomModelSelected,
-      isGemini25PreviewSelected,
-    };
-
-    if (input.customModelIdentifier) {
-      switch (input.customModelIdentifier) {
+    if (enrichedInput.customModelIdentifier) {
+      switch (enrichedInput.customModelIdentifier) {
         case 'default_gemini_flash':
           modelToUse = 'googleai/gemini-2.0-flash';
           break;
@@ -102,25 +109,31 @@ const topicSummarizerFlow = ai.defineFlow(
           modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
           break;
         default:
-          console.warn(`[Topic Summarizer Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting to ${modelToUse}`);
+          console.warn(`[Topic Summarizer Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (input.userPlan === 'pro') {
+    } else if (enrichedInput.isProUser) { // Fallback to a better model for Pro if no custom admin model
       modelToUse = 'googleai/gemini-1.5-flash-latest';
     }
+    // For free/premium users without admin override, default is gemini-1.5-flash-latest (set initially)
 
     callOptions.model = modelToUse;
+
+    let maxTokensForOutput = 2048; // Default for medium
+    if (enrichedInput.summaryLength === 'detailed') maxTokensForOutput = 8000; // Cap for most models
+    else if (enrichedInput.summaryLength === 'short') maxTokensForOutput = 1024;
+
 
     if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
       callOptions.config = {
         generationConfig: {
-          maxOutputTokens: input.summaryLength === 'detailed' ? 4096 : input.summaryLength === 'medium' ? 2048 : 1024,
+          maxOutputTokens: maxTokensForOutput,
         }
       };
     } else {
-        callOptions.config = {};
+        callOptions.config = {}; // No generationConfig for preview model
     }
     
-    console.log(`[Topic Summarizer Flow] Using model: ${modelToUse} for plan: ${input.userPlan}, customModel: ${input.customModelIdentifier}`);
+    console.log(`[Topic Summarizer Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}`);
 
     try {
         const {output} = await prompt(enrichedInput, callOptions);
@@ -137,6 +150,7 @@ const topicSummarizerFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
             }
         }
+        // Return a valid SummarizeTopicOutput object even in case of error
         return {
             topicSummary: errorMessage,
             keyConcepts: [],

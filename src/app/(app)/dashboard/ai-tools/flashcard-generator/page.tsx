@@ -90,7 +90,9 @@ export default function FlashcardGeneratorPage() {
           setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
         }
       } else {
-        throw new Error(result?.summaryTitle || "Yapay zeka bilgi kartı üretemedi veya format hatalı.");
+        const errorMessage = result?.summaryTitle || "Yapay zeka bilgi kartı üretemedi veya format hatalı.";
+        toast({ title: "Oluşturma Sonucu Yetersiz", description: errorMessage, variant: "destructive"});
+        setFlashcardsOutput({ flashcards: [], summaryTitle: errorMessage });
       }
     } catch (error: any) {
       console.error("Bilgi kartı oluşturma hatası:", error);
@@ -99,6 +101,7 @@ export default function FlashcardGeneratorPage() {
         description: error.message || "Bilgi kartları oluşturulurken beklenmedik bir hata oluştu.",
         variant: "destructive",
       });
+      setFlashcardsOutput({ flashcards: [], summaryTitle: error.message || "Beklenmedik bir hata oluştu." });
     } finally {
       setIsGenerating(false);
     }
@@ -131,7 +134,7 @@ export default function FlashcardGeneratorPage() {
           {userProfile?.isAdmin && (
               <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
                 <Label htmlFor="adminModelSelectFlashcard" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
-                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled}>
+                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled || isGenerating}>
                   <SelectTrigger id="adminModelSelectFlashcard"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>

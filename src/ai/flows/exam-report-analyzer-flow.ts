@@ -35,24 +35,39 @@ const ExamReportAnalyzerOutputSchema = z.object({
 export type ExamReportAnalyzerOutput = z.infer<typeof ExamReportAnalyzerOutputSchema>;
 
 export async function analyzeExamReport(input: ExamReportAnalyzerInput): Promise<ExamReportAnalyzerOutput> {
-  return examReportAnalyzerFlow(input);
+  // Boolean flag'leri input'tan türet
+  const isProUser = input.userPlan === 'pro';
+  const isCustomModelSelected = !!input.customModelIdentifier;
+  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+
+  const enrichedInput = {
+    ...input,
+    isProUser, // Prompt içinde kullanılabilir
+    isCustomModelSelected, // Prompt içinde kullanılabilir
+    isGemini25PreviewSelected, // Prompt içinde kullanılabilir
+  };
+  return examReportAnalyzerFlow(enrichedInput);
 }
 
 const prompt = ai.definePrompt({
   name: 'examReportAnalyzerPrompt',
-  input: {schema: ExamReportAnalyzerInputSchema},
+  input: {schema: ExamReportAnalyzerInputSchema.extend({
+    isProUser: z.boolean().optional(),
+    isCustomModelSelected: z.boolean().optional(),
+    isGemini25PreviewSelected: z.boolean().optional(),
+  })},
   output: {schema: ExamReportAnalyzerOutputSchema},
   prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) hazırlık sürecindeki öğrencilerin deneme sınavı veya gerçek sınav sonuç raporlarını son derece detaylı bir şekilde analiz eden, öğrencinin güçlü ve zayıf yönlerini nokta atışı tespit eden, her bir ders/konu bazında kişiye özel geri bildirimler ve hedefe yönelik çalışma stratejileri sunan uzman bir AI YKS danışmanısın.
 Amacın, öğrencinin sınav raporundaki verileri (ders adları, konu başlıkları, doğru/yanlış/boş sayıları, puanlar, sıralamalar vb.) kullanarak akademik performansını kapsamlı bir şekilde değerlendirmek ve net, uygulanabilir ve motive edici önerilerle YKS başarısını artırmasına yardımcı olmaktır. Cevapların her zaman Türkçe olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
-{{#ifEquals userPlan "pro"}}
+{{#if isProUser}}
 (Pro Kullanıcı Notu: Analizini en üst düzeyde akademik titizlikle, konular arası bağlantıları da dikkate alarak yap. Öğrencinin farkında olmadığı örtük bilgi eksikliklerini veya yanlış öğrenmeleri tespit etmeye çalış. En kapsamlı ve derinlemesine stratejik yol haritasını sun. En gelişmiş AI yeteneklerini kullan.)
 {{else ifEquals userPlan "premium"}}
 (Premium Kullanıcı Notu: Daha detaylı konu analizi, alternatif çalışma yöntemleri ve öğrencinin gelişimini hızlandıracak ek kaynak önerileri sunmaya özen göster.)
-{{/ifEquals}}
+{{/if}}
 
-{{#if customModelIdentifier}}
+{{#if isCustomModelSelected}}
 (Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
 {{/if}}
 
@@ -81,26 +96,19 @@ Analiz İlkeleri:
 const examReportAnalyzerFlow = ai.defineFlow(
   {
     name: 'examReportAnalyzerFlow',
-    inputSchema: ExamReportAnalyzerInputSchema,
+    inputSchema: ExamReportAnalyzerInputSchema.extend({ // Enriched input for prompt
+        isProUser: z.boolean().optional(),
+        isCustomModelSelected: z.boolean().optional(),
+        isGemini25PreviewSelected: z.boolean().optional(),
+    }),
     outputSchema: ExamReportAnalyzerOutputSchema,
   },
-  async (input: ExamReportAnalyzerInput): Promise<ExamReportAnalyzerOutput> => {
+  async (enrichedInput: ExamReportAnalyzerInput & {isProUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<ExamReportAnalyzerOutput> => {
     let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
-
-    const isCustomModelSelected = !!input.customModelIdentifier;
-    const isProUser = input.userPlan === 'pro';
-    const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
-
-    const enrichedInput = {
-      ...input,
-      isProUser,
-      isCustomModelSelected,
-      isGemini25PreviewSelected,
-    };
-
-    if (input.customModelIdentifier) {
-      switch (input.customModelIdentifier) {
+    
+    if (enrichedInput.customModelIdentifier) {
+      switch (enrichedInput.customModelIdentifier) {
         case 'default_gemini_flash':
           modelToUse = 'googleai/gemini-2.0-flash';
           break;
@@ -111,11 +119,12 @@ const examReportAnalyzerFlow = ai.defineFlow(
           modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
           break;
         default:
-          console.warn(`[Exam Report Analyzer Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting to ${modelToUse}`);
+          console.warn(`[Exam Report Analyzer Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (input.userPlan === 'pro') {
+    } else if (enrichedInput.isProUser) { // Fallback to a better model for Pro if no custom admin model
       modelToUse = 'googleai/gemini-1.5-flash-latest';
     }
+    // For free/premium users without admin override, default is gemini-1.5-flash-latest (set initially)
     
     callOptions.model = modelToUse;
 
@@ -126,10 +135,10 @@ const examReportAnalyzerFlow = ai.defineFlow(
         }
       };
     } else {
-       callOptions.config = {};
+       callOptions.config = {}; // No generationConfig for preview model
     }
     
-    console.log(`[Exam Report Analyzer Flow] Using model: ${modelToUse} for plan: ${input.userPlan}, customModel: ${input.customModelIdentifier}`);
+    console.log(`[Exam Report Analyzer Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}`);
     
     try {
         const {output} = await prompt(enrichedInput, callOptions);
@@ -146,6 +155,7 @@ const examReportAnalyzerFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen rapor metnini kontrol edin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
             }
         }
+        // Return a valid ExamReportAnalyzerOutput object even in case of error
         return {
             identifiedTopics: [],
             overallFeedback: errorMessage,

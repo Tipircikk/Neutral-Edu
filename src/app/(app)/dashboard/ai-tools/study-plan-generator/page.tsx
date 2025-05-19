@@ -94,15 +94,24 @@ export default function StudyPlanGeneratorPage() {
           setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
         }
       } else {
-        throw new Error(result?.planTitle || "Yapay zeka bir çalışma planı üretemedi veya format hatalı.");
+        const errorMessage = result?.planTitle || "Yapay zeka bir çalışma planı üretemedi veya format hatalı.";
+        toast({ title: "Plan Oluşturma Sonucu Yetersiz", description: errorMessage, variant: "destructive"});
+        setPlanOutput({ planTitle: errorMessage, weeklyPlans: [], introduction: "Hata oluştu.", generalTips: [], disclaimer: "Bir sorun oluştu." });
       }
     } catch (error: any) {
       console.error("Çalışma planı oluşturma hatası:", error);
+      let displayErrorMessage = "Çalışma planı oluşturulurken beklenmedik bir hata oluştu.";
+      if (typeof error === 'string') {
+        displayErrorMessage = error;
+      } else if (error.message) {
+        displayErrorMessage = error.message;
+      }
       toast({
         title: "Oluşturma Hatası",
-        description: error.message || "Çalışma planı oluşturulurken beklenmedik bir hata oluştu.",
+        description: displayErrorMessage,
         variant: "destructive",
       });
+      setPlanOutput({ planTitle: displayErrorMessage, weeklyPlans: [], introduction: "Hata oluştu.", generalTips: [], disclaimer: "Bir sorun oluştu." });
     } finally {
       setIsGenerating(false);
     }
@@ -135,7 +144,7 @@ export default function StudyPlanGeneratorPage() {
          {userProfile?.isAdmin && (
               <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
                 <Label htmlFor="adminModelSelectStudyPlan" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
-                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled}>
+                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isSubmitDisabled || isGenerating}>
                   <SelectTrigger id="adminModelSelectStudyPlan"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
@@ -235,7 +244,7 @@ export default function StudyPlanGeneratorPage() {
             <ScrollArea className="h-[600px] w-full rounded-md border p-4 bg-muted/30">
               <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-line leading-relaxed">
                 {planOutput.weeklyPlans.map((weekPlan, weekIndex) => (
-                  <div key={weekIndex} className="mb-6 p-4 border rounded-md bg-card">
+                  <div key={weekPlan.week ?? weekIndex} className="mb-6 p-4 border rounded-md bg-card">
                     <h3 className="text-lg font-semibold mt-3 mb-2 text-primary">
                       {weekPlan.week}. Hafta
                       {weekPlan.weeklyGoal && `: ${weekPlan.weeklyGoal}`}

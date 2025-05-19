@@ -39,24 +39,39 @@ const GenerateTestOutputSchema = z.object({
 export type GenerateTestOutput = z.infer<typeof GenerateTestOutputSchema>;
 
 export async function generateTest(input: GenerateTestInput): Promise<GenerateTestOutput> {
-  return testGeneratorFlow(input);
+  const isProUser = input.userPlan === 'pro';
+  const isCustomModelSelected = !!input.customModelIdentifier;
+  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+
+  const enrichedInput = { 
+      ...input, 
+      questionTypes: ["multiple_choice"] as Array<"multiple_choice" | "true_false" | "short_answer">, // Force multiple choice
+      isProUser,
+      isCustomModelSelected,
+      isGemini25PreviewSelected,
+    };
+  return testGeneratorFlow(enrichedInput);
 }
 
 const prompt = ai.definePrompt({
   name: 'testGeneratorPrompt',
-  input: {schema: GenerateTestInputSchema},
+  input: {schema: GenerateTestInputSchema.extend({
+    isProUser: z.boolean().optional(),
+    isCustomModelSelected: z.boolean().optional(),
+    isGemini25PreviewSelected: z.boolean().optional(),
+  })},
   output: {schema: GenerateTestOutputSchema},
   prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilerin bilgilerini pekiştirmeleri, eksiklerini görmeleri ve sınav pratiği yapmaları amacıyla çeşitli akademik konularda nokta atışı, YKS standartlarında ve zorluk seviyesi ayarlanmış deneme testleri hazırlayan, son derece deneyimli ve pedagojik derinliğe sahip bir AI YKS eğitim materyali uzmanısın.
 Rolün, sadece soru yazmak değil, aynı zamanda öğrenmeyi teşvik eden, eleştirel düşünmeyi ölçen, adil ve konuyu kapsamlı bir şekilde değerlendiren, YKS'nin ruhuna uygun testler tasarlamaktır. Sorular ASLA belirsiz olmamalı, KESİNLİKLE TEK BİR DOĞRU CEVABA sahip olmalıdır. Çeldiriciler mantıklı ama net bir şekilde yanlış olmalıdır. Cevapların her zaman Türkçe olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
-{{#ifEquals userPlan "pro"}}
+{{#if isProUser}}
 (Pro Kullanıcı Notu: En sofistike, en düşündürücü ve en kapsamlı YKS sorularını oluştur. Sorular, birden fazla konuyu birleştiren, derin analitik beceriler gerektiren ve öğrencinin bilgi düzeyini en üst seviyede test eden nitelikte olsun. Açıklamaların, bir ders kitabı kadar detaylı ve aydınlatıcı olmalı. Her bir yanlış seçeneğin neden hatalı olduğunu adım adım açıkla. Bu kullanıcılar için en gelişmiş AI yeteneklerini kullan.)
 {{else ifEquals userPlan "premium"}}
 (Premium Kullanıcı Notu: Soruların çeşitliliğini, açıklamaların derinliğini ve YKS'ye uygunluğunu artırarak daha zengin bir deneyim sunmaya çalış. Sorular, konunun farklı yönlerini kapsamalı ve öğrencileri zorlayıcı olmalıdır. Yanlış seçeneklerin nedenlerini de açıkla.)
-{{/ifEquals}}
+{{/if}}
 
-{{#if customModelIdentifier}}
+{{#if isCustomModelSelected}}
 (Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
 {{/if}}
 
@@ -91,28 +106,19 @@ Genel Prensipler:
 const testGeneratorFlow = ai.defineFlow(
   {
     name: 'testGeneratorFlow',
-    inputSchema: GenerateTestInputSchema,
+    inputSchema: GenerateTestInputSchema.extend({ // Enriched input for prompt
+        isProUser: z.boolean().optional(),
+        isCustomModelSelected: z.boolean().optional(),
+        isGemini25PreviewSelected: z.boolean().optional(),
+    }),
     outputSchema: GenerateTestOutputSchema,
   },
-  async (input: GenerateTestInput): Promise<GenerateTestOutput> => {
+  async (enrichedInput: GenerateTestInput & {isProUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean; questionTypes: Array<"multiple_choice" | "true_false" | "short_answer">} ): Promise<GenerateTestOutput> => {
     let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
-
-    const isCustomModelSelected = !!input.customModelIdentifier;
-    const isProUser = input.userPlan === 'pro';
-    const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
-
-    const enrichedInput = { 
-      ...input, 
-      questionTypes: ["multiple_choice"] as Array<"multiple_choice" | "true_false" | "short_answer">,
-      isProUser,
-      isCustomModelSelected,
-      isGemini25PreviewSelected,
-    };
     
-
-    if (input.customModelIdentifier) {
-      switch (input.customModelIdentifier) {
+    if (enrichedInput.customModelIdentifier) {
+      switch (enrichedInput.customModelIdentifier) {
         case 'default_gemini_flash':
           modelToUse = 'googleai/gemini-2.0-flash';
           break;
@@ -123,26 +129,31 @@ const testGeneratorFlow = ai.defineFlow(
           modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
           break;
         default:
-          console.warn(`[Test Generator Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting to ${modelToUse}`);
+          console.warn(`[Test Generator Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (input.userPlan === 'pro') {
+    } else if (enrichedInput.isProUser) { // Fallback to a better model for Pro if no custom admin model
       modelToUse = 'googleai/gemini-1.5-flash-latest';
     }
+    // For free/premium users without admin override, default is gemini-1.5-flash-latest (set initially)
 
     callOptions.model = modelToUse;
     
+    let maxTokensForOutput = enrichedInput.numQuestions * 500; // Estimate
+    if (maxTokensForOutput > 8000) maxTokensForOutput = 8000; // Cap for most models
+    if (maxTokensForOutput < 2048) maxTokensForOutput = 2048; // Ensure a minimum for a few questions
+
     if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
        callOptions.config = { 
-         temperature: 0.8, // Farklı sorular üretmek için
+         temperature: 0.7, // For some variation but still focused
          generationConfig: { 
-           maxOutputTokens: input.numQuestions * 500 > 8000 ? 8000 : input.numQuestions * 500 
+           maxOutputTokens: maxTokensForOutput
           }
         }; 
     } else {
-      callOptions.config = { temperature: 0.8 };
+      callOptions.config = { temperature: 0.7 }; // No generationConfig for preview model
     }
     
-    console.log(`[Test Generator Flow] Using model: ${modelToUse} for plan: ${input.userPlan}, customModel: ${input.customModelIdentifier}`);
+    console.log(`[Test Generator Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}`);
     
     try {
         const {output} = await prompt(enrichedInput, callOptions);
@@ -152,7 +163,8 @@ const testGeneratorFlow = ai.defineFlow(
         output.questions.forEach(q => {
         q.questionType = "multiple_choice"; 
         if (!q.options || q.options.length !== 5) {
-            console.warn(`Multiple choice question "${q.questionText.substring(0,50)}..." for topic "${input.topic}" was expected to have 5 options, but received ${q.options?.length || 0}. Prompt may need adjustment.`);
+            console.warn(`Multiple choice question "${q.questionText.substring(0,50)}..." for topic "${enrichedInput.topic}" was expected to have 5 options, but received ${q.options?.length || 0}. Prompt may need adjustment.`);
+            // Optionally, try to pad/truncate options here if necessary, or let it be.
         }
         });
         return output;
@@ -165,6 +177,7 @@ const testGeneratorFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
             }
         }
+        // Return a valid GenerateTestOutput object even in case of error
         return {
             testTitle: `Hata: ${errorMessage}`,
             questions: []

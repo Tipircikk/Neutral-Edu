@@ -34,23 +34,37 @@ const GenerateFlashcardsOutputSchema = z.object({
 export type GenerateFlashcardsOutput = z.infer<typeof GenerateFlashcardsOutputSchema>;
 
 export async function generateFlashcards(input: GenerateFlashcardsInput): Promise<GenerateFlashcardsOutput> {
-  return flashcardGeneratorFlow(input); 
+  const isProUser = input.userPlan === 'pro';
+  const isCustomModelSelected = !!input.customModelIdentifier;
+  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+
+  const enrichedInput = {
+    ...input,
+    isProUser,
+    isCustomModelSelected,
+    isGemini25PreviewSelected,
+  };
+  return flashcardGeneratorFlow(enrichedInput); 
 }
 
 const prompt = ai.definePrompt({
   name: 'flashcardGeneratorPrompt',
-  input: {schema: GenerateFlashcardsInputSchema},
+  input: {schema: GenerateFlashcardsInputSchema.extend({
+    isProUser: z.boolean().optional(),
+    isCustomModelSelected: z.boolean().optional(),
+    isGemini25PreviewSelected: z.boolean().optional(),
+  })},
   output: {schema: GenerateFlashcardsOutputSchema},
   prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilerin kritik bilgileri hızlı ve etkili bir şekilde ezberlemelerine ve pekiştirmelerine yardımcı olmak amacıyla, verilen metinlerden YKS odaklı, kaliteli bilgi kartları (flashcards) oluşturan uzman bir AI eğitim materyali geliştiricisisin.
 Amacın, metindeki en önemli tanımları, kavramları, formülleri, tarihleri veya olguları belirleyip bunları soru-cevap veya terim-tanım formatında bilgi kartlarına dönüştürmektir. Kartlar, YKS öğrencisinin seviyesine uygun, net ve akılda kalıcı olmalıdır.
 Kullanıcının üyelik planı: {{{userPlan}}}.
-{{#ifEquals userPlan "pro"}}
+{{#if isProUser}}
 (Pro Kullanıcı Notu: Bilgi kartlarını, konunun en derin ve karmaşık noktalarını sorgulayacak şekilde, çoklu bağlantılar ve ileri düzey ipuçları içerecek biçimde tasarla. Kartlar, öğrencinin analitik düşünme ve sentez yapma becerilerini en üst düzeye çıkarmalı. Bu kullanıcılar için en gelişmiş AI yeteneklerini kullan.)
 {{else ifEquals userPlan "premium"}}
 (Premium Kullanıcı Notu: Kartlara ek ipuçları, bağlantılı kavramlar veya YKS'de çıkabilecek alternatif soru tarzlarına göndermeler ekleyerek daha zengin içerik sun.)
-{{/ifEquals}}
+{{/if}}
 
-{{#if customModelIdentifier}}
+{{#if isCustomModelSelected}}
 (Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
 {{/if}}
 
@@ -87,26 +101,19 @@ Genel Prensipler:
 const flashcardGeneratorFlow = ai.defineFlow(
   {
     name: 'flashcardGeneratorFlow',
-    inputSchema: GenerateFlashcardsInputSchema,
+    inputSchema: GenerateFlashcardsInputSchema.extend({ // Enriched input for prompt
+        isProUser: z.boolean().optional(),
+        isCustomModelSelected: z.boolean().optional(),
+        isGemini25PreviewSelected: z.boolean().optional(),
+    }),
     outputSchema: GenerateFlashcardsOutputSchema,
   },
-  async (input: GenerateFlashcardsInput): Promise<GenerateFlashcardsOutput> => {
+  async (enrichedInput: GenerateFlashcardsInput & {isProUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<GenerateFlashcardsOutput> => {
     let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
-    const isCustomModelSelected = !!input.customModelIdentifier;
-    const isProUser = input.userPlan === 'pro';
-    const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
-
-    const enrichedInput = {
-      ...input,
-      isProUser,
-      isCustomModelSelected,
-      isGemini25PreviewSelected,
-    };
-
-    if (input.customModelIdentifier) {
-      switch (input.customModelIdentifier) {
+    if (enrichedInput.customModelIdentifier) {
+      switch (enrichedInput.customModelIdentifier) {
         case 'default_gemini_flash':
           modelToUse = 'googleai/gemini-2.0-flash';
           break;
@@ -117,25 +124,30 @@ const flashcardGeneratorFlow = ai.defineFlow(
           modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
           break;
         default:
-          console.warn(`[Flashcard Generator Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting to ${modelToUse}`);
+          console.warn(`[Flashcard Generator Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (input.userPlan === 'pro') {
+    } else if (enrichedInput.isProUser) { // Fallback to a better model for Pro if no custom admin model
       modelToUse = 'googleai/gemini-1.5-flash-latest';
     }
+    // For free/premium users without admin override, default is gemini-1.5-flash-latest (set initially)
 
     callOptions.model = modelToUse;
+    
+    let maxTokensForOutput = enrichedInput.numFlashcards * 200; // Estimate
+    if (maxTokensForOutput > 8000) maxTokensForOutput = 8000; // Cap for most models
+    if (maxTokensForOutput < 1024) maxTokensForOutput = 1024; // Ensure a minimum
 
     if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
       callOptions.config = {
         generationConfig: {
-          maxOutputTokens: input.numFlashcards * 200 > 4096 ? 4096 : input.numFlashcards * 200, 
+          maxOutputTokens: maxTokensForOutput, 
         }
       };
     } else {
-        callOptions.config = {};
+        callOptions.config = {}; // No generationConfig for preview model
     }
     
-    console.log(`[Flashcard Generator Flow] Using model: ${modelToUse} for plan: ${input.userPlan}, customModel: ${input.customModelIdentifier}`);
+    console.log(`[Flashcard Generator Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}`);
     
     try {
         const {output} = await prompt(enrichedInput, callOptions);
@@ -152,6 +164,7 @@ const flashcardGeneratorFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
             }
         }
+        // Return a valid GenerateFlashcardsOutput object even in case of error
         return {
             flashcards: [],
             summaryTitle: `Hata: ${errorMessage}`

@@ -31,7 +31,7 @@ export default function PdfSummarizerPage() {
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
 
-  const [canSummarize, setCanSummarize] = useState(false);
+  const [canProcess, setCanProcess] = useState(false);
 
   const memoizedCheckAndResetQuota = useCallback(async () => {
     if (checkAndResetQuota) {
@@ -45,9 +45,9 @@ export default function PdfSummarizerPage() {
     if (userProfile) {
       memoizedCheckAndResetQuota().then(updatedProfile => {
         if (updatedProfile) {
-          setCanSummarize((updatedProfile.dailyRemainingQuota ?? 0) > 0);
+          setCanProcess((updatedProfile.dailyRemainingQuota ?? 0) > 0);
         } else {
-          setCanSummarize((userProfile.dailyRemainingQuota ?? 0) > 0);
+          setCanProcess((userProfile.dailyRemainingQuota ?? 0) > 0);
         }
       });
     }
@@ -68,10 +68,10 @@ export default function PdfSummarizerPage() {
         variant: "destructive",
       });
       setIsSummarizing(false);
-      setCanSummarize(false);
+      setCanProcess(false);
       return;
     }
-    setCanSummarize(true);
+    setCanProcess(true);
 
 
     try {
@@ -103,11 +103,13 @@ export default function PdfSummarizerPage() {
         }
         const updatedProfileAgain = await memoizedCheckAndResetQuota(); 
          if (updatedProfileAgain) {
-          setCanSummarize((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
+          setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
         }
 
       } else {
-        throw new Error(result?.summary || "Yapay zeka bir anlatım üretemedi veya format hatalı.");
+        const errorMessage = result?.summary || "Yapay zeka bir anlatım üretemedi veya format hatalı.";
+        toast({ title: "Anlatım Sonucu Yetersiz", description: errorMessage, variant: "destructive"});
+        setSummaryOutput({ summary: errorMessage, keyPoints: [], mainIdea: "Hata", examTips: [], practiceQuestions: [], formattedStudyOutput: `## Hata\n\n${errorMessage}` });
       }
     } catch (error: any) {
       console.error("Detaylı anlatım oluşturma hatası:", error);
@@ -116,13 +118,14 @@ export default function PdfSummarizerPage() {
         description: error.message || "Anlatım oluşturulurken beklenmedik bir hata oluştu.",
         variant: "destructive",
       });
-      setSummaryOutput(null); 
+      const errorMessage = error.message || "Beklenmedik bir hata oluştu.";
+      setSummaryOutput({ summary: errorMessage, keyPoints: [], mainIdea: "Hata", examTips: [], practiceQuestions: [], formattedStudyOutput: `## Hata\n\n${errorMessage}` });
     } finally {
       setIsSummarizing(false);
     }
   };
   
-  const isProcessingDisabled = isSummarizing || (!canSummarize && !isSummarizing && (userProfile?.dailyRemainingQuota ?? 0) <=0);
+  const isProcessingDisabled = isSummarizing || (!canProcess && !isSummarizing && (userProfile?.dailyRemainingQuota ?? 0) <=0);
 
 
   if (userProfileLoading) {
@@ -150,7 +153,7 @@ export default function PdfSummarizerPage() {
             {userProfile?.isAdmin && (
               <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
                 <Label htmlFor="adminModelSelectPdf" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
-                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isProcessingDisabled}>
+                <Select value={adminSelectedModel} onValueChange={setAdminSelectedModel} disabled={isProcessingDisabled || isSummarizing}>
                   <SelectTrigger id="adminModelSelectPdf"><SelectValue placeholder="Varsayılan Modeli Kullan" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
@@ -167,7 +170,7 @@ export default function PdfSummarizerPage() {
                     <Select
                     value={summaryLength}
                     onValueChange={(value: SummarizePdfForStudentInput["summaryLength"]) => setSummaryLength(value)}
-                    disabled={isProcessingDisabled}
+                    disabled={isProcessingDisabled || isSummarizing}
                     >
                     <SelectTrigger id="summaryLength">
                         <SelectValue placeholder="Uzunluk seçin" />
@@ -184,7 +187,7 @@ export default function PdfSummarizerPage() {
                     <Select
                     value={outputDetail}
                     onValueChange={(value: SummarizePdfForStudentInput["outputDetail"]) => setOutputDetail(value)}
-                    disabled={isProcessingDisabled}
+                    disabled={isProcessingDisabled || isSummarizing}
                     >
                     <SelectTrigger id="outputDetail">
                         <SelectValue placeholder="Çıktı detayını seçin" />
@@ -207,7 +210,7 @@ export default function PdfSummarizerPage() {
                         placeholder="örn: fotosentez, hücre zarı, enerji"
                         value={keywords}
                         onChange={(e) => setKeywords(e.target.value)}
-                        disabled={isProcessingDisabled}
+                        disabled={isProcessingDisabled || isSummarizing}
                     />
                     <p className="text-xs text-muted-foreground mt-1">Virgülle ayırarak birden fazla anahtar kelime girebilirsiniz.</p>
                 </div>
@@ -218,7 +221,7 @@ export default function PdfSummarizerPage() {
                         placeholder="örn: 5-10, 12, 15-20"
                         value={pageRange}
                         onChange={(e) => setPageRange(e.target.value)}
-                        disabled={isProcessingDisabled}
+                        disabled={isProcessingDisabled || isSummarizing}
                     />
                      <p className="text-xs text-muted-foreground mt-1">Belirli sayfalara odaklanmak için (AI yorumuna göre).</p>
                 </div>
@@ -226,7 +229,7 @@ export default function PdfSummarizerPage() {
         </CardContent>
       </Card>
 
-      {!canSummarize && !isSummarizing && userProfile && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
+      {!canProcess && !isSummarizing && userProfile && (userProfile.dailyRemainingQuota ?? 0) <=0 && (
          <Alert variant="destructive" className="shadow-md">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Günlük Kota Doldu</AlertTitle>
