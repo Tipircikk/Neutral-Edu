@@ -81,7 +81,7 @@ function getSubjectsForField(field?: "ea" | "sayisal" | "sozel" | "tyt"): string
       subjects.push("AYT Biyoloji (" + yksTopics.ayt.biyoloji.slice(0, 1).join(', ') + "...)");
       break;
     case "ea":
-      addTytCourses(true, false, true); // EA için TYT Fen yok, ama Felsefe/Din var.
+      addTytCourses(true, false, true); 
       subjects.push("TYT Tarih (" + yksTopics.tyt.tarih.slice(0, 1).join(', ') + "...)");
       subjects.push("TYT Coğrafya (" + yksTopics.tyt.cografya.slice(0, 1).join(', ') + "...)");
       subjects.push("AYT Matematik (" + yksTopics.ayt.matematik.slice(0, 2).join(', ') + "...)");
@@ -91,11 +91,11 @@ function getSubjectsForField(field?: "ea" | "sayisal" | "sozel" | "tyt"): string
       subjects.push("AYT Coğrafya-1 (" + yksTopics.ayt.cografya.slice(0, 1).join(', ') + "...)");
       break;
     case "sozel":
-      addTytCourses(false, true, true); // Sözel için TYT Matematik/Geometri yok (ya da çok az ağırlıklı), ama Fen/Felsefe/Din var.
-      subjects.push("TYT Matematik (Temel Düzey)"); // Sözelciler için temel TYT Matematik
+      addTytCourses(false, true, true); 
+      subjects.push("TYT Matematik (Temel Düzey)"); 
       subjects.push("AYT Türk Dili ve Edebiyatı (" + yksTopics.ayt.turkDiliEdebiyati.slice(0, 2).join(', ') + "...)");
-      subjects.push("AYT Tarih-1 ve Tarih-2 (" + yksTopics.ayt.tarih.slice(0, 2).join(', ') + "...)"); // AYT Tarih
-      subjects.push("AYT Coğrafya-1 ve Coğrafya-2 (" + yksTopics.ayt.cografya.slice(0, 2).join(', ') + "...)"); // AYT Coğrafya
+      subjects.push("AYT Tarih-1 ve Tarih-2 (" + yksTopics.ayt.tarih.slice(0, 2).join(', ') + "...)"); 
+      subjects.push("AYT Coğrafya-1 ve Coğrafya-2 (" + yksTopics.ayt.cografya.slice(0, 2).join(', ') + "...)"); 
       subjects.push("AYT Felsefe Grubu (Felsefe, Psikoloji, Sosyoloji, Mantık)");
       subjects.push("AYT Din Kültürü ve Ahlak Bilgisi");
       break;
@@ -196,7 +196,7 @@ export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<
   return flowOutput;
 }
 
-const studyPlanGeneratorPrompt = ai.definePrompt({
+const prompt = ai.definePrompt({
   name: 'studyPlanGeneratorPrompt',
   input: {schema: GenerateStudyPlanInputSchema.extend({
     subjects: z.string().optional().describe("Çalışılması planlanan dersler ve ana konular."),
@@ -206,56 +206,56 @@ const studyPlanGeneratorPrompt = ai.definePrompt({
     isGemini25PreviewSelected: z.boolean().optional(),
   })},
   output: {schema: GenerateStudyPlanOutputSchema},
-  prompt: `Sen, YKS öğrencilerine yönelik, onların girdilerine göre kişiselleştirilmiş, haftalık ve günlük bazda yapılandırılmış, gerçekçi ve motive edici YKS çalışma planları tasarlayan uzman bir AI eğitim koçusun. Cevapların daima Türkçe olmalıdır.
+  prompt: `Sen, YKS öğrencilerine kişiselleştirilmiş, haftalık ve günlük bazda yapılandırılmış, gerçekçi ve motive edici YKS çalışma planları tasarlayan uzman bir AI eğitim koçusun. Cevapların daima Türkçe olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
-(Pro Kullanıcı Notu: Planı, farklı öğrenme teknikleri (örn: Feynman, Pomodoro), çeşitli kaynak önerileri (kitap, online platformlar), deneme sınavı stratejileri ve stres yönetimi ipuçlarıyla zenginleştir. Kapsamlı, detaylı ve öğrencinin tüm hazırlık sürecini destekleyecek stratejik bir plan oluştur. Motivasyon ve zaman yönetimi konularına özellikle değin.)
+(Pro Kullanıcı Notu: Planı, farklı öğrenme teknikleri, kaynak önerileri, deneme sınavı stratejileri ve stres yönetimi ipuçlarıyla zenginleştir. Kapsamlı ve stratejik bir plan oluştur.)
 {{else if isPremiumUser}}
-(Premium Kullanıcı Notu: Plana, konu tekrarları için etkili yöntemler, ek kaynak önerileri ve çalışma verimliliğini artıracak ipuçları ekle. Pro kullanıcıya göre biraz daha genel tutabilirsin ama yine de değerli ve uygulanabilir öneriler sun.)
+(Premium Kullanıcı Notu: Plana, konu tekrarları için etkili yöntemler ve çalışma verimliliğini artıracak ipuçları ekle.)
 {{/if}}
 
 {{#if isCustomModelSelected}}
-(Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
+(Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
   {{#if isGemini25PreviewSelected}}
-  (Gemini 2.5 Flash Preview Özel Notu: Yanıtlarını ÖZ ama ANLAŞILIR tut. HIZLI yanıtla. Haftalık ve günlük görevleri kısa ve net maddelerle belirt.)
+  (Gemini 2.5 Flash Preview Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla.)
   {{/if}}
 {{/if}}
 
 Öğrencinin Girdileri:
 Seçilen YKS Alanı (varsa): {{{userField}}}
-Çalışılacak Ana Dersler/Konular (Bu listeye göre planı oluştur, eğer 'customSubjectsInput' doluysa o önceliklidir, değilse 'userField'e göre oluşturulan 'subjects'i kullan): {{{subjects}}}
+Çalışılacak Ana Dersler/Konular: {{{subjects}}}
 Toplam Çalışma Süresi: {{{studyDuration}}}
 Günlük Ortalama Çalışma Saati: {{{hoursPerDay}}} saat
 
 {{#if pdfContextText}}
-Ek Bağlam (Kullanıcının Yüklediği PDF'ten Çıkarılan Metin):
+Ek Bağlam (PDF Metni):
 {{{pdfContextText}}}
-(Lütfen bu metni, öğrencinin özellikle odaklanmak istediği konuları, zayıf olduğu alanları veya çalışma tarzı tercihlerini belirlerken dikkate al. Plana bu bağlamdan çıkarımlarını yansıt.)
+(Bu metni, öğrencinin odaklanmak istediği konuları veya zayıf olduğu alanları belirlerken dikkate al.)
 {{/if}}
 
-Lütfen bu bilgilere göre, aşağıdaki formatta bir çalışma planı taslağı oluştur. Çıktı, JSON şemasına HARFİYEN uymalıdır. Özellikle 'weeklyPlans' dizisindeki HER BİR obje, MUTLAKA 'week' (hafta numarası, SAYI olarak) alanını İÇERMELİDİR.
+Lütfen bu bilgilere göre, aşağıdaki JSON formatına HARFİYEN uyan bir çalışma planı taslağı oluştur. 'weeklyPlans' dizisindeki HER BİR obje, MUTLAKA 'week' (hafta numarası, SAYI olarak) alanını İÇERMELİDİR.
 
-1.  **Plan Başlığı (planTitle)**: Örneğin, "Kişiye Özel {{{userField}}} YKS Hazırlık Planı ({{{studyDuration}}})". Bu alan ZORUNLUDUR.
-2.  **Giriş (introduction) (isteğe bağlı)**: Öğrenciyi motive eden, planın genel mantığını ve önemini açıklayan kısa bir giriş. {{{pdfContextText}}} varsa, buna dair bir yorum eklenebilir.
+1.  **Plan Başlığı (planTitle)**: Örneğin, "Kişiye Özel {{{userField}}} YKS Hazırlık Planı ({{{studyDuration}}})". ZORUNLUDUR.
+2.  **Giriş (introduction) (isteğe bağlı)**: Motive edici kısa bir giriş.
 3.  **Haftalık Planlar (weeklyPlans)**: ÇOK ÖNEMLİ: Bu dizideki HER BİR obje, MUTLAKA 'week' adında bir SAYI (number) tipinde alana sahip olmalıdır.
-    *   **Hafta Numarası (week)**: Örneğin, 1, 2, 3... BU ALAN HER HAFTALIK PLAN OBJESİNDE ZORUNLUDUR VE SAYI OLMALIDIR.
-    *   **Haftalık Hedef (weeklyGoal) (isteğe bağlı)**: O haftanın ana odak noktası veya öğrenme hedefi.
-    *   **Günlük Görevler (dailyTasks)**: Haftanın her günü için (Pazartesi'den Pazar'a):
+    *   **Hafta Numarası (week)**: Örn: 1, 2... BU ALAN HER HAFTALIK PLAN OBJESİNDE ZORUNLUDUR VE SAYI OLMALIDIR.
+    *   **Haftalık Hedef (weeklyGoal) (isteğe bağlı)**: Haftanın ana hedefi.
+    *   **Günlük Görevler (dailyTasks)**: Her gün için:
         *   **Gün (day)**: Günün adı. ZORUNLUDUR.
-        *   **Odak Konular (focusTopics)**: O gün çalışılacak ana konular/dersler ({{{subjects}}} ve varsa {{{pdfContextText}}} dikkate alınarak). ZORUNLUDUR ve en az bir tane olmalıdır.
-        *   **Tahmini Süre (estimatedTime) (isteğe bağlı)**: Her odak konuya veya genel olarak o güne ayrılacak toplam süre.
-        *   **Aktiviteler (activities) (isteğe bağlı)**: O gün yapılacak spesifik görevler ("{{{subjects}}} konusundan X soru çözümü", "Y konusunun konu anlatım videosunu izle", "Z kavramını tekrar et", "Feynman tekniği ile {{{focusTopics.[0]}}} konusunu birine anlatır gibi çalış").
-        *   **Notlar (notes) (isteğe bağlı)**: O güne özel motivasyon mesajları, mola önerileri, çalışma teknikleri veya {{{pdfContextText}}}'ten çıkarılan spesifik bir hatırlatma.
-    Bu 'weeklyPlans' dizisi ZORUNLUDUR ve her elemanın şemaya uyduğundan, özellikle 'week' alanının bir SAYI olduğundan ve 'dailyTasks' içindeki 'focusTopics'in dolu olduğundan emin ol.
-4.  **Genel İpuçları (generalTips) (isteğe bağlı)**: Zaman yönetimi, verimli ders çalışma teknikleri, sınav stresiyle başa çıkma gibi genel YKS hazırlık önerileri.
-5.  **Sorumluluk Reddi (disclaimer)**: Standart uyarı metni.
+        *   **Odak Konular (focusTopics)**: O gün çalışılacak ana konular/dersler. ZORUNLUDUR ve en az bir tane olmalıdır.
+        *   **Tahmini Süre (estimatedTime) (isteğe bağlı)**: Tahmini çalışma süresi.
+        *   **Aktiviteler (activities) (isteğe bağlı)**: Konu çalışma, soru çözümü, tekrar.
+        *   **Notlar (notes) (isteğe bağlı)**: O güne özel notlar veya ipuçları.
+    Bu 'weeklyPlans' dizisi ZORUNLUDUR ve her elemanın şemaya uyduğundan, özellikle 'week' SAYISININ ve 'dailyTasks' içindeki 'focusTopics'in dolu olduğundan emin ol.
+4.  **Genel İpuçları (generalTips) (isteğe bağlı)**: Genel çalışma stratejileri.
+5.  **Sorumluluk Reddi (disclaimer)**: Standart uyarı.
 
 Planlama İlkeleri:
-*   Verilen {{{userField}}} ve/veya {{{subjects}}} listesine göre, {{{studyDuration}}} süresince, günde ortalama {{{hoursPerDay}}} saat çalışmayı dikkate alarak mantıklı bir plan oluştur.
-*   Konuların zorluk seviyelerine, bağlantılarına ve YKS'deki ağırlıklarına dikkat et. Tekrar ve soru çözümünü dengeli bir şekilde plana dahil et.
-*   Gerçekçi ve uygulanabilir bir plan sun. Süre çok kısaysa veya konu sayısı çok fazlaysa, bu durumu nazikçe belirt ve planı en iyi şekilde optimize etmeye çalış veya daha odaklı bir plan öner.
-*   Şemadaki 'required' olarak işaretlenmiş tüm alanların çıktıda bulunduğundan emin ol. Özellikle 'weeklyPlans' içindeki her bir haftanın 'week' SAYISININ ve 'dailyTasks' içindeki 'focusTopics' dizisinin dolu olduğundan MUTLAKA emin ol.
+*   Mantıklı bir plan oluştur.
+*   Konuların zorluk seviyelerine ve YKS'deki ağırlıklarına dikkat et.
+*   Gerçekçi ve uygulanabilir ol. Süre kısaysa veya konu çoksa, bunu belirt ve optimize etmeye çalış.
+*   Şemadaki 'required' alanların ÇIKTIDA BULUNDUĞUNDAN EMİN OL. Özellikle 'week' SAYISININ ve 'dailyTasks' içindeki 'focusTopics'in dolu olduğundan MUTLAKA emin ol.
 `,
 });
 
@@ -309,7 +309,7 @@ const studyPlanGeneratorFlow = ai.defineFlow(
     
     let output: GenerateStudyPlanOutput | undefined;
     try {
-        const result = await studyPlanGeneratorPrompt(input, callOptions); 
+        const result = await prompt(input, callOptions); 
         output = result.output;
 
         if (!output || !output.weeklyPlans) {
@@ -317,6 +317,7 @@ const studyPlanGeneratorFlow = ai.defineFlow(
             throw new Error("AI Eğitim Koçu, belirtilen girdilerle bir çalışma planı oluşturamadı. Lütfen bilgilerinizi kontrol edin.");
         }
         
+        // Ensure 'week' property is present and a number
         if (Array.isArray(output.weeklyPlans)) {
             output.weeklyPlans.forEach((plan: any, index) => { 
                 if (plan && (typeof plan.week !== 'number' || isNaN(plan.week))) { 
@@ -330,6 +331,9 @@ const studyPlanGeneratorFlow = ai.defineFlow(
                             task.focusTopics = ["Genel Tekrar"]; // Assign a default if missing
                         }
                     });
+                } else if (plan) {
+                    console.warn(`Study Plan Generator Flow (Post-processing): weeklyPlans[${index}] is missing 'dailyTasks' or it's not an array. Assigning empty array.`);
+                    plan.dailyTasks = [];
                 }
             });
         } else {
@@ -366,3 +370,4 @@ const studyPlanGeneratorFlow = ai.defineFlow(
     }
   }
 );
+

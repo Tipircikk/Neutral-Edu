@@ -58,19 +58,19 @@ const prompt = ai.definePrompt({
     isGemini25PreviewSelected: z.boolean().optional(),
   })},
   output: {schema: GenerateFlashcardsOutputSchema},
-  prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilerin kritik bilgileri hızlı ve etkili bir şekilde ezberlemelerine ve pekiştirmelerine yardımcı olmak amacıyla, verilen metinlerden YKS odaklı, kaliteli bilgi kartları (flashcards) oluşturan uzman bir AI eğitim materyali geliştiricisisin.
-Amacın, metindeki en önemli tanımları, kavramları, formülleri, tarihleri veya olguları belirleyip bunları soru-cevap veya terim-tanım formatında bilgi kartlarına dönüştürmektir. Kartlar, YKS öğrencisinin seviyesine uygun, net ve akılda kalıcı olmalıdır.
+  prompt: `Sen, YKS'ye hazırlanan öğrenciler için verilen metinlerden kaliteli bilgi kartları (flashcards) oluşturan bir AI eğitim materyali geliştiricisisin. Amacın, metindeki önemli bilgileri soru-cevap formatında kartlara dönüştürmektir. Kartlar net ve akılda kalıcı olmalıdır.
+
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
-(Pro Kullanıcı Notu: Bilgi kartlarını, konunun en derin ve karmaşık noktalarını sorgulayacak şekilde, çoklu bağlantılar ve ileri düzey ipuçları içerecek biçimde tasarla. Kartlar, öğrencinin analitik düşünme ve sentez yapma becerilerini en üst düzeye çıkarmalı. Bu kullanıcılar için en gelişmiş AI yeteneklerini kullan.)
+(Pro Kullanıcı Notu: Bilgi kartlarını, konunun derin ve karmaşık noktalarını sorgulayacak şekilde, analitik düşünmeyi teşvik edici biçimde tasarla.)
 {{else if isPremiumUser}}
-(Premium Kullanıcı Notu: Kartlara ek ipuçları, bağlantılı kavramlar veya YKS'de çıkabilecek alternatif soru tarzlarına göndermeler ekleyerek daha zengin içerik sun.)
+(Premium Kullanıcı Notu: Kartlara ek ipuçları veya bağlantılı kavramlar ekleyerek içeriği zenginleştir.)
 {{/if}}
 
 {{#if isCustomModelSelected}}
-(Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
+(Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
   {{#if isGemini25PreviewSelected}}
-  (Gemini 2.5 Flash Preview Özel Notu: Yanıtlarını olabildiğince ÖZ ama ANLAŞILIR tut. HIZLI yanıt vermesi önemlidir.)
+  (Gemini 2.5 Flash Preview Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla.)
   {{/if}}
 {{/if}}
 
@@ -81,26 +81,25 @@ Metin İçeriği:
 İstenen Bilgi Kartı Sayısı: {{{numFlashcards}}}
 YKS Zorluk Seviyesi: {{{difficulty}}}
 
-Lütfen bu bilgilere dayanarak, aşağıdaki formatta ve prensiplerde {{numFlashcards}} adet YKS odaklı bilgi kartı oluştur:
+Lütfen bu bilgilere dayanarak, aşağıdaki formatta {{numFlashcards}} adet YKS odaklı bilgi kartı oluştur:
 
-1.  **Bilgi Kartları**: Her bir kart için:
-    *   **Ön Yüz (front)**: Bir soru, YKS'de çıkabilecek bir kavram, önemli bir terim veya ezberlenmesi gereken bir bilgi kırıntısı olmalı. Açık ve net olmalı.
-    *   **Arka Yüz (back)**: Ön yüzdeki sorunun cevabı, kavramın tanımı, terimin açıklaması veya bilginin detayı olmalı. Kısa, öz ve doğru bilgi içermeli. YKS öğrencisinin anlayacağı dilde olmalı.
-    *   **Konu (topic) (isteğe bağlı)**: Bilgi kartının ilgili olduğu ana konu veya alt başlık.
-2.  **Özet Başlık (summaryTitle) (isteğe bağlı)**: Bilgi kartlarının temel aldığı ana metin için kısa, açıklayıcı bir başlık.
+1.  **Bilgi Kartları**: Her kart için:
+    *   **Ön Yüz (front)**: Soru, kavram veya terim.
+    *   **Arka Yüz (back)**: Cevap, tanım veya açıklama.
+    *   **Konu (topic) (isteğe bağlı)**: İlgili ana konu.
+2.  **Özet Başlık (summaryTitle) (isteğe bağlı)**: Metin için kısa başlık.
 
 Zorluk Seviyesi Ayarı ({{{difficulty}}}):
-*   'easy': Genellikle temel tanımlar, basit olgular, doğrudan hatırlama gerektiren bilgiler.
-*   'medium': Biraz daha yorum veya bağlantı kurma gerektiren kavramlar, önemli detaylar, YKS ortalamasına yakın bilgiler.
-*   'hard': Daha karmaşık ilişkiler, spesifik ayrıntılar, analiz veya sentez gerektirebilecek bilgiler.
+*   'easy': Temel tanımlar, basit olgular.
+*   'medium': Yorum veya bağlantı gerektiren kavramlar, önemli detaylar.
+*   'hard': Karmaşık ilişkiler, spesifik ayrıntılar, analiz gerektiren bilgiler.
 
 Genel Prensipler:
-*   {{{textContent}}} içindeki en önemli ve YKS için değerli bilgileri seç.
-*   Kartların ön ve arka yüzleri arasında net bir mantıksal bağlantı olsun.
+*   Metindeki en önemli ve YKS için değerli bilgileri seç.
+*   Ön ve arka yüz arasında net mantıksal bağlantı olsun.
 *   Tekrarlayan veya çok bariz bilgilerden kaçın.
-*   Bilgi kartları, öğrencinin aktif öğrenme sürecini desteklemeli.
-*   Dilbilgisi ve YKS terminolojisi açısından kusursuz ol.
-*   Eğer metin yeterince zengin değilse veya istenen sayıda anlamlı kart çıkarılamıyorsa, üretebildiğin kadar kaliteli kart üret; sayıyı zorlama.
+*   Dilbilgisi ve YKS terminolojisi doğru olsun.
+*   Metin yetersizse, üretebildiğin kadar kaliteli kart üret.
 `,
 });
 
@@ -178,3 +177,4 @@ const flashcardGeneratorFlow = ai.defineFlow(
     }
   }
 );
+

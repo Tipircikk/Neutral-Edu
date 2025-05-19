@@ -18,6 +18,7 @@ const VideoSummarizerInputSchema = z.object({
 
 const EnrichedVideoSummarizerInputSchema = VideoSummarizerInputSchema.extend({
     isProUser: z.boolean().optional(),
+    isPremiumUser: z.boolean().optional(),
     isCustomModelSelected: z.boolean().optional(),
     isGemini25PreviewSelected: z.boolean().optional(),
 });
@@ -34,12 +35,14 @@ type VideoSummarizerOutput = z.infer<typeof VideoSummarizerOutputSchema>;
 
 export async function summarizeVideo(input: VideoSummarizerInput): Promise<VideoSummarizerOutput> {
   const isProUser = input.userPlan === 'pro';
+  const isPremiumUser = input.userPlan === 'premium';
   const isCustomModelSelected = !!input.customModelIdentifier;
   const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
 
   const enrichedInputForPrompt = {
     ...input,
     isProUser,
+    isPremiumUser,
     isCustomModelSelected,
     isGemini25PreviewSelected,
   };
@@ -50,22 +53,20 @@ const videoSummarizerPrompt = ai.definePrompt({
   name: 'videoSummarizerPrompt',
   input: {schema: EnrichedVideoSummarizerInputSchema}, 
   output: {schema: VideoSummarizerOutputSchema},
-  prompt: `Sen, YouTube videolarındaki eğitimsel içeriği (özellikle YKS'ye hazırlanan öğrenciler için) analiz edip özetleyen uzman bir AI eğitim asistanısın.
-Görevin, verilen YouTube video URL'sindeki içeriği (başlık, açıklama ve eğer erişebiliyorsan transkript veya sesli içeriğin metin dökümü üzerinden) değerlendirerek öğrenci için en önemli bilgileri çıkarmaktır.
+  prompt: `Sen, YouTube videolarındaki eğitimsel içeriği (özellikle YKS öğrencileri için) analiz edip özetleyen bir AI eğitim asistanısın.
+Görevin, verilen YouTube video URL'sindeki içeriği (başlık, açıklama, varsa transkript) değerlendirerek öğrenci için önemli bilgileri çıkarmaktır.
 
 Kullanıcının Üyelik Planı: {{{userPlan}}}
 {{#if isProUser}}
-(Pro Kullanıcılar İçin: Özetini, videonun en derin ve nüanslı noktalarını yakalayacak şekilde, konular arası bağlantıları da dikkate alarak yap. Öğrencinin videodan maksimum faydayı sağlaması için en kapsamlı ve stratejik içgörüleri sun. {{#if isCustomModelSelected}}En gelişmiş AI yeteneklerini ve seçilen '{{{customModelIdentifier}}}' modelini kullan.{{else}}En gelişmiş AI yeteneklerini kullan.{{/if}})
-{{else ifEquals userPlan "premium"}}
-(Premium Kullanıcılar İçin: Daha detaylı bir özet, ek örnekler ve videonun farklı açılardan değerlendirilmesini sunmaya özen göster. {{#if isCustomModelSelected}}Seçilen '{{{customModelIdentifier}}}' modelini kullan.{{/if}})
-{{else}}
-({{{userPlan}}} Kullanıcılar İçin: Videonun ana eğitimsel mesajını ve temel çıkarımlarını özetle. {{#if isCustomModelSelected}}Seçilen '{{{customModelIdentifier}}}' modelini kullan.{{/if}})
+(Pro Kullanıcı Notu: Özetini, videonun derin noktalarını yakalayacak, konular arası bağlantıları da dikkate alarak yap. En kapsamlı içgörüleri sun.)
+{{else if isPremiumUser}}
+(Premium Kullanıcı Notu: Daha detaylı bir özet ve videonun farklı açılardan değerlendirilmesini sun.)
 {{/if}}
 
 {{#if isCustomModelSelected}}
-(Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
+(Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
   {{#if isGemini25PreviewSelected}}
-  (Gemini 2.5 Flash Preview Özel Notu: Verilen YouTube URL'sindeki videonun BAŞLIĞINI ve AÇIKLAMASINI analiz et. Eğer erişebiliyorsan TRANSKRİPTİNE odaklan. Bu bilgilerden yola çıkarak videonun ANA EĞİTİMSEL konusunu, en önemli 2-3 ANAHTAR ÖĞRENİM NOKTASINI ve genel bir ÖZETİNİ kısa, net ve YKS öğrencisine faydalı olacak şekilde çıkar. HIZLI yanıt vermesi önemlidir.)
+  (Gemini 2.5 Flash Preview Notu: Videonun BAŞLIĞINI ve AÇIKLAMASINI analiz et. Varsa TRANSKRİPTİNE odaklan. ANA EĞİTİMSEL konusunu, 2-3 ANAHTAR ÖĞRENİM NOKTASINI ve genel bir ÖZETİNİ kısa, net ve YKS öğrencisine faydalı olacak şekilde çıkar. HIZLI yanıtla.)
   {{/if}}
 {{/if}}
 
@@ -74,12 +75,12 @@ Kullanıcının Üyelik Planı: {{{userPlan}}}
 
 Lütfen bu videoyu analiz et ve aşağıdaki formatta bir çıktı oluştur:
 
-1.  **Video Başlığı (videoTitle) (isteğe bağlı)**: Eğer videonun başlığını belirleyebiliyorsan buraya yaz.
-2.  **Özet (summary) (isteğe bağlı)**: Videonun ana eğitimsel mesajını, anlatılan konuyu ve önemli çıkarımları içeren, öğrencinin anlayacağı dilde bir özet.
-3.  **Anahtar Noktalar (keyPoints) (isteğe bağlı)**: Videoda vurgulanan en önemli 3-5 anahtar kavram, tanım, formül veya öğrenilmesi gereken bilgi.
-4.  **Uyarılar (warnings) (isteğe bağlı)**: Eğer videoya erişirken, içeriğini işlerken (örn: transkript bulamama, içeriğin özetlemeye uygun olmaması) bir sorunla karşılaşırsan veya özetin kalitesi hakkında bir çekincen varsa, bu durumu burada açıkla. Örneğin: "Video transkriptine erişilemediği için özet, videonun başlık ve açıklamasına göre yapılmıştır.", "Bu video daha çok görsel içerikli olduğu için metinsel özeti sınırlıdır."
+1.  **Video Başlığı (videoTitle) (isteğe bağlı)**: Videonun başlığı.
+2.  **Özet (summary) (isteğe bağlı)**: Videonun ana eğitimsel mesajını ve önemli çıkarımlarını içeren özet.
+3.  **Anahtar Noktalar (keyPoints) (isteğe bağlı)**: Videoda vurgulanan 3-5 anahtar kavram.
+4.  **Uyarılar (warnings) (isteğe bağlı)**: Videoya erişirken veya işlerken bir sorunla karşılaşırsan (örn: transkript bulamama), bu durumu açıkla.
 
-Eğer video içeriğine (transkript, başlık, açıklama vb.) erişemiyorsan veya anlamlı bir eğitimsel özet çıkaramıyorsan, 'summary' ve 'keyPoints' alanlarını boş bırakarak 'warnings' alanında bu durumu açıkça belirt. Öncelikli hedefin, YKS öğrencileri için ders niteliğindeki videolardan faydalı bilgiler çıkarmaktır.
+Eğitimsel özet çıkaramıyorsan, 'summary' ve 'keyPoints' alanlarını boş bırakarak 'warnings' alanında durumu belirt.
 `,
 });
 
@@ -112,10 +113,7 @@ const videoSummarizerFlow = ai.defineFlow(
     }
     
     callOptions.model = modelToUse;
-    
-    // For video summarizer, let's avoid sending generationConfig by default for any Google model for now
-    // as it might be causing issues, especially if the model has specific ways of handling media.
-    callOptions.config = {}; 
+    callOptions.config = {}; // Avoid sending generationConfig for video summarizer for now
     
     console.log(`[Video Summarizer Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier} with callOptions:`, JSON.stringify(callOptions));
 

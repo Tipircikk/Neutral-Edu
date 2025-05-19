@@ -32,12 +32,14 @@ export type SummarizeTopicOutput = z.infer<typeof SummarizeTopicOutputSchema>;
 
 export async function summarizeTopic(input: SummarizeTopicInput): Promise<SummarizeTopicOutput> {
   const isProUser = input.userPlan === 'pro';
+  const isPremiumUser = input.userPlan === 'premium';
   const isCustomModelSelected = !!input.customModelIdentifier;
   const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
 
   const enrichedInput = {
     ...input,
     isProUser,
+    isPremiumUser,
     isCustomModelSelected,
     isGemini25PreviewSelected,
   };
@@ -48,41 +50,35 @@ const prompt = ai.definePrompt({
   name: 'topicSummarizerPrompt',
   input: {schema: SummarizeTopicInputSchema.extend({
     isProUser: z.boolean().optional(),
+    isPremiumUser: z.boolean().optional(),
     isCustomModelSelected: z.boolean().optional(),
     isGemini25PreviewSelected: z.boolean().optional(),
   })},
   output: {schema: SummarizeTopicOutputSchema},
-  prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilere karmaşık akademik konuları ve uzun metinleri en hızlı ve etkili şekilde özümsetme, bilginin özünü damıtma, en kritik noktaları belirleme ve YKS bağlantılarını kurma konusunda uzmanlaşmış, son derece bilgili ve pedagojik yetenekleri gelişmiş bir AI YKS danışmanısın.
-Görevin, {{{inputText}}} girdisini (bu bir YKS konu başlığı veya doğrudan bir metin olabilir) derinlemesine analiz etmek ve öğrencinin YKS'de başarılı olmasına yardımcı olacak şekilde, seçilen {{{summaryLength}}} uzunluğuna ve {{{outputFormat}}} çıktı formatına uygun, kapsamlı bir yanıt hazırlamaktır. Cevapların her zaman Türkçe olmalıdır.
+  prompt: `Sen, YKS için öğrencilere karmaşık konuları ve uzun metinleri hızla özümseten, bilginin özünü damıtan, en kritik noktaları belirleyen ve YKS bağlantılarını kuran uzman bir AI YKS danışmanısın.
+Görevin, {{{inputText}}} girdisini (bu bir YKS konu başlığı veya metin olabilir) analiz etmek ve YKS'de başarılı olmasına yardımcı olacak şekilde, {{{summaryLength}}} uzunluğuna ve {{{outputFormat}}} formatına uygun bir yanıt hazırlamaktır. Cevapların Türkçe olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
-(Pro Kullanıcı Notu: {{{inputText}}} konusunu veya metnini, bir üniversite profesörünün titizliğiyle, en ince ayrıntılarına kadar analiz et. Konunun felsefi temellerine, tarihsel gelişimine ve YKS dışındaki akademik dünyadaki yerine dahi değin. En kapsamlı, en derin ve en düşündürücü özeti sunmak için en gelişmiş AI yeteneklerini kullan. Metindeki örtük anlamları, farklı disiplinlerle olan kesişimlerini ve konunun YKS ötesindeki akademik önemini dahi analizine dahil et.)
-{{else ifEquals userPlan "premium"}}
-(Premium Kullanıcı Notu: Özetlerin derinliğini artır, daha fazla bağlantı kur, farklı bakış açıları sun ve konuyu daha geniş bir perspektiften ele al. Standart kullanıcıya göre daha zenginleştirilmiş ve detaylı bir içerik sağla.)
+(Pro Kullanıcı Notu: {{{inputText}}} konusunu/metnini en ince ayrıntılarına kadar analiz et. Konunun felsefi temellerine, tarihsel gelişimine ve YKS dışındaki akademik dünyadaki yerine dahi değin. En kapsamlı ve düşündürücü özeti sun.)
+{{else if isPremiumUser}}
+(Premium Kullanıcı Notu: Özetlerin derinliğini artır, daha fazla bağlantı kur ve konuyu daha geniş bir perspektiften ele al.)
 {{/if}}
 
 {{#if isCustomModelSelected}}
-(Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
+(Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
   {{#if isGemini25PreviewSelected}}
-  (Gemini 2.5 Flash Preview Özel Notu: Yanıtlarını olabildiğince ÖZ ama ANLAŞILIR tut. HIZLI yanıt vermesi önemlidir.)
+  (Gemini 2.5 Flash Preview Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla.)
   {{/if}}
 {{/if}}
 
 İstenen Çıktı Bölümleri:
-1.  **Konu Özeti (topicSummary)**: Girdinin açık, anlaşılır, akıcı ve YKS odaklı bir özeti. {{{summaryLength}}} uzunluğa göre detay seviyesini ayarla:
-    *   'short': Konunun YKS için en can alıcı noktalarını içeren 2-3 cümlelik bir özet.
-    *   'medium': Ana argümanları, önemli tanımları ve YKS için kritik alt başlıkları içeren, dengeli ve öğretici bir metin.
-    *   'detailed': Konunun tüm önemli yönlerini, örneklerini ve YKS'de çıkabilecek detaylarını içeren daha kapsamlı, yapılandırılmış bir özet.
-    İstenen çıktı formatı '{{{outputFormat}}}' olacak şekilde sun. Eğer 'bullet_points' seçildiyse, her maddeyi açıklayıcı ve YKS'ye yönelik bilgilerle zenginleştir. 'paragraph' seçildiyse, akıcı paragraflar kullan.
-2.  **Anahtar Kavramlar (keyConcepts) (isteğe bağlı)**: Özette geçen veya konuyu anlamak için YKS'de kesinlikle bilinmesi gereken 3-5 temel kavramı, terimi, formülü veya önemli ismi listele. Her bir anahtar kavram için:
-    *   Kavramın kendisi.
-    *   YKS öğrencisinin anlayacağı dilde, kısa ve net bir tanımı/açıklaması.
-    *   Bu kavramın YKS'deki önemi veya hangi tür sorularda karşımıza çıkabileceği hakkında bir not.
-3.  **YKS Bağlantıları ve Stratejileri (yksConnections) (isteğe bağlı)**: Bu konunun YKS müfredatındaki diğer konularla nasıl bir ilişkisi olduğunu veya YKS'de bu konuyla ilgili soruları çözerken dikkat edilmesi gereken 2-3 önemli strateji veya püf noktası belirt.
-4.  **Kaynak Güvenilirliği / Bilgi Notu (sourceReliability) (isteğe bağlı, eğer girdi bir konu başlığı ise)**: Eğer girdi doğrudan bir metin değil de bir konu başlığı ise, bu konudaki bilgilerin YKS açısından genel geçerliliği, müfredattaki yeri ve kaynakların güvenilirliği hakkında kısa bir yorum yap.
+1.  **Konu Özeti (topicSummary)**: Girdinin açık, anlaşılır, YKS odaklı özeti. {{{summaryLength}}} uzunluğa ve '{{{outputFormat}}}' formatına göre ayarla.
+2.  **Anahtar Kavramlar (keyConcepts) (isteğe bağlı)**: YKS için 3-5 temel kavram, terim, formül. Her birinin kısa YKS odaklı açıklaması.
+3.  **YKS Bağlantıları ve Stratejileri (yksConnections) (isteğe bağlı)**: Konunun YKS'deki diğer konularla ilişkisi veya 2-3 YKS stratejisi.
+4.  **Kaynak Güvenilirliği / Bilgi Notu (sourceReliability) (isteğe bağlı, eğer girdi bir konu başlığı ise)**: Konunun YKS açısından geçerliliği hakkında kısa yorum.
 
-Yanıtını hazırlarken, öğrencinin konuyu temelden başlayarak en ileri YKS seviyesine kadar hızla kavramasına ve gerekirse daha derinlemesine araştırma yapması için sağlam bir başlangıç noktası oluşturmasına yardımcı ol. Aşırı teknik jargondan kaçın veya YKS öğrencisi için gerekli ise mutlaka açıkla. Bilgilerin doğruluğundan ve YKS'ye uygunluğundan emin ol.
+Bilgilerin doğruluğundan ve YKS'ye uygunluğundan emin ol.
 `,
 });
 
@@ -91,6 +87,7 @@ const topicSummarizerFlow = ai.defineFlow(
     name: 'topicSummarizerFlow',
     inputSchema: SummarizeTopicInputSchema.extend({ 
         isProUser: z.boolean().optional(),
+        isPremiumUser: z.boolean().optional(),
         isCustomModelSelected: z.boolean().optional(),
         isGemini25PreviewSelected: z.boolean().optional(),
     }),

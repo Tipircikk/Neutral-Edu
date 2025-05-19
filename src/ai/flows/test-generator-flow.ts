@@ -40,6 +40,7 @@ export type GenerateTestOutput = z.infer<typeof GenerateTestOutputSchema>;
 
 export async function generateTest(input: GenerateTestInput): Promise<GenerateTestOutput> {
   const isProUser = input.userPlan === 'pro';
+  const isPremiumUser = input.userPlan === 'premium';
   const isCustomModelSelected = !!input.customModelIdentifier;
   const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
 
@@ -47,6 +48,7 @@ export async function generateTest(input: GenerateTestInput): Promise<GenerateTe
       ...input, 
       questionTypes: ["multiple_choice"] as Array<"multiple_choice" | "true_false" | "short_answer">, 
       isProUser,
+      isPremiumUser,
       isCustomModelSelected,
       isGemini25PreviewSelected,
     };
@@ -57,52 +59,50 @@ const prompt = ai.definePrompt({
   name: 'testGeneratorPrompt',
   input: {schema: GenerateTestInputSchema.extend({
     isProUser: z.boolean().optional(),
+    isPremiumUser: z.boolean().optional(),
     isCustomModelSelected: z.boolean().optional(),
     isGemini25PreviewSelected: z.boolean().optional(),
   })},
   output: {schema: GenerateTestOutputSchema},
-  prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) için öğrencilerin bilgilerini pekiştirmeleri, eksiklerini görmeleri ve sınav pratiği yapmaları amacıyla çeşitli akademik konularda nokta atışı, YKS standartlarında ve zorluk seviyesi ayarlanmış deneme testleri hazırlayan, son derece deneyimli ve pedagojik derinliğe sahip bir AI YKS eğitim materyali uzmanısın.
-Rolün, sadece soru yazmak değil, aynı zamanda öğrenmeyi teşvik eden, eleştirel düşünmeyi ölçen, adil ve konuyu kapsamlı bir şekilde değerlendiren, YKS'nin ruhuna uygun testler tasarlamaktır. Sorular ASLA belirsiz olmamalı, KESİNLİKLE TEK BİR DOĞRU CEVABA sahip olmalıdır. Çeldiriciler mantıklı ama net bir şekilde yanlış olmalıdır. Cevapların her zaman Türkçe olmalıdır.
+  prompt: `Sen, YKS için öğrencilere pratik yapmaları amacıyla çeşitli konularda, YKS standartlarında ve zorluk seviyesi ayarlanmış deneme testleri hazırlayan bir AI YKS eğitim materyali uzmanısın.
+Sorular ASLA belirsiz olmamalı, KESİNLİKLE TEK BİR DOĞRU CEVABA sahip olmalıdır. Çeldiriciler mantıklı ama net bir şekilde yanlış olmalıdır. Cevapların Türkçe olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
-(Pro Kullanıcı Notu: En sofistike, en düşündürücü ve en kapsamlı YKS sorularını oluştur. Sorular, birden fazla konuyu birleştiren, derin analitik beceriler gerektiren ve öğrencinin bilgi düzeyini en üst seviyede test eden nitelikte olsun. Açıklamaların, bir ders kitabı kadar detaylı ve aydınlatıcı olmalı. Her bir yanlış seçeneğin neden hatalı olduğunu adım adım açıkla. Bu kullanıcılar için en gelişmiş AI yeteneklerini kullan.)
-{{else ifEquals userPlan "premium"}}
-(Premium Kullanıcı Notu: Soruların çeşitliliğini, açıklamaların derinliğini ve YKS'ye uygunluğunu artırarak daha zengin bir deneyim sunmaya çalış. Sorular, konunun farklı yönlerini kapsamalı ve öğrencileri zorlayıcı olmalıdır. Yanlış seçeneklerin nedenlerini de açıkla.)
+(Pro Kullanıcı Notu: En düşündürücü ve kapsamlı YKS sorularını oluştur. Sorular, birden fazla konuyu birleştiren, derin analitik beceriler gerektiren nitelikte olsun. Açıklamaların çok detaylı olmalı.)
+{{else if isPremiumUser}}
+(Premium Kullanıcı Notu: Soruların çeşitliliğini ve açıklamaların derinliğini artır. Yanlış seçeneklerin nedenlerini de açıkla.)
 {{/if}}
 
 {{#if isCustomModelSelected}}
-(Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
+(Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
   {{#if isGemini25PreviewSelected}}
-  (Gemini 2.5 Flash Preview Özel Notu: Yanıtlarını olabildiğince ÖZ ama ANLAŞILIR tut. HIZLI yanıt vermesi önemlidir.)
+  (Gemini 2.5 Flash Preview Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla.)
   {{/if}}
 {{/if}}
 
 Kullanıcının İstekleri:
 Konu: {{{topic}}}
 İstenen Soru Sayısı: {{{numQuestions}}}
-İstenen Soru Tipleri: {{#if questionTypes}}{{#each questionTypes}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}{{else}}Çoktan Seçmeli Ağırlıklı{{/if}}
+İstenen Soru Tipleri: Çoktan Seçmeli
 YKS Zorluk Seviyesi: {{{difficulty}}}
 
-Lütfen bu bilgilere dayanarak, tamamıyla YKS formatına ve ciddiyetine uygun bir test oluştur. Test, aşağıdaki formatta ve prensiplerde olmalıdır:
-1.  **Test Başlığı**: Konuyla ilgili, öğrenciyi motive eden ve YKS'ye uygun bir başlık (örn: "{{{topic}}} - YKS Prova Sınavı ({{difficulty}} Seviye)", "{{{topic}}} Temel Kavramlar ve Uygulamalar Testi").
-2.  **Sorular**: Her soru için (tamamı YKS standartlarında):
-    *   **Soru Metni**: Açık, net, anlaşılır ve KESİNLİKLE TEK BİR DOĞRU CEVABA işaret edecek şekilde ifade edilmeli. Yoruma açık, birden fazla doğru cevabı olabilecek veya cevabı belirsiz sorulardan KESİNLİKLE kaçınılmalı. Soru, öğrencinin {{{topic}}} konusundaki bilgisini ve {{difficulty}} zorluk seviyesine uygun analitik düşünme yeteneğini ölçmelidir. YKS'de kullanılan soru köklerine (örneğin "hangisidir?", "hangisi söylenemez?", "çıkarılabilir?", "hangisi kesinlikle yanlıştır?") benzer ifadeler kullanılmalı.
-    *   **Soru Tipi**: Mutlaka 'multiple_choice' (çoktan seçmeli) olmalı. Diğer tipleri şimdilik dikkate alma.
-    *   **Seçenekler (çoktan seçmeli ise)**: Mutlaka 5 adet (A, B, C, D, E) seçenek sunulmalı. Seçenekler, konuyla ilgili mantıklı ve güçlü çeldiriciler içermeli; bariz yanlış, konu dışı veya alakasız olmamalıdır. Çeldiriciler, öğrencilerin yaygın yaptığı hataları veya kavram yanılgılarını hedefleyebilir. SADECE BİR SEÇENEK KESİN DOĞRU OLMALIDIR. Diğer dört seçenek KESİNLİKLE YANLIŞ olmalıdır. Seçenekler arasında anlam belirsizliği veya çakışma olmamalıdır.
-    *   **Doğru Cevap**: Sorunun doğru cevabı net bir şekilde (sadece seçenek harfi, örn: "A", "B", "C", "D", "E") belirtilmeli.
-    *   **Açıklama (zorunlu ve son derece detaylı)**: Her soru için, doğru cevabın neden doğru olduğuna ve diğer DÖRT seçeneğin neden yanlış olduğuna dair adım adım, mantıksal ve öğretici bir açıklama eklenmeli. Bu açıklama, öğrencinin konuyu pekiştirmesine, hatasını anlamasına ve YKS için önemli püf noktalarını öğrenmesine yardımcı olmalıdır. Açıklama, bir öğretmenin konuyu anlatış tarzında olmalı, gerekirse alt adımlara bölünerek her düşünce süreci netleştirilmelidir. Çözüm için izlenen her adım açıkça belirtilmelidir. Sadece doğru cevabı açıklamak yeterli değildir; her bir yanlış seçeneğin neden hatalı olduğu da ayrı ayrı ve ikna edici bir şekilde açıklanmalıdır.
+Lütfen bu bilgilere dayanarak, YKS formatına uygun bir test oluştur. Test, aşağıdaki formatta olmalıdır:
+1.  **Test Başlığı**: Konuyla ilgili, YKS'ye uygun başlık.
+2.  **Sorular**: Her soru için:
+    *   **Soru Metni**: Açık, net, KESİNLİKLE TEK DOĞRU CEVAPLI. YKS soru köklerine benzer ifadeler kullan.
+    *   **Soru Tipi**: 'multiple_choice'.
+    *   **Seçenekler**: 5 adet (A, B, C, D, E). Mantıklı çeldiriciler. SADECE BİR SEÇENEK KESİN DOĞRU. Diğer dördü KESİNLİKLE YANLIŞ.
+    *   **Doğru Cevap**: Sadece seçenek harfi (A, B, C, D, E).
+    *   **Açıklama (zorunlu ve son derece detaylı)**: Doğru cevabın neden doğru olduğunu ve diğer DÖRT seçeneğin neden yanlış olduğunu adım adım, mantıksal ve öğretici bir şekilde açıkla.
 
 Genel Prensipler:
-*   Soruları hazırlarken, sadece ezber bilgiyi değil, aynı zamanda YKS'nin gerektirdiği anlama, yorumlama, analiz, sentez, problem çözme ve eleştirel düşünme becerilerini ölçecek nitelikte olmasına azami özen göster.
-*   Belirtilen YKS zorluk seviyesine ({{{difficulty}}}) tam olarak uyum sağla:
-    *   'easy': Genellikle bilgi ve hatırlama düzeyinde, temel kavramları sorgulayan sorular.
-    *   'medium': Anlama, yorumlama, basit problem çözme ve uygulama becerilerini ölçen, YKS ortalamasına yakın sorular.
-    *   'hard': Analiz, sentez, karmaşık problem çözme, birden fazla bilgiyi birleştirme ve çıkarım yapma gerektiren, ayırt edici YKS soruları.
-*   {{{topic}}} konusunu kapsamlı bir şekilde tara. Sorular, konunun farklı alt başlıklarından dengeli bir şekilde dağılmalı.
-*   Soruların ve cevapların dilbilgisi açısından kusursuz ve YKS terminolojisine uygun olmasına dikkat et.
-*   Çalıntı veya başka kaynaklardan doğrudan kopyalanmış soru kullanma. Tamamen özgün sorular üret.
-*   Kesinlikle yoruma açık, birden fazla doğru cevabı olabilecek veya cevabı belirsiz sorular sorma. Her sorunun tek ve net bir doğru cevabı olmalı. Seçenekler net olmalı.
+*   Anlama, yorumlama, analiz, problem çözme becerilerini ölç.
+*   Belirtilen YKS zorluk seviyesine ({{{difficulty}}}) uy.
+*   {{{topic}}} konusunu kapsamlı tara.
+*   Dilbilgisi kusursuz ve YKS terminolojisine uygun olsun.
+*   Tamamen özgün sorular üret.
+*   Kesinlikle yoruma açık, birden fazla doğru cevabı olabilecek veya cevabı belirsiz sorular sorma.
 `,
 });
 
@@ -111,12 +111,13 @@ const testGeneratorFlow = ai.defineFlow(
     name: 'testGeneratorFlow',
     inputSchema: GenerateTestInputSchema.extend({ 
         isProUser: z.boolean().optional(),
+        isPremiumUser: z.boolean().optional(),
         isCustomModelSelected: z.boolean().optional(),
         isGemini25PreviewSelected: z.boolean().optional(),
     }),
     outputSchema: GenerateTestOutputSchema,
   },
-  async (enrichedInput: GenerateTestInput & {isProUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean; questionTypes: Array<"multiple_choice" | "true_false" | "short_answer">} ): Promise<GenerateTestOutput> => {
+  async (enrichedInput: GenerateTestInput & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean; questionTypes: Array<"multiple_choice" | "true_false" | "short_answer">} ): Promise<GenerateTestOutput> => {
     let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
     
@@ -146,13 +147,13 @@ const testGeneratorFlow = ai.defineFlow(
 
     if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
        callOptions.config = { 
-         temperature: 0.7, 
+         temperature: 0.8, // Slightly higher temperature for more varied questions
          generationConfig: { 
            maxOutputTokens: maxTokensForOutput
           }
         }; 
     } else {
-      callOptions.config = { temperature: 0.7 }; 
+      callOptions.config = { temperature: 0.8 }; 
     }
     
     console.log(`[Test Generator Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}`);

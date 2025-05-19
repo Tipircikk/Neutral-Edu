@@ -43,12 +43,14 @@ export type SummarizePdfForStudentOutput = z.infer<typeof SummarizePdfForStudent
 
 export async function summarizePdfForStudent(input: SummarizePdfForStudentInput): Promise<SummarizePdfForStudentOutput> {
   const isProUser = input.userPlan === 'pro';
+  const isPremiumUser = input.userPlan === 'premium';
   const isCustomModelSelected = !!input.customModelIdentifier;
   const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
 
   const enrichedInput = {
     ...input,
     isProUser,
+    isPremiumUser,
     isCustomModelSelected,
     isGemini25PreviewSelected,
   };
@@ -59,56 +61,48 @@ const prompt = ai.definePrompt({
   name: 'detailedTopicExplainerFromPdfPrompt',
   input: {schema: SummarizePdfForStudentInputSchema.extend({
     isProUser: z.boolean().optional(),
+    isPremiumUser: z.boolean().optional(),
     isCustomModelSelected: z.boolean().optional(),
     isGemini25PreviewSelected: z.boolean().optional(),
   })},
   output: {schema: SummarizePdfForStudentOutputSchema},
-  prompt: `Sen, sana sunulan akademik metinlerdeki konuları son derece detaylı, kapsamlı ve anlaşılır bir şekilde açıklayan, alanında otorite sahibi bir AI konu uzmanısın. Amacın, metindeki bilgileri sadece özetlemek değil, aynı zamanda konuyu derinlemesine öğretmek, temel kavramları, prensipleri, önemli alt başlıkları, örnekleri ve (varsa) diğer disiplinler veya konularla bağlantılarıyla birlikte sunmaktır. Öğrencinin metindeki konuyu tam anlamıyla kavramasına yardımcı ol. Cevapların her zaman Türkçe dilinde olmalıdır.
+  prompt: `Sen, sana sunulan akademik metinlerdeki konuları detaylı, kapsamlı ve anlaşılır bir şekilde açıklayan, alanında otorite sahibi bir AI konu uzmanısın. Amacın, metindeki bilgileri öğretmek, temel kavramları ve prensipleri sunmaktır. Cevapların Türkçe olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
-(Pro Kullanıcı Notu: Açıklamanı en üst düzeyde akademik zenginlikle, konunun felsefi temellerine, tarihsel gelişimine ve en karmaşık detaylarına değinerek yap. Sunduğun anlatım, bir ders kitabının ilgili bölümü kadar kapsamlı ve derinlemesine olmalı. {{{summaryLength}}} "detailed" ise, mümkün olan en uzun ve en kapsamlı çıktıyı üret. En gelişmiş AI yeteneklerini kullan.)
-{{else ifEquals userPlan "premium"}}
-(Premium Kullanıcı Notu: Açıklamalarını daha fazla örnekle, konunun farklı yönlerini ele alarak ve önemli bağlantıları vurgulayarak zenginleştir. {{{summaryLength}}} "detailed" ise, standart kullanıcıya göre belirgin şekilde daha uzun ve detaylı bir çıktı üret.)
+(Pro Kullanıcı Notu: Açıklamanı en üst düzeyde akademik zenginlikle, konunun felsefi temellerine ve karmaşık detaylarına değinerek yap. Çok kapsamlı bir anlatım oluştur.)
+{{else if isPremiumUser}}
+(Premium Kullanıcı Notu: Açıklamalarını daha fazla örnekle ve önemli bağlantıları vurgulayarak zenginleştir.)
 {{/if}}
 
 {{#if isCustomModelSelected}}
-(Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
+(Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
   {{#if isGemini25PreviewSelected}}
-  (Gemini 2.5 Flash Preview Özel Notu: Yanıtlarını olabildiğince ÖZ ama ANLAŞILIR tut. HIZLI yanıt vermesi önemlidir.)
+  (Gemini 2.5 Flash Preview Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla.)
   {{/if}}
 {{/if}}
 
-Bir PDF'den çıkarılan aşağıdaki metin verildiğinde, {{{summaryLength}}} uzunluk tercihine, {{{outputDetail}}} çıktı detayı isteğine ve varsa {{{keywords}}} anahtar kelimelerine veya {{{pageRange}}} sayfa aralığı bilgisine göre, öğrenci dostu, motive edici ve öğretici bir tonda aşağıdaki görevleri yerine getir. Çıktını, belirtilen şemaya harfiyen uyacak şekilde yapılandır.
+PDF'den çıkarılan metin verildiğinde, {{{summaryLength}}} uzunluk tercihine, {{{outputDetail}}} çıktı detayı isteğine ve varsa {{{keywords}}} veya {{{pageRange}}} bilgilerine göre, öğrenci dostu bir tonda aşağıdaki görevleri yerine getir. Çıktını, belirtilen şemaya harfiyen uyacak şekilde yapılandır.
 
-Öğrencinin Özel İstekleri:
-{{#if keywords}}
-- Odaklanılacak Anahtar Kelimeler: {{{keywords}}} (Lütfen açıklamanı bu kelimeler etrafında şekillendir.)
-{{/if}}
-{{#if pageRange}}
-- Odaklanılacak Sayfa Aralığı (Kavramsal): {{{pageRange}}} (Lütfen bu metnin belirtilen sayfa aralığından geldiğini varsayarak veya o aralıktaki bilgilere öncelik vererek açıklamanı yap.)
-{{/if}}
+Özel İstekler:
+{{#if keywords}}- Odaklanılacak Anahtar Kelimeler: {{{keywords}}}{{/if}}
+{{#if pageRange}}- Odaklanılacak Sayfa Aralığı (Kavramsal): {{{pageRange}}}{{/if}}
 
 İstenen Çıktı Detayı: {{{outputDetail}}}
 
 İstenen Çıktı Bölümleri:
-1.  **Detaylı Konu Anlatımı (summary)**: Metindeki konuyu, bir öğrencinin kolayca anlayabileceği, akıcı ve net bir dille, {{{summaryLength}}} seçeneğine göre detay seviyesini ayarlayarak açıkla. Bu bölüm, çıktının ana gövdesi olmalı ve çok kapsamlı olabilir.
-    *   'short': Konunun sadece en kritik ana hatlarını ve temel tanımlarını birkaç paragrafta açıkla.
-    *   'medium': Ana argümanları, önemli alt başlıkları, temel ilkeleri ve birkaç açıklayıcı örneği içeren dengeli ve daha kapsamlı bir anlatım sun.
-    *   'detailed': Metnin tüm önemli yönlerini, alt başlıklarını derinlemesine, karmaşık örnekleri, diğer konularla bağlantılarını ve farklı bakış açılarını (varsa) içerecek şekilde son derece uzun ve kapsamlı bir anlatım oluştur. Bu seçenek en uzun çıktıyı hedeflemelidir.
-    Her zaman paragraflar halinde yaz ve Markdown formatlamasını (başlıklar, alt başlıklar, listeler, vurgular) serbestçe kullan.
-2.  **Anahtar Noktalar (keyPoints)**: Anlatılan konunun anlaşılması için en önemli, akılda kalıcı olması gereken bilgileri 5-10 madde halinde listele. Bunlar, öğrencinin hızlı tekrar yapmasına ve konunun iskeletini görmesine yardımcı olmalı. Eğer 'outputDetail' sadece belirli bir bölümü istiyorsa (örn: 'exam_tips_only'), bu bölümü atlayabilirsin.
-3.  **Ana Fikir (mainIdea)**: Açıklanan konunun veya metnin temel mesajını, amacını veya tezini tek ve etkili bir cümleyle ifade et. "Bu metin şu konuyu detaylıca anlamak için önemlidir: ..." gibi bir giriş yapabilirsin. Eğer 'outputDetail' sadece belirli bir bölümü istiyorsa, bu bölümü atlayabilirsin.
-4.  **Sınav İpuçları (examTips) (isteğe bağlı)**: Eğer 'outputDetail' 'full' veya 'exam_tips_only' ise, metinden sınavlarda soru olarak çıkma potansiyeli yüksek olan kilit tanımları, önemli tarihleri, formülleri, kavramları, neden-sonuç ilişkilerini veya karşılaştırmaları 4-6 madde halinde belirt. "Sınavlarda Bu Kısımlara Dikkat!" gibi bir başlık kullanabilirsin.
-5.  **Alıştırma Soruları (practiceQuestions) (isteğe bağlı)**: Eğer içerik uygunsa ve 'outputDetail' 'questions_only' veya 'full' ise, anlatılan konuyu pekiştirmek amacıyla, YKS formatına uygun, anlamayı ve yorumlamayı ölçen 3-5 adet çoktan seçmeli soru oluştur. Her soru için:
-    *   **Soru Metni**: Açık ve net olmalı.
-    *   **Seçenekler**: A, B, C, D, E şeklinde 5 seçenek sun. Çeldiriciler mantıklı ve konuya yakın olmalı.
-    *   **Doğru Cevap**: Sadece doğru seçeneğin harfini belirt (örn: "C").
-    *   **Açıklama**: Doğru cevabın neden doğru olduğunu ve diğer seçeneklerin neden yanlış olduğunu kısaca YKS öğrencisinin anlayacağı dilde açıkla.
-    Eğer içerik soru üretmeye uygun değilse veya 'outputDetail' bunu istemiyorsa, bu bölümü atla ve 'practiceQuestions' alanını boş bırak.
-6.  **Formatlanmış Çalışma Çıktısı (formattedStudyOutput)**: Yukarıdaki istenen bölümleri ({{{outputDetail}}} seçeneğine göre) net Markdown formatlaması kullanarak tek bir dizede birleştir. "## Detaylı Konu Anlatımı", "## Anahtar Noktalar", "## Ana Fikir", "## Sınav İpuçları", "## Alıştırma Soruları" gibi başlıklar kullan. Bu birleştirilmiş çıktı doğrudan kullanılacaktır. Eğer 'outputDetail' örneğin 'key_points_only' ise, formattedStudyOutput sadece "## Anahtar Noktalar" başlığını ve içeriğini içermelidir.
+1.  **Detaylı Konu Anlatımı (summary)**: Metindeki konuyu, {{{summaryLength}}} seçeneğine göre detay seviyesini ayarlayarak açıkla. Bu bölüm, çıktının ana gövdesi olmalı.
+    *   'short': Konunun ana hatlarını ve temel tanımlarını birkaç paragrafta açıkla.
+    *   'medium': Ana argümanları, önemli alt başlıkları, temel ilkeleri ve birkaç açıklayıcı örneği içeren kapsamlı bir anlatım sun.
+    *   'detailed': Metnin tüm önemli yönlerini, alt başlıklarını derinlemesine, karmaşık örnekleri, diğer konularla bağlantılarını içerecek şekilde son derece uzun ve kapsamlı bir anlatım oluştur.
+    Paragraflar halinde yaz ve Markdown formatlamasını (başlıklar, listeler, vurgular) kullan.
+2.  **Anahtar Noktalar (keyPoints)**: Anlatılan konunun en önemli 5-10 maddesini listele. 'outputDetail' farklıysa bu bölümü atla.
+3.  **Ana Fikir (mainIdea)**: Konunun veya metnin temel mesajını tek cümleyle ifade et. 'outputDetail' farklıysa bu bölümü atla.
+4.  **Sınav İpuçları (examTips) (isteğe bağlı)**: Eğer 'outputDetail' 'full' veya 'exam_tips_only' ise, metinden sınavlarda çıkabilecek 4-6 kilit noktayı belirt.
+5.  **Alıştırma Soruları (practiceQuestions) (isteğe bağlı)**: Eğer 'outputDetail' 'questions_only' veya 'full' ise ve içerik uygunsa, 3-5 çoktan seçmeli YKS formatında alıştırma sorusu (seçenekler, doğru cevap, açıklama) oluştur. Uygun değilse bu bölümü atla.
+6.  **Formatlanmış Çalışma Çıktısı (formattedStudyOutput)**: Yukarıdaki istenen bölümleri ({{{outputDetail}}} seçeneğine göre) net Markdown başlıkları ile tek bir dizede birleştir. Örn: "## Detaylı Konu Anlatımı", "## Anahtar Noktalar" vb. Eğer 'outputDetail' örneğin 'key_points_only' ise, formattedStudyOutput sadece "## Anahtar Noktalar" başlığını ve içeriğini içermelidir.
 
-Unutma, hedefin öğrencinin konuyu derinlemesine anlamasına ve kavramasına yardımcı olmak. Bilgiyi en sindirilebilir, en akılda kalıcı ve en kapsamlı şekilde sun. Açıklamanın uzunluğu konusunda {{{summaryLength}}} seçeneğine, özellikle 'detailed' seçildiğinde, cömert ol.
+Hedefin öğrencinin konuyu derinlemesine anlamasına yardımcı olmak. {{{summaryLength}}} 'detailed' ise cömert ol.
 
 İşlenecek Metin:
 {{{pdfText}}}`,
@@ -119,6 +113,7 @@ const summarizePdfForStudentFlow = ai.defineFlow(
     name: 'summarizePdfForStudentFlow',
     inputSchema: SummarizePdfForStudentInputSchema.extend({ 
         isProUser: z.boolean().optional(),
+        isPremiumUser: z.boolean().optional(),
         isCustomModelSelected: z.boolean().optional(),
         isGemini25PreviewSelected: z.boolean().optional(),
     }),
@@ -175,11 +170,11 @@ const summarizePdfForStudentFlow = ai.defineFlow(
       }
 
       const shouldHaveExamTips = enrichedInput.outputDetail === 'full' || enrichedInput.outputDetail === 'exam_tips_only';
-      if (shouldHaveExamTips && output.examTips === undefined) { // Ensure examTips is an array if expected
+      if (shouldHaveExamTips && output.examTips === undefined) { 
           output.examTips = [];
       }
-      if(!shouldHaveExamTips && output.examTips !== undefined){ // Clear if not expected
-         output.examTips = []; // or undefined, depending on schema strictness
+      if(!shouldHaveExamTips && output.examTips !== undefined){ 
+         output.examTips = []; 
       }
 
 

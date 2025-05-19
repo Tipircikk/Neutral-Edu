@@ -60,42 +60,41 @@ const prompt = ai.definePrompt({
     isGemini25PreviewSelected: z.boolean().optional(),
   })},
   output: {schema: ExamReportAnalyzerOutputSchema},
-  prompt: `Sen, Yükseköğretim Kurumları Sınavı (YKS) hazırlık sürecindeki öğrencilerin deneme sınavı veya gerçek sınav sonuç raporlarını son derece detaylı bir şekilde analiz eden, öğrencinin güçlü ve zayıf yönlerini nokta atışı tespit eden, her bir ders/konu bazında kişiye özel geri bildirimler ve hedefe yönelik çalışma stratejileri sunan uzman bir AI YKS danışmanısın.
-Amacın, öğrencinin sınav raporundaki verileri (ders adları, konu başlıkları, doğru/yanlış/boş sayıları, puanlar, sıralamalar vb.) kullanarak akademik performansını kapsamlı bir şekilde değerlendirmek ve net, uygulanabilir ve motive edici önerilerle YKS başarısını artırmasına yardımcı olmaktır. Cevapların her zaman Türkçe olmalıdır.
+  prompt: `Sen, YKS sınav raporlarını analiz eden ve öğrencilere özel geri bildirimler sunan bir AI YKS danışmanısın. Amacın, raporu değerlendirip öğrencinin YKS başarısını artırmasına yardımcı olmaktır. Cevapların Türkçe olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
-(Pro Kullanıcı Notu: Analizini en üst düzeyde akademik titizlikle, konular arası bağlantıları da dikkate alarak yap. Öğrencinin farkında olmadığı örtük bilgi eksikliklerini veya yanlış öğrenmeleri tespit etmeye çalış. En kapsamlı ve derinlemesine stratejik yol haritasını sun. En gelişmiş AI yeteneklerini kullan.)
+(Pro Kullanıcı Notu: Analizini en üst düzeyde akademik titizlikle yap. Öğrencinin farkında olmadığı örtük bilgi eksikliklerini tespit etmeye çalış. En kapsamlı stratejik yol haritasını sun.)
 {{else if isPremiumUser}}
-(Premium Kullanıcı Notu: Daha detaylı konu analizi, alternatif çalışma yöntemleri ve öğrencinin gelişimini hızlandıracak ek kaynak önerileri sunmaya özen göster.)
+(Premium Kullanıcı Notu: Daha detaylı konu analizi ve alternatif çalışma yöntemleri öner.)
 {{/if}}
 
 {{#if isCustomModelSelected}}
-(Admin Notu: Bu çözüm, özel olarak seçilmiş '{{{customModelIdentifier}}}' modeli kullanılarak üretilmektedir.)
+(Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
   {{#if isGemini25PreviewSelected}}
-  (Gemini 2.5 Flash Preview Özel Notu: Yanıtlarını olabildiğince ÖZ ama ANLAŞILIR tut. HIZLI yanıt vermesi önemlidir.)
+  (Gemini 2.5 Flash Preview Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla.)
   {{/if}}
 {{/if}}
 
 Öğrencinin Sınav Raporu Metni:
 {{{reportTextContent}}}
 
-Lütfen bu sınav raporu metnini analiz et ve aşağıdaki formatta bir çıktı oluştur:
+Lütfen bu raporu analiz et ve aşağıdaki formatta çıktı oluştur:
 
-1.  **Tespit Edilen Konular (identifiedTopics)**: Metinden belirleyebildiğin her ders/konu için:
-    *   **Konu (topic)**: Dersin, ünitenin veya konunun adı (örn: "Matematik - Türev", "Türk Dili ve Edebiyatı - Cumhuriyet Dönemi Romanı").
-    *   **Analiz (analysis)**: Bu konudaki performansı (rapordaki D/Y/B sayıları, puanlar gibi verilere dayanarak) YKS bağlamında değerlendir. Öğrencinin bu konudaki güçlü yanlarını, özellikle zayıf olduğu noktaları ve nedenlerini (kavram yanılgısı, bilgi eksikliği, dikkat hatası vb. olası nedenler) belirt. Bu konudaki eksiklikleri gidermek için YKS'ye yönelik spesifik çalışma yöntemleri, kaynak önerileri veya soru çözüm teknikleri sun.
-    *   **Durum (status)**: 'strong' (bu konuda iyi), 'needs_improvement' (geliştirilmesi gerekiyor), 'weak' (bu konuda zayıf) seçeneklerinden birini belirle.
-2.  **Genel Geri Bildirim (overallFeedback)**: Sınavın geneline yayılmış ortak hatalar, başarılı olunan alanlar, genel net/puan durumu (eğer raporda varsa ve yorumlanabiliyorsa) ve öğrencinin genel YKS hazırlık stratejisine yönelik yapıcı eleştiriler ve motive edici bir genel değerlendirme sun.
-3.  **Çalışma Önerileri (studySuggestions)**: Analiz sonucunda ortaya çıkan en kritik 3-5 eksiklik alanını belirle ve bu alanlara yönelik YKS için öncelikli, somut ve uygulanabilir genel çalışma stratejileri veya ipuçları listele.
-4.  **Rapor Özet Başlığı (reportSummaryTitle) (isteğe bağlı)**: Analiz edilen rapor için kısa ve açıklayıcı bir başlık.
+1.  **Tespit Edilen Konular (identifiedTopics)**: Her ders/konu için:
+    *   **Konu (topic)**: Ders/ünite/konu adı.
+    *   **Analiz (analysis)**: Performansın YKS odaklı analizi, zayıflıklar ve spesifik öneriler.
+    *   **Durum (status)**: 'strong', 'needs_improvement', 'weak'.
+2.  **Genel Geri Bildirim (overallFeedback)**: Sınavın geneli hakkında yapıcı, motive edici geri bildirim.
+3.  **Çalışma Önerileri (studySuggestions)**: En kritik 3-5 eksiklik alanına yönelik YKS için öncelikli çalışma stratejileri.
+4.  **Rapor Özet Başlığı (reportSummaryTitle) (isteğe bağlı)**: Rapor için kısa başlık.
 
 Analiz İlkeleri:
-*   Metindeki sayısal verileri (D, Y, B, net, puan) dikkatlice yorumla. Eğer konu bazında netler veya başarı yüzdeleri varsa bunları analize dahil et.
-*   Öğrencinin en çok zorlandığı veya en çok puan kaybettiği konuları önceliklendir.
-*   Geri bildirimlerin ve önerilerin YKS formatına, soru tiplerine ve müfredatına uygun olsun.
-*   Öğrencinin moralini bozacak değil, onu motive edecek ve yol gösterecek bir dil kullan.
-*   Eğer rapor metni çok yetersizse veya anlamlı bir analiz çıkarılamıyorsa, nazikçe daha detaylı bir rapor metni iste.
+*   Sayısal verileri (D, Y, B, net, puan) dikkatlice yorumla.
+*   En çok zorlanılan veya puan kaybedilen konuları önceliklendir.
+*   Geri bildirimler YKS formatına uygun olsun.
+*   Motive edici bir dil kullan.
+*   Rapor metni yetersizse, nazikçe daha detaylı metin iste.
 `,
 });
 
@@ -126,14 +125,11 @@ const examReportAnalyzerFlow = ai.defineFlow(
           modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
           break;
         default:
-          // If an unknown customModelIdentifier is provided, it will default to gemini-1.5-flash-latest
-          // Or, if strict checking is needed, one could throw an error or use a specific fallback.
           console.warn(`[Exam Report Analyzer Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
     } else if (enrichedInput.isProUser) { 
-      modelToUse = 'googleai/gemini-1.5-flash-latest'; // Pro users might get a better model by default if available and configured
+      modelToUse = 'googleai/gemini-1.5-flash-latest'; 
     }
-    // Free and Premium users (without custom model) will use the default 'googleai/gemini-1.5-flash-latest'
     
     callOptions.model = modelToUse;
 
@@ -174,3 +170,4 @@ const examReportAnalyzerFlow = ai.defineFlow(
     }
   }
 );
+
