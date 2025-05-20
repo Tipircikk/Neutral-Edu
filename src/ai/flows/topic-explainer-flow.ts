@@ -49,7 +49,7 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
   return topicExplainerFlow(enrichedInput);
 }
 
-const prompt = ai.definePrompt({
+const topicExplainerPrompt = ai.definePrompt({
   name: 'topicExplainerPrompt',
   input: {schema: ExplainTopicInputSchema.extend({
     isProUser: z.boolean().optional(),
@@ -58,40 +58,40 @@ const prompt = ai.definePrompt({
     isGemini25PreviewSelected: z.boolean().optional(),
   })},
   output: {schema: ExplainTopicOutputSchema},
-  prompt: `Sen, YKS konularını öğrencilere en iyi şekilde öğreten, deneyimli bir AI YKS Süper Öğretmenisin.
+  prompt: `Sen, YKS konularını öğrencilere en iyi şekilde öğreten, en karmaşık konuları bile en anlaşılır, en akılda kalıcı ve en kapsamlı şekilde öğreten, pedagojik dehası ve alan hakimiyeti tartışılmaz, son derece deneyimli bir AI YKS Süper Öğretmenisin.
 Görevin, öğrencinin belirttiği "{{{topicName}}}" konusunu, seçtiği "{{{explanationLevel}}}" detay seviyesine ve "{{{teacherPersona}}}" hoca tarzına uygun olarak, adım adım ve YKS stratejileriyle açıklamaktır.
 Anlatımın sonunda, konuyu pekiştirmek için 2-3 çeşitli ve konuyla ilgili aktif hatırlama sorusu sor.
 Matematiksel ifadeleri (örn: x^2, H_2O, √, π, ±, ≤, ≥) metin içinde okunabilir şekilde belirt.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
-(Pro Kullanıcı Notu: Anlatımını en üst düzeyde akademik zenginlikle, konunun felsefi temellerine ve YKS'deki zorlayıcı soru tiplerine odaklanarak yap. {{{explanationLevel}}} seviyesini "detayli" kabul et ve daha derinlemesine bir bakış açısı sun.)
-{{else if isPremiumUser}} 
+(Pro Kullanıcı Notu: Anlatımını en üst düzeyde akademik zenginlikle, konunun felsefi temellerine ve YKS'deki zorlayıcı soru tiplerine odaklanarak yap. {{{explanationLevel}}} seviyesini "detayli" kabul et ve daha derinlemesine bir bakış açısı sun. En gelişmiş AI yeteneklerini kullanarak, adeta bir başyapıt niteliğinde bir konu anlatımı sun.)
+{{else if isPremiumUser}}
 (Premium Kullanıcı Notu: {{{explanationLevel}}} seviyesine ve seçilen hoca tarzına uygun olarak, anlatımına daha fazla örnek, YKS'de çıkmış benzer sorulara atıflar ve ekstra ipuçları ekle.)
 {{/if}}
 
 {{#if isCustomModelSelected}}
 (Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
   {{#if isGemini25PreviewSelected}}
-  (Gemini 2.5 Flash Preview Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla.)
+  (Gemini 2.5 Flash Preview Özel Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla.)
   {{/if}}
 {{/if}}
 
 Hoca Tarzı ({{{teacherPersona}}}):
-{{#ifEquals teacherPersona "ozel"}}
+{{#ifCond teacherPersona "===" "ozel"}}
   {{#if customPersonaDescription}}
 Kullanıcının Tanımladığı Özel Kişilik: "{{{customPersonaDescription}}}"
 Anlatımını bu özel tanıma göre, YKS uzmanlığını koruyarak şekillendir.
   {{else}}
 (Özel kişilik tanımı boş, varsayılan samimi tarza geçiliyor.) Samimi ve Destekleyici Hoca Tarzı: Öğrenciyle empati kur, motive et, karmaşık konuları sabırla ve anlaşılır örneklerle açıkla.
   {{/if}}
-{{else ifEquals teacherPersona "samimi"}}
+{{else ifCond teacherPersona "===" "samimi"}}
 Samimi ve Destekleyici Hoca Tarzı: Öğrenciyle empati kur, motive et, karmaşık konuları sabırla ve anlaşılır örneklerle açıkla.
-{{else ifEquals teacherPersona "eglenceli"}}
+{{else ifCond teacherPersona "===" "eglenceli"}}
 Eğlenceli ve Motive Edici Hoca Tarzı: Konuyu esprili bir dille, ilginç benzetmelerle ve günlük hayattan örneklerle anlat. Enerjik ve pozitif ol.
-{{else ifEquals teacherPersona "ciddi"}}
+{{else ifCond teacherPersona "===" "ciddi"}}
 Ciddi ve Odaklı Hoca Tarzı: Konuyu doğrudan, net ve akademik bir dille anlat. Gereksiz detaylardan kaçın.
-{{/if}}
+{{/ifCond}}
 
 Anlatım Seviyesi ({{{explanationLevel}}}):
 *   'temel': Konunun en temel kavramları, ana tanımları.
@@ -121,7 +121,7 @@ Dilbilgisi ve YKS terminolojisine dikkat et. Bilgilerin doğru ve güncel olduğ
 const topicExplainerFlow = ai.defineFlow(
   {
     name: 'topicExplainerFlow',
-    inputSchema: ExplainTopicInputSchema.extend({ 
+    inputSchema: ExplainTopicInputSchema.extend({
         isProUser: z.boolean().optional(),
         isPremiumUser: z.boolean().optional(),
         isCustomModelSelected: z.boolean().optional(),
@@ -129,8 +129,8 @@ const topicExplainerFlow = ai.defineFlow(
     }),
     outputSchema: ExplainTopicOutputSchema,
   },
-  async (enrichedInput: ExplainTopicInput & {isProUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<ExplainTopicOutput> => {
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
+  async (enrichedInput: ExplainTopicInput & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<ExplainTopicOutput> => {
+    let modelToUse = 'googleai/gemini-1.5-flash-latest';
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
     if (enrichedInput.customModelIdentifier) {
@@ -146,9 +146,18 @@ const topicExplainerFlow = ai.defineFlow(
           break;
         default:
           console.warn(`[Topic Explainer Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
+          // If customModelIdentifier is unknown, fall back to plan-based or default
+          if (enrichedInput.isProUser) {
+            modelToUse = 'googleai/gemini-1.5-flash-latest';
+          } else {
+            modelToUse = 'googleai/gemini-2.0-flash'; // General default
+          }
       }
-    } else if (enrichedInput.isProUser) { 
+    } else if (enrichedInput.isProUser) {
       modelToUse = 'googleai/gemini-1.5-flash-latest';
+    } else {
+      // Default for free/premium if no custom model
+      modelToUse = 'googleai/gemini-2.0-flash';
     }
     
     callOptions.model = modelToUse;
@@ -156,41 +165,46 @@ const topicExplainerFlow = ai.defineFlow(
     if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
       callOptions.config = {
         generationConfig: {
-          maxOutputTokens: enrichedInput.explanationLevel === 'detayli' ? 8000 : enrichedInput.explanationLevel === 'orta' ? 4096 : 2048,
+          maxOutputTokens: enrichedInput.explanationLevel === 'detayli' ? 8192 : enrichedInput.explanationLevel === 'orta' ? 4096 : 2048, // Increased for detailed
         }
       };
     } else {
-        callOptions.config = {}; 
+        callOptions.config = {};
     }
 
     console.log(`[Topic Explainer Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}, level: ${enrichedInput.explanationLevel}, persona: ${enrichedInput.teacherPersona}`);
     
     try {
-        const {output} = await prompt(enrichedInput, callOptions); 
+        const {output} = await topicExplainerPrompt(enrichedInput, callOptions);
         if (!output || !output.explanation) {
-        throw new Error("AI YKS Süper Öğretmeni, belirtilen konu için bir anlatım oluşturamadı. Lütfen konuyu ve ayarları kontrol edin.");
+          console.error("[Topic Explainer Flow] AI did not produce a valid explanation. Output:", JSON.stringify(output).substring(0,500));
+          return {
+              explanationTitle: `Hata: ${enrichedInput.topicName} için anlatım üretilemedi.`,
+              explanation: "AI YKS Süper Öğretmeni, belirtilen konu için bir anlatım oluşturamadı. Lütfen konuyu ve ayarları kontrol edin veya farklı bir model deneyin.",
+              keyConcepts: [], commonMistakes: [], yksTips: [], activeRecallQuestions: []
+          };
         }
         return output;
     } catch (error: any) {
-        console.error(`[Topic Explainer Flow] Error during generation with model ${modelToUse}:`, error);
+        console.error(`[Topic Explainer Flow] CRITICAL error during generation with model ${modelToUse}:`, error);
         let errorMessage = `AI modeli (${modelToUse}) ile konu anlatımı oluşturulurken bir hata oluştu.`;
         if (error.message) {
             errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
              if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
+            } else if (error.message.includes('400 Bad Request') && (error.message.includes('generationConfig') || error.message.includes('generation_config'))) {
+               errorMessage = `Seçilen model (${modelToUse}) bazı yapılandırma ayarlarını desteklemiyor olabilir. Model: ${modelToUse}. Detay: ${error.message.substring(0,150)}`;
+            } else if (error.message.includes('ifEquals doesn\'t match if') || error.message.includes('Handlebars')) {
+               errorMessage = `AI şablonunda bir hata oluştu. Geliştiriciye bildirin. Model: ${modelToUse}. Detay: ${error.message.substring(0,150)}`;
             }
         }
         
         return {
             explanationTitle: `Hata: ${errorMessage}`,
             explanation: "Bir hata nedeniyle konu anlatımı oluşturulamadı.",
-            keyConcepts: [],
-            commonMistakes: [],
-            yksTips: [],
-            activeRecallQuestions: []
+            keyConcepts: [], commonMistakes: [], yksTips: [], activeRecallQuestions: []
         };
     }
   }
 );
 
-    
