@@ -42,11 +42,11 @@ export async function generateTest(input: GenerateTestInput): Promise<GenerateTe
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
   const isCustomModelSelected = !!input.customModelIdentifier;
-  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview_05_20';
 
-  const enrichedInput = { 
-      ...input, 
-      questionTypes: ["multiple_choice"] as Array<"multiple_choice" | "true_false" | "short_answer">, 
+  const enrichedInput = {
+      ...input,
+      questionTypes: ["multiple_choice"] as Array<"multiple_choice" | "true_false" | "short_answer">,
       isProUser,
       isPremiumUser,
       isCustomModelSelected,
@@ -77,24 +77,24 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isCustomModelSelected}}
 (Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
   {{#if isGemini25PreviewSelected}}
-  (Gemini 2.5 Flash Preview Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla.)
+  (Gemini 2.5 Flash Preview 05-20 Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla.)
   {{/if}}
 {{/if}}
 
 Kullanıcının İstekleri:
 Konu: {{{topic}}}
 İstenen Soru Sayısı: {{{numQuestions}}}
-İstenen Soru Tipleri: Çoktan Seçmeli
+İstenen Soru Tipleri: Çoktan Seçmeli (5 seçenekli: A, B, C, D, E)
 YKS Zorluk Seviyesi: {{{difficulty}}}
 
 Lütfen bu bilgilere dayanarak, YKS formatına uygun bir test oluştur. Test, aşağıdaki formatta olmalıdır:
 1.  **Test Başlığı**: Konuyla ilgili, YKS'ye uygun başlık.
 2.  **Sorular**: Her soru için:
-    *   **Soru Metni**: Açık, net, KESİNLİKLE TEK DOĞRU CEVAPLI. YKS soru köklerine benzer ifadeler kullan.
+    *   **Soru Metni**: Açık, net, KESİNLİKLE TEK DOĞRU CEVAPLI. YKS soru köklerine benzer ifadeler kullan. Belirsizlikten ve yoruma açık ifadelerden kaçın.
     *   **Soru Tipi**: 'multiple_choice'.
-    *   **Seçenekler**: 5 adet (A, B, C, D, E). Mantıklı çeldiriciler. SADECE BİR SEÇENEK KESİN DOĞRU. Diğer dördü KESİNLİKLE YANLIŞ.
+    *   **Seçenekler**: 5 adet (A, B, C, D, E). Mantıklı çeldiriciler. SADECE BİR SEÇENEK KESİN DOĞRU. Diğer dördü KESİNLİKLE YANLIŞ. "Hepsi" veya "Hiçbiri" gibi seçeneklerden kaçın.
     *   **Doğru Cevap**: Sadece seçenek harfi (A, B, C, D, E).
-    *   **Açıklama (zorunlu ve son derece detaylı)**: Doğru cevabın neden doğru olduğunu ve diğer DÖRT seçeneğin neden yanlış olduğunu adım adım, mantıksal ve öğretici bir şekilde açıkla.
+    *   **Açıklama (zorunlu ve son derece detaylı)**: Doğru cevabın neden doğru olduğunu ve diğer DÖRT seçeneğin neden yanlış olduğunu adım adım, mantıksal ve öğretici bir şekilde açıkla. Açıklama, ilgili YKS kavramlarını ve gerekirse çözüm adımlarını içermelidir.
 
 Genel Prensipler:
 *   Anlama, yorumlama, analiz, problem çözme becerilerini ölç.
@@ -102,14 +102,14 @@ Genel Prensipler:
 *   {{{topic}}} konusunu kapsamlı tara.
 *   Dilbilgisi kusursuz ve YKS terminolojisine uygun olsun.
 *   Tamamen özgün sorular üret.
-*   Kesinlikle yoruma açık, birden fazla doğru cevabı olabilecek veya cevabı belirsiz sorular sorma.
+*   Kesinlikle yoruma açık, birden fazla doğru cevabı olabilecek veya cevabı belirsiz sorular sorma. Sorular, net ve tek bir doğru yanıta sahip olmalıdır.
 `,
 });
 
 const testGeneratorFlow = ai.defineFlow(
   {
     name: 'testGeneratorFlow',
-    inputSchema: GenerateTestInputSchema.extend({ 
+    inputSchema: GenerateTestInputSchema.extend({
         isProUser: z.boolean().optional(),
         isPremiumUser: z.boolean().optional(),
         isCustomModelSelected: z.boolean().optional(),
@@ -117,10 +117,10 @@ const testGeneratorFlow = ai.defineFlow(
     }),
     outputSchema: GenerateTestOutputSchema,
   },
-  async (enrichedInput: GenerateTestInput & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean; questionTypes: Array<"multiple_choice" | "true_false" | "short_answer">} ): Promise<GenerateTestOutput> => {
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
+  async (enrichedInput: z.infer<typeof GenerateTestInputSchema> & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean; questionTypes: Array<"multiple_choice" | "true_false" | "short_answer">} ): Promise<GenerateTestOutput> => {
+    let modelToUse = 'googleai/gemini-1.5-flash-latest';
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
-    
+
     if (enrichedInput.customModelIdentifier) {
       switch (enrichedInput.customModelIdentifier) {
         case 'default_gemini_flash':
@@ -129,42 +129,44 @@ const testGeneratorFlow = ai.defineFlow(
         case 'experimental_gemini_1_5_flash':
           modelToUse = 'googleai/gemini-1.5-flash-latest';
           break;
-        case 'experimental_gemini_2_5_flash_preview':
-          modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
+        case 'experimental_gemini_2_5_flash_preview_05_20':
+          modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
           break;
         default:
           console.warn(`[Test Generator Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (enrichedInput.isProUser) { 
+    } else if (enrichedInput.isProUser) {
       modelToUse = 'googleai/gemini-1.5-flash-latest';
+    } else {
+      modelToUse = 'googleai/gemini-2.0-flash'; // Default for free/premium
     }
-    
-    callOptions.model = modelToUse;
-    
-    let maxTokensForOutput = enrichedInput.numQuestions * 500; 
-    if (maxTokensForOutput > 8000) maxTokensForOutput = 8000; 
-    if (maxTokensForOutput < 2048) maxTokensForOutput = 2048; 
 
-    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
-       callOptions.config = { 
-         temperature: 0.8, // Slightly higher temperature for more varied questions
-         generationConfig: { 
+    callOptions.model = modelToUse;
+
+    let maxTokensForOutput = enrichedInput.numQuestions * 500;
+    if (maxTokensForOutput > 8000) maxTokensForOutput = 8000;
+    if (maxTokensForOutput < 2048) maxTokensForOutput = 2048;
+
+    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-05-20') {
+       callOptions.config = {
+         temperature: 0.7,
+         generationConfig: {
            maxOutputTokens: maxTokensForOutput
           }
-        }; 
+        };
     } else {
-      callOptions.config = { temperature: 0.8 }; 
+      callOptions.config = { temperature: 0.7 };
     }
-    
+
     console.log(`[Test Generator Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}`);
-    
+
     try {
         const {output} = await prompt(enrichedInput, callOptions);
         if (!output || !output.questions || output.questions.length === 0) {
         throw new Error("AI YKS Test Uzmanı, belirtilen konu için YKS standartlarında bir test oluşturamadı. Lütfen konu ve ayarları kontrol edin.");
         }
         output.questions.forEach(q => {
-        q.questionType = "multiple_choice"; 
+        q.questionType = "multiple_choice";
         if (!q.options || q.options.length !== 5) {
             console.warn(`Multiple choice question "${q.questionText.substring(0,50)}..." for topic "${enrichedInput.topic}" was expected to have 5 options, but received ${q.options?.length || 0}. Prompt may need adjustment.`);
         }
@@ -179,7 +181,7 @@ const testGeneratorFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
             }
         }
-        
+
         return {
             testTitle: `Hata: ${errorMessage}`,
             questions: []
@@ -187,5 +189,4 @@ const testGeneratorFlow = ai.defineFlow(
     }
   }
 );
-
     

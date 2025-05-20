@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Input as ShadInput } from "@/components/ui/input"; 
+import { Input as ShadInput } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { FileTextIcon, Wand2, Loader2, AlertTriangle, ChevronLeft, ChevronRight, CheckCircle, XCircle, Eye, RotateCcw, History, Settings } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
-import { generateTest, type GenerateTestOutput, type GenerateTestInput, type QuestionSchema as QuestionType } from "@/ai/flows/test-generator-flow"; 
+import { generateTest, type GenerateTestOutput, type GenerateTestInput, type QuestionSchema as QuestionType } from "@/ai/flows/test-generator-flow";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -48,7 +48,7 @@ export default function TestGeneratorPage() {
     if (!checkAndResetQuota) return userProfile;
     return checkAndResetQuota();
   }, [checkAndResetQuota, userProfile]);
-  
+
   useEffect(() => {
     if (!userProfileLoading) {
       if (userProfile) {
@@ -68,6 +68,10 @@ export default function TestGeneratorPage() {
     setShowExplanations({});
     setTestOutput(null);
     setIsTestFinished(false);
+    // Optionally reset form inputs too
+    // setTopic("");
+    // setNumQuestions(5);
+    // setDifficulty("medium");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -82,25 +86,31 @@ export default function TestGeneratorPage() {
     }
 
     setIsGenerating(true);
-    resetTestState(); 
+    resetTestState();
 
     const currentProfile = await memoizedCheckAndResetQuota();
-    if (!currentProfile || (currentProfile.dailyRemainingQuota ?? 0) <= 0) {
+     if (!currentProfile) {
+        toast({ title: "Kullanıcı Bilgisi Yüklenemedi", description: "Lütfen sayfayı yenileyin veya tekrar giriş yapın.", variant: "destructive" });
+        setIsGenerating(false);
+        setCanProcess(false);
+        return;
+    }
+    const currentCanProcess = (currentProfile.dailyRemainingQuota ?? 0) > 0;
+    setCanProcess(currentCanProcess);
+
+    if (!currentCanProcess) {
       toast({ title: "Kota Aşıldı", description: "Bugünkü hakkınızı doldurdunuz.", variant: "destructive" });
       setIsGenerating(false);
-      setCanProcess(false);
       return;
     }
-    setCanProcess(true);
+
 
     try {
-      if (!currentProfile?.plan) {
-        throw new Error("Kullanıcı planı bulunamadı.");
-      }
-      const input: GenerateTestInput = { 
-        topic, 
-        numQuestions, 
-        difficulty, 
+
+      const input: GenerateTestInput = {
+        topic,
+        numQuestions,
+        difficulty,
         userPlan: currentProfile.plan,
         customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
       };
@@ -110,11 +120,18 @@ export default function TestGeneratorPage() {
         setTestOutput(result);
         toast({ title: "Test Hazır!", description: "Belirttiğiniz konu için bir test oluşturuldu." });
         if (decrementQuota) {
-            await decrementQuota(currentProfile);
-        }
-        const updatedProfileAgain = await memoizedCheckAndResetQuota();
-        if (updatedProfileAgain) {
-          setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
+            const decrementSuccess = await decrementQuota(currentProfile);
+            if (decrementSuccess) {
+                 const updatedProfileAfterDecrement = await memoizedCheckAndResetQuota();
+                 if (updatedProfileAfterDecrement) {
+                   setCanProcess((updatedProfileAfterDecrement.dailyRemainingQuota ?? 0) > 0);
+                 }
+            } else {
+                const refreshedProfile = await memoizedCheckAndResetQuota();
+                if(refreshedProfile){
+                  setCanProcess((refreshedProfile.dailyRemainingQuota ?? 0) > 0);
+                }
+            }
         }
       } else {
         const errorMessage = result?.testTitle || "Yapay zeka bir test üretemedi veya format hatalı.";
@@ -139,9 +156,9 @@ export default function TestGeneratorPage() {
     const currentQuestion = testOutput.questions[currentQuestionIndex];
     const isCorrect = userAnswers[currentQuestionIndex] === currentQuestion.correctAnswer;
     setCheckedAnswers(prev => ({
-        ...prev, 
+        ...prev,
         [currentQuestionIndex]: {
-            isCorrect, 
+            isCorrect,
             selectedOption: userAnswers[currentQuestionIndex],
             correctAnswer: currentQuestion.correctAnswer
         }
@@ -150,7 +167,7 @@ export default function TestGeneratorPage() {
         setShowExplanations(prev => ({...prev, [currentQuestionIndex]: true}));
     }
   };
-  
+
   const handleToggleExplanation = (index: number) => {
     setShowExplanations(prev => ({...prev, [index]: !prev[index]}));
   };
@@ -166,21 +183,21 @@ export default function TestGeneratorPage() {
   const currentQuestion: QuestionType | undefined = testOutput?.questions[currentQuestionIndex];
   const isAnswerCheckedForCurrentQuestion = checkedAnswers[currentQuestionIndex] !== undefined;
   const isExplanationShownForCurrentQuestion = showExplanations[currentQuestionIndex] === true;
-  
-  const isSubmitButtonDisabled = 
-    isGenerating || 
-    !topic.trim() || 
+
+  const isSubmitButtonDisabled =
+    isGenerating ||
+    !topic.trim() ||
     (numQuestions < 3 || numQuestions > 20) ||
     (!userProfileLoading && userProfile && !canProcess) ||
     (!userProfileLoading && !userProfile);
 
-  const isModelSelectDisabled = 
-    isGenerating || 
+  const isModelSelectDisabled =
+    isGenerating ||
     !userProfile?.isAdmin ||
     (!userProfileLoading && userProfile && !canProcess) ||
     (!userProfileLoading && !userProfile);
 
-  const isFormElementsDisabled = 
+  const isFormElementsDisabled =
     isGenerating ||
     (!userProfileLoading && userProfile && !canProcess) ||
     (!userProfileLoading && !userProfile);
@@ -210,7 +227,7 @@ export default function TestGeneratorPage() {
         </Card>
     );
   }
-  
+
   if (isTestFinished && testOutput) {
     let correctCount = 0;
     testOutput.questions.forEach((q, index) => {
@@ -286,9 +303,9 @@ export default function TestGeneratorPage() {
           {userProfile?.isAdmin && (
             <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
               <Label htmlFor="adminModelSelectTestGen" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
-              <Select 
-                value={adminSelectedModel} 
-                onValueChange={setAdminSelectedModel} 
+              <Select
+                value={adminSelectedModel}
+                onValueChange={setAdminSelectedModel}
                 disabled={isModelSelectDisabled}
               >
                 <SelectTrigger id="adminModelSelectTestGen">
@@ -297,7 +314,7 @@ export default function TestGeneratorPage() {
                 <SelectContent>
                   <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
                   <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
-                  <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
+                  <SelectItem value="experimental_gemini_2_5_flash_preview_05_20">Deneysel (Gemini 2.5 Flash Preview 05-20)</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz.</p>
@@ -335,13 +352,13 @@ export default function TestGeneratorPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <Label htmlFor="numQuestions" className="block text-sm font-medium text-foreground mb-1">Soru Sayısı (3-20)</Label>
-                        <ShadInput 
-                            type="number" 
+                        <ShadInput
+                            type="number"
                             id="numQuestions"
                             value={numQuestions}
                             onChange={(e) => {
                                 const val = parseInt(e.target.value,10);
-                                setNumQuestions(isNaN(val) ? 3 : val); 
+                                setNumQuestions(isNaN(val) ? 3 : val);
                             }}
                             min="3"
                             max="20"
@@ -375,7 +392,7 @@ export default function TestGeneratorPage() {
             </Card>
         </form>
       )}
-      
+
       {testOutput && currentQuestion && !isTestFinished && (
         <Card className="mt-6">
           <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
@@ -391,10 +408,10 @@ export default function TestGeneratorPage() {
             <ScrollArea className="h-auto max-h-[200px] w-full rounded-md border p-4 bg-muted/30">
                 <p className="font-semibold text-foreground whitespace-pre-line">{currentQuestion.questionText}</p>
             </ScrollArea>
-            
+
             {currentQuestion.options && (
-                <RadioGroup 
-                    onValueChange={handleOptionChange} 
+                <RadioGroup
+                    onValueChange={handleOptionChange}
                     value={userAnswers[currentQuestionIndex]}
                     disabled={isAnswerCheckedForCurrentQuestion}
                     className="space-y-2"
@@ -416,14 +433,14 @@ export default function TestGeneratorPage() {
                     }
 
                     return (
-                        <Label 
-                            key={optionLetter} 
+                        <Label
+                            key={optionLetter}
                             htmlFor={`q${currentQuestionIndex}-opt${optionLetter}`}
                             className={`flex items-center space-x-3 p-3 rounded-md border-2 ${optionStyle} hover:bg-accent/50 transition-all ${isAnswerCheckedForCurrentQuestion ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`}
                         >
-                            <RadioGroupItem 
-                                value={optionLetter} 
-                                id={`q${currentQuestionIndex}-opt${optionLetter}`} 
+                            <RadioGroupItem
+                                value={optionLetter}
+                                id={`q${currentQuestionIndex}-opt${optionLetter}`}
                                 disabled={isAnswerCheckedForCurrentQuestion}
                             />
                             <span className="flex-1">{optionLetter}) {option}</span>
@@ -467,11 +484,11 @@ export default function TestGeneratorPage() {
                 </CardContent>
               </Card>
             )}
-            
+
             <Separator className="my-6"/>
 
             <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-4">
-              <Button 
+              <Button
                 onClick={() => setCurrentQuestionIndex(prev => Math.max(0, prev - 1))}
                 disabled={currentQuestionIndex === 0 || isGenerating}
                 variant="outline"
@@ -479,8 +496,8 @@ export default function TestGeneratorPage() {
               >
                 <ChevronLeft className="mr-2 h-4 w-4" /> Önceki Soru
               </Button>
-              
-              <Button 
+
+              <Button
                 onClick={handleNextQuestion}
                 disabled={isGenerating}
                 className="w-full sm:w-auto"
@@ -510,5 +527,4 @@ export default function TestGeneratorPage() {
     </div>
   );
 }
-
     

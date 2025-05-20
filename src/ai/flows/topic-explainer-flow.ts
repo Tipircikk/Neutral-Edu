@@ -37,7 +37,7 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
   const isCustomModelSelected = !!input.customModelIdentifier;
-  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview_05_20';
 
   const enrichedInput = {
     ...input,
@@ -85,7 +85,7 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isCustomModelSelected}}
 (Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
   {{#if isGemini25PreviewSelected}}
-  (Gemini 2.5 Flash Preview Özel Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla.)
+  (Gemini 2.5 Flash Preview 05-20 Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla.)
   {{/if}}
 {{/if}}
 
@@ -148,27 +148,26 @@ const topicExplainerFlow = ai.defineFlow(
         case 'experimental_gemini_1_5_flash':
           modelToUse = 'googleai/gemini-1.5-flash-latest';
           break;
-        case 'experimental_gemini_2_5_flash_preview':
-          modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
+        case 'experimental_gemini_2_5_flash_preview_05_20':
+          modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
           break;
         default:
           console.warn(`[Topic Explainer Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting based on plan.`);
           if (enrichedInput.isProUser) {
             modelToUse = 'googleai/gemini-1.5-flash-latest';
           } else {
-            modelToUse = 'googleai/gemini-2.0-flash'; 
+            modelToUse = 'googleai/gemini-2.0-flash';
           }
       }
     } else if (enrichedInput.isProUser) {
       modelToUse = 'googleai/gemini-1.5-flash-latest';
     } else {
-      // Default for free/premium if no custom model
-      modelToUse = 'googleai/gemini-2.0-flash';
+      modelToUse = 'googleai/gemini-2.0-flash'; // Default for free/premium
     }
-    
+
     callOptions.model = modelToUse;
-    
-    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
+
+    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-05-20') {
       callOptions.config = {
         generationConfig: {
           maxOutputTokens: enrichedInput.explanationLevel === 'detayli' ? 8192 : enrichedInput.explanationLevel === 'orta' ? 4096 : 2048,
@@ -179,12 +178,11 @@ const topicExplainerFlow = ai.defineFlow(
     }
 
     console.log(`[Topic Explainer Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}, level: ${enrichedInput.explanationLevel}, persona: ${enrichedInput.teacherPersona}`);
-    
+
     try {
         const {output} = await topicExplainerPrompt(enrichedInput, callOptions);
         if (!output || !output.explanation) {
           console.error("[Topic Explainer Flow] AI did not produce a valid explanation. Output:", JSON.stringify(output).substring(0,500));
-          // Fallback or error structure
           return {
               explanationTitle: `Hata: ${enrichedInput.topicName} için anlatım üretilemedi.`,
               explanation: `AI YKS Süper Öğretmeni, belirtilen konu için bir anlatım oluşturamadı. Model: ${modelToUse}. Lütfen konuyu ve ayarları kontrol edin veya farklı bir model deneyin.`,
@@ -201,11 +199,11 @@ const topicExplainerFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
             } else if (error.message.includes('400 Bad Request') && (error.message.includes('generationConfig') || error.message.includes('generation_config'))) {
                errorMessage = `Seçilen model (${modelToUse}) bazı yapılandırma ayarlarını desteklemiyor olabilir. Model: ${modelToUse}. Detay: ${error.message.substring(0,150)}`;
-            } else if (error.message.includes('Handlebars')) { 
+            } else if (error.message.includes('Handlebars')) {
                errorMessage = `AI şablonunda bir hata oluştu. Geliştiriciye bildirin. Model: ${modelToUse}. Detay: ${error.message.substring(0,150)}`;
             }
         }
-        
+
         return {
             explanationTitle: `Hata: ${errorMessage}`,
             explanation: "Bir hata nedeniyle konu anlatımı oluşturulamadı.",
@@ -214,5 +212,4 @@ const topicExplainerFlow = ai.defineFlow(
     }
   }
 );
-
     

@@ -41,7 +41,7 @@ export default function FlashcardGeneratorPage() {
           setCanProcess((updatedProfile?.dailyRemainingQuota ?? 0) > 0);
         });
       } else {
-        setCanProcess(false); 
+        setCanProcess(false);
       }
     }
   }, [userProfile, userProfileLoading, memoizedCheckAndResetQuota]);
@@ -70,18 +70,24 @@ export default function FlashcardGeneratorPage() {
     setFlippedStates({});
 
     const currentProfile = await memoizedCheckAndResetQuota();
-    if (!currentProfile || (currentProfile.dailyRemainingQuota ?? 0) <= 0) {
+     if (!currentProfile) {
+        toast({ title: "Kullanıcı Bilgisi Yüklenemedi", description: "Lütfen sayfayı yenileyin veya tekrar giriş yapın.", variant: "destructive" });
+        setIsGenerating(false);
+        setCanProcess(false);
+        return;
+    }
+    const currentCanProcess = (currentProfile.dailyRemainingQuota ?? 0) > 0;
+    setCanProcess(currentCanProcess);
+
+    if (!currentCanProcess) {
       toast({ title: "Kota Aşıldı", description: "Bugünkü hakkınızı doldurdunuz.", variant: "destructive" });
       setIsGenerating(false);
-      setCanProcess(false);
       return;
     }
-    setCanProcess(true);
+
 
     try {
-      if (!currentProfile?.plan) {
-        throw new Error("Kullanıcı planı bulunamadı.");
-      }
+
       const input: GenerateFlashcardsInput = {
         textContent: inputText,
         numFlashcards,
@@ -95,11 +101,18 @@ export default function FlashcardGeneratorPage() {
         setFlashcardsOutput(result);
         toast({ title: "Bilgi Kartları Hazır!", description: "Metniniz için bilgi kartları oluşturuldu." });
         if (decrementQuota) {
-          await decrementQuota(currentProfile);
-        }
-        const updatedProfileAgain = await memoizedCheckAndResetQuota();
-        if (updatedProfileAgain) {
-          setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
+          const decrementSuccess = await decrementQuota(currentProfile);
+            if (decrementSuccess) {
+                 const updatedProfileAfterDecrement = await memoizedCheckAndResetQuota();
+                 if (updatedProfileAfterDecrement) {
+                   setCanProcess((updatedProfileAfterDecrement.dailyRemainingQuota ?? 0) > 0);
+                 }
+            } else {
+                const refreshedProfile = await memoizedCheckAndResetQuota();
+                if(refreshedProfile){
+                  setCanProcess((refreshedProfile.dailyRemainingQuota ?? 0) > 0);
+                }
+            }
         }
       } else {
         const errorMessage = result?.summaryTitle || "Yapay zeka bilgi kartı üretemedi veya format hatalı.";
@@ -116,7 +129,7 @@ export default function FlashcardGeneratorPage() {
       } else if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
           displayErrorMessage = error.message;
       }
-      
+
       setFlashcardsOutput({ flashcards: [], summaryTitle: displayErrorMessage });
       toast({
         title: "Oluşturma Hatası",
@@ -128,7 +141,7 @@ export default function FlashcardGeneratorPage() {
     }
   };
 
-  const isSubmitButtonDisabled = 
+  const isSubmitButtonDisabled =
     isGenerating ||
     !inputText.trim() ||
     inputText.trim().length < MIN_TEXT_LENGTH ||
@@ -138,8 +151,8 @@ export default function FlashcardGeneratorPage() {
     (!userProfileLoading && !userProfile);
 
 
-  const isModelSelectDisabled = 
-    isGenerating || 
+  const isModelSelectDisabled =
+    isGenerating ||
     !userProfile?.isAdmin ||
     (!userProfileLoading && userProfile && !canProcess) ||
     (!userProfileLoading && !userProfile);
@@ -163,7 +176,7 @@ export default function FlashcardGeneratorPage() {
             <CardTitle className="text-2xl">AI Bilgi Kartı Oluşturucu</CardTitle>
           </div>
           <CardDescription>
-            Öğrenmek istediğiniz metni girin (en az ${MIN_TEXT_LENGTH} karakter), yapay zeka sizin için önemli kavramlardan etkileşimli bilgi kartları (flashcards) oluştursun. Kartlara veya altındaki butona tıklayarak ön ve arka yüzlerini görebilirsiniz.
+            Öğrenmek istediğiniz metni girin (en az {MIN_TEXT_LENGTH} karakter), yapay zeka sizin için önemli kavramlardan etkileşimli bilgi kartları (flashcards) oluştursun. Kartlara veya altındaki butona tıklayarak ön ve arka yüzlerini görebilirsiniz.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -181,7 +194,7 @@ export default function FlashcardGeneratorPage() {
                 <SelectContent>
                   <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
                   <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
-                  <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
+                  <SelectItem value="experimental_gemini_2_5_flash_preview_05_20">Deneysel (Gemini 2.5 Flash Preview 05-20)</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz.</p>
@@ -220,7 +233,7 @@ export default function FlashcardGeneratorPage() {
                   value={numFlashcards}
                   onChange={(e) => {
                     const val = parseInt(e.target.value, 10);
-                    setNumFlashcards(isNaN(val) ? 3 : val); 
+                    setNumFlashcards(isNaN(val) ? 3 : val);
                   }}
                   min="3"
                   max="15"
@@ -278,8 +291,8 @@ export default function FlashcardGeneratorPage() {
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {flashcardsOutput.flashcards.map((card, index) => (
                 <div key={index} className="perspective group flex flex-col">
-                  <div 
-                    onClick={() => handleFlipCard(index)} 
+                  <div
+                    onClick={() => handleFlipCard(index)}
                     className={`relative w-full h-56 md:h-64 transform-style-3d transition-transform duration-700 ease-in-out rounded-lg shadow-lg cursor-pointer ${flippedStates[index] ? 'rotate-y-180' : ''}`}
                   >
                     {/* Front of the card */}
@@ -302,10 +315,10 @@ export default function FlashcardGeneratorPage() {
                       {card.topic && <p className="text-xs mt-auto pt-2 text-muted-foreground">Konu: {card.topic}</p>}
                     </Card>
                   </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => handleFlipCard(index)} 
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleFlipCard(index)}
                     className="mt-2 w-full"
                   >
                     <Repeat className="mr-2 h-4 w-4" />
@@ -349,5 +362,4 @@ export default function FlashcardGeneratorPage() {
     </div>
   );
 }
-
     

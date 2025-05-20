@@ -4,13 +4,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input as ShadInput } from "@/components/ui/input"; 
+import { Input as ShadInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Youtube, Loader2, AlertTriangle, Brain, List, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
-import { summarizeVideo } from "@/ai/flows/video-summarizer-flow"; 
+import { summarizeVideo } from "@/ai/flows/video-summarizer-flow";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { z } from "zod";
@@ -76,34 +76,47 @@ export default function VideoSummarizerPage() {
     setSummaryOutput(null);
 
     const currentProfile = await memoizedCheckAndResetQuota();
-    if (!currentProfile || (currentProfile.dailyRemainingQuota ?? 0) <= 0) {
+     if (!currentProfile) {
+        toast({ title: "Kullanıcı Bilgisi Yüklenemedi", description: "Lütfen sayfayı yenileyin veya tekrar giriş yapın.", variant: "destructive" });
+        setIsSummarizing(false);
+        setCanProcess(false);
+        return;
+    }
+    const currentCanProcess = (currentProfile.dailyRemainingQuota ?? 0) > 0;
+    setCanProcess(currentCanProcess);
+
+    if (!currentCanProcess) {
       toast({ title: "Kota Aşıldı", description: "Bugünkü video özetleme hakkınızı doldurdunuz.", variant: "destructive" });
       setIsSummarizing(false);
-      setCanProcess(false);
       return;
     }
-    setCanProcess(true);
+
 
     try {
-      if (!currentProfile?.plan) {
-        throw new Error("Kullanıcı planı bulunamadı.");
-      }
-      const input: VideoSummarizerInputInternal = { 
+
+      const input: VideoSummarizerInputInternal = {
         youtubeUrl,
         userPlan: currentProfile.plan,
         customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
       };
-      const result = await summarizeVideo(input); 
+      const result = await summarizeVideo(input);
       setSummaryOutput(result);
 
       if (result.summary || (result.keyPoints && result.keyPoints.length > 0)) {
         toast({ title: "Video Özeti Hazır!", description: result.videoTitle ? `"${result.videoTitle}" videosu için özet oluşturuldu.` : "Video için özet oluşturuldu." });
         if (decrementQuota) {
-          await decrementQuota(currentProfile);
-        }
-        const updatedProfileAgain = await memoizedCheckAndResetQuota();
-        if (updatedProfileAgain) {
-          setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
+          const decrementSuccess = await decrementQuota(currentProfile);
+            if (decrementSuccess) {
+                 const updatedProfileAfterDecrement = await memoizedCheckAndResetQuota();
+                 if (updatedProfileAfterDecrement) {
+                   setCanProcess((updatedProfileAfterDecrement.dailyRemainingQuota ?? 0) > 0);
+                 }
+            } else {
+                const refreshedProfile = await memoizedCheckAndResetQuota();
+                if(refreshedProfile){
+                  setCanProcess((refreshedProfile.dailyRemainingQuota ?? 0) > 0);
+                }
+            }
         }
       } else if (result.warnings && result.warnings.length > 0) {
          toast({ title: "Özetleme Bilgisi", description: result.warnings.join(" "), variant: "default" });
@@ -122,19 +135,19 @@ export default function VideoSummarizerPage() {
     }
   };
 
-  const isSubmitButtonDisabled = 
-    isSummarizing || 
+  const isSubmitButtonDisabled =
+    isSummarizing ||
     !youtubeUrl.trim() ||
     (!userProfileLoading && userProfile && !canProcess) ||
     (!userProfileLoading && !userProfile);
 
-  const isModelSelectDisabled = 
-    isSummarizing || 
+  const isModelSelectDisabled =
+    isSummarizing ||
     !userProfile?.isAdmin ||
     (!userProfileLoading && userProfile && !canProcess) ||
     (!userProfileLoading && !userProfile);
 
-  const isFormElementsDisabled = 
+  const isFormElementsDisabled =
     isSummarizing ||
     (!userProfileLoading && userProfile && !canProcess) ||
     (!userProfileLoading && !userProfile);
@@ -164,9 +177,9 @@ export default function VideoSummarizerPage() {
          {userProfile?.isAdmin && (
               <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
                 <Label htmlFor="adminModelSelectVideoSum" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
-                <Select 
-                  value={adminSelectedModel} 
-                  onValueChange={setAdminSelectedModel} 
+                <Select
+                  value={adminSelectedModel}
+                  onValueChange={setAdminSelectedModel}
                   disabled={isModelSelectDisabled}
                 >
                   <SelectTrigger id="adminModelSelectVideoSum">
@@ -175,7 +188,7 @@ export default function VideoSummarizerPage() {
                   <SelectContent>
                     <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
                     <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
-                    <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
+                    <SelectItem value="experimental_gemini_2_5_flash_preview_05_20">Deneysel (Gemini 2.5 Flash Preview 05-20)</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz.</p>
@@ -287,5 +300,4 @@ export default function VideoSummarizerPage() {
     </div>
   );
 }
-
     

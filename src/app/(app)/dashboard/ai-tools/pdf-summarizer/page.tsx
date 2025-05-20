@@ -12,7 +12,7 @@ import { Terminal, Loader2, AlertTriangle, FileScan, Settings, UploadCloud, File
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input as ShadInput } from "@/components/ui/input"; 
+import { Input as ShadInput } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 const MAX_FILE_SIZE_MB = 10;
@@ -24,7 +24,7 @@ export default function PdfSummarizerPage() {
   const [pdfTextContent, setPdfTextContent] = useState<string | null>(null);
   const [currentFileName, setCurrentFileName] = useState<string | undefined>(undefined);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  
+
   const [summaryLength, setSummaryLength] = useState<SummarizePdfForStudentInput["summaryLength"]>("medium");
   const [keywords, setKeywords] = useState<string>("");
   const [pageRange, setPageRange] = useState<string>("");
@@ -65,7 +65,7 @@ export default function PdfSummarizerPage() {
       }
       setSelectedFile(file);
       setCurrentFileName(file.name);
-      setSummaryOutput(null); 
+      setSummaryOutput(null);
       setPdfTextContent(null);
     } else {
       setSelectedFile(null);
@@ -81,17 +81,25 @@ export default function PdfSummarizerPage() {
     }
 
     setIsSummarizing(true);
-    setSummaryOutput(null); 
+    setSummaryOutput(null);
     setPdfTextContent(null);
 
     const currentProfile = await memoizedCheckAndResetQuota();
-    if (!currentProfile || (currentProfile.dailyRemainingQuota ?? 0) <= 0) {
+     if (!currentProfile) {
+        toast({ title: "Kullanıcı Bilgisi Yüklenemedi", description: "Lütfen sayfayı yenileyin veya tekrar giriş yapın.", variant: "destructive" });
+        setIsSummarizing(false);
+        setCanProcess(false);
+        return;
+    }
+    const currentCanProcess = (currentProfile.dailyRemainingQuota ?? 0) > 0;
+    setCanProcess(currentCanProcess);
+
+    if (!currentCanProcess) {
       toast({ title: "Kota Aşıldı", description: "Bugünkü özetleme hakkınızı doldurdunuz.", variant: "destructive" });
       setIsSummarizing(false);
-      setCanProcess(false);
       return;
     }
-    setCanProcess(true);
+
 
     try {
       toast({ title: "PDF İşleniyor...", description: "PDF'inizden metin içeriği çıkarılıyor." });
@@ -99,12 +107,9 @@ export default function PdfSummarizerPage() {
       setPdfTextContent(text);
       toast({ title: "Metin Çıkarıldı", description: "Şimdi konu anlatımınız oluşturuluyor..." });
 
-      if (!currentProfile?.plan) {
-        throw new Error("Kullanıcı planı bulunamadı.");
-      }
 
-      const input: SummarizePdfForStudentInput = { 
-        pdfText: text, 
+      const input: SummarizePdfForStudentInput = {
+        pdfText: text,
         summaryLength,
         keywords: keywords.trim() || undefined,
         pageRange: pageRange.trim() || undefined,
@@ -113,16 +118,23 @@ export default function PdfSummarizerPage() {
         customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
       };
       const result = await summarizePdfForStudent(input);
-      
-      if (result && result.formattedStudyOutput) { 
-        setSummaryOutput(result); 
+
+      if (result && result.formattedStudyOutput) {
+        setSummaryOutput(result);
         toast({ title: "Konu Anlatımı Oluşturuldu!", description: "PDF içeriğiniz için detaylı anlatım hazır." });
         if (decrementQuota) {
-            await decrementQuota(currentProfile); 
-        }
-        const updatedProfileAgain = await memoizedCheckAndResetQuota(); 
-         if (updatedProfileAgain) {
-          setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
+            const decrementSuccess = await decrementQuota(currentProfile);
+            if (decrementSuccess) {
+                 const updatedProfileAfterDecrement = await memoizedCheckAndResetQuota();
+                 if (updatedProfileAfterDecrement) {
+                   setCanProcess((updatedProfileAfterDecrement.dailyRemainingQuota ?? 0) > 0);
+                 }
+            } else {
+                const refreshedProfile = await memoizedCheckAndResetQuota();
+                if(refreshedProfile){
+                  setCanProcess((refreshedProfile.dailyRemainingQuota ?? 0) > 0);
+                }
+            }
         }
       } else {
         const errorMessage = result?.summary || "Yapay zeka bir anlatım üretemedi veya format hatalı.";
@@ -138,20 +150,20 @@ export default function PdfSummarizerPage() {
       setIsSummarizing(false);
     }
   };
-  
-  const isSubmitButtonDisabled = 
-    isSummarizing || 
+
+  const isSubmitButtonDisabled =
+    isSummarizing ||
     !selectedFile ||
     (!userProfileLoading && userProfile && !canProcess) ||
     (!userProfileLoading && !userProfile);
 
-  const isModelSelectDisabled = 
-    isSummarizing || 
+  const isModelSelectDisabled =
+    isSummarizing ||
     !userProfile?.isAdmin ||
     (!userProfileLoading && userProfile && !canProcess) ||
     (!userProfileLoading && !userProfile);
 
-  const isFormElementsDisabled = 
+  const isFormElementsDisabled =
     isSummarizing ||
     (!userProfileLoading && userProfile && !canProcess) ||
     (!userProfileLoading && !userProfile);
@@ -182,9 +194,9 @@ export default function PdfSummarizerPage() {
             {userProfile?.isAdmin && (
               <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
                 <Label htmlFor="adminModelSelectPdf" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
-                <Select 
-                  value={adminSelectedModel} 
-                  onValueChange={setAdminSelectedModel} 
+                <Select
+                  value={adminSelectedModel}
+                  onValueChange={setAdminSelectedModel}
                   disabled={isModelSelectDisabled}
                 >
                   <SelectTrigger id="adminModelSelectPdf">
@@ -193,7 +205,7 @@ export default function PdfSummarizerPage() {
                   <SelectContent>
                     <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
                     <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
-                    <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
+                    <SelectItem value="experimental_gemini_2_5_flash_preview_05_20">Deneysel (Gemini 2.5 Flash Preview 05-20)</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz.</p>
@@ -240,8 +252,8 @@ export default function PdfSummarizerPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                  <div>
                     <Label htmlFor="keywords" className="mb-1 block text-sm">Anahtar Kelimeler (isteğe bağlı)</Label>
-                    <ShadInput 
-                        id="keywords" 
+                    <ShadInput
+                        id="keywords"
                         placeholder="örn: fotosentez, hücre zarı, enerji"
                         value={keywords}
                         onChange={(e) => setKeywords(e.target.value)}
@@ -251,8 +263,8 @@ export default function PdfSummarizerPage() {
                 </div>
                 <div>
                     <Label htmlFor="pageRange" className="mb-1 block text-sm">Sayfa Aralığı (isteğe bağlı)</Label>
-                    <ShadInput 
-                        id="pageRange" 
+                    <ShadInput
+                        id="pageRange"
                         placeholder="örn: 5-10, 12, 15-20"
                         value={pageRange}
                         onChange={(e) => setPageRange(e.target.value)}
@@ -294,11 +306,11 @@ export default function PdfSummarizerPage() {
                                 <p className="mb-1 text-sm text-muted-foreground"><span className="font-semibold">Yüklemek için tıklayın</span> veya sürükleyip bırakın</p>
                                 <p className="text-xs text-muted-foreground">PDF (MAKS. {MAX_FILE_SIZE_MB}MB)</p>
                             </div>
-                            <ShadInput 
-                            id="pdfFile-upload" 
-                            type="file" 
-                            className="hidden" 
-                            accept=".pdf" 
+                            <ShadInput
+                            id="pdfFile-upload"
+                            type="file"
+                            className="hidden"
+                            accept=".pdf"
                             onChange={handleFileChange}
                             disabled={isFormElementsDisabled}
                             />
@@ -355,5 +367,4 @@ export default function PdfSummarizerPage() {
     </div>
   );
 }
-
     

@@ -45,7 +45,7 @@ export async function summarizePdfForStudent(input: SummarizePdfForStudentInput)
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
   const isCustomModelSelected = !!input.customModelIdentifier;
-  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview_05_20';
 
   const enrichedInput = {
     ...input,
@@ -78,7 +78,7 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isCustomModelSelected}}
 (Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
   {{#if isGemini25PreviewSelected}}
-  (Gemini 2.5 Flash Preview Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla.)
+  (Gemini 2.5 Flash Preview 05-20 Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla.)
   {{/if}}
 {{/if}}
 
@@ -111,7 +111,7 @@ Hedefin öğrencinin konuyu derinlemesine anlamasına yardımcı olmak. {{{summa
 const summarizePdfForStudentFlow = ai.defineFlow(
   {
     name: 'summarizePdfForStudentFlow',
-    inputSchema: SummarizePdfForStudentInputSchema.extend({ 
+    inputSchema: SummarizePdfForStudentInputSchema.extend({
         isProUser: z.boolean().optional(),
         isPremiumUser: z.boolean().optional(),
         isCustomModelSelected: z.boolean().optional(),
@@ -119,7 +119,7 @@ const summarizePdfForStudentFlow = ai.defineFlow(
     }),
     outputSchema: SummarizePdfForStudentOutputSchema,
   },
-  async (enrichedInput: SummarizePdfForStudentInput & {isProUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<SummarizePdfForStudentOutput> => {
+  async (enrichedInput: z.infer<typeof SummarizePdfForStudentInputSchema> & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<SummarizePdfForStudentOutput> => {
     let modelToUse = 'googleai/gemini-1.5-flash-latest';
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
@@ -131,26 +131,28 @@ const summarizePdfForStudentFlow = ai.defineFlow(
         case 'experimental_gemini_1_5_flash':
           modelToUse = 'googleai/gemini-1.5-flash-latest';
           break;
-        case 'experimental_gemini_2_5_flash_preview':
-          modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
+        case 'experimental_gemini_2_5_flash_preview_05_20':
+          modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
           break;
         default:
           console.warn(`[Summarize PDF Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (enrichedInput.isProUser) { 
-      modelToUse = 'googleai/gemini-1.5-flash-latest'; 
+    } else if (enrichedInput.isProUser) {
+      modelToUse = 'googleai/gemini-1.5-flash-latest';
+    } else {
+      modelToUse = 'googleai/gemini-2.0-flash'; // Default for free/premium
     }
-    
+
     callOptions.model = modelToUse;
 
-    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
+    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-05-20') {
       callOptions.config = {
         generationConfig: {
           maxOutputTokens: enrichedInput.summaryLength === 'detailed' ? 8000 : enrichedInput.summaryLength === 'medium' ? 4096 : 2048,
         }
       };
     } else {
-       callOptions.config = {}; 
+       callOptions.config = {};
     }
 
     console.log(`[Summarize PDF Flow] Using model: ${modelToUse} with input:`, { summaryLength: enrichedInput.summaryLength, outputDetail: enrichedInput.outputDetail, keywords: !!enrichedInput.keywords, pageRange: !!enrichedInput.pageRange, userPlan: enrichedInput.userPlan, customModel: enrichedInput.customModelIdentifier });
@@ -170,21 +172,21 @@ const summarizePdfForStudentFlow = ai.defineFlow(
       }
 
       const shouldHaveExamTips = enrichedInput.outputDetail === 'full' || enrichedInput.outputDetail === 'exam_tips_only';
-      if (shouldHaveExamTips && output.examTips === undefined) { 
+      if (shouldHaveExamTips && output.examTips === undefined) {
           output.examTips = [];
       }
-      if(!shouldHaveExamTips && output.examTips !== undefined){ 
-         output.examTips = []; 
+      if(!shouldHaveExamTips && output.examTips !== undefined){
+         output.examTips = [];
       }
 
 
       if (enrichedInput.outputDetail !== 'full' && enrichedInput.outputDetail !== 'key_points_only') {
           output.keyPoints = [];
       }
-      
+
       if (enrichedInput.outputDetail === 'key_points_only' || enrichedInput.outputDetail === 'exam_tips_only' || enrichedInput.outputDetail === 'questions_only') {
-          if(enrichedInput.outputDetail !== 'full' && !output.summary) output.summary = "Sadece istenen bölüm üretildi."; 
-          if(enrichedInput.outputDetail !== 'full' && !output.mainIdea) output.mainIdea = "Sadece istenen bölüm üretildi."; 
+          if(enrichedInput.outputDetail !== 'full' && !output.summary) output.summary = "Sadece istenen bölüm üretildi.";
+          if(enrichedInput.outputDetail !== 'full' && !output.mainIdea) output.mainIdea = "Sadece istenen bölüm üretildi.";
       }
 
       if(!output.summary) output.summary = "Bu içerik için bir anlatım üretilemedi. Lütfen PDF'i kontrol edin veya farklı bir çıktı detayı deneyin.";
@@ -214,5 +216,4 @@ const summarizePdfForStudentFlow = ai.defineFlow(
     }
   }
 );
-
     

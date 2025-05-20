@@ -23,7 +23,7 @@ const EnrichedVideoSummarizerInputSchema = VideoSummarizerInputSchema.extend({
     isGemini25PreviewSelected: z.boolean().optional(),
 });
 
-type VideoSummarizerInput = z.infer<typeof VideoSummarizerInputSchema>; 
+type VideoSummarizerInput = z.infer<typeof VideoSummarizerInputSchema>;
 
 const VideoSummarizerOutputSchema = z.object({
   videoTitle: z.string().optional().describe('AI tarafından bulunabilirse videonun başlığı.'),
@@ -37,7 +37,7 @@ export async function summarizeVideo(input: VideoSummarizerInput): Promise<Video
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
   const isCustomModelSelected = !!input.customModelIdentifier;
-  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview_05_20';
 
   const enrichedInputForPrompt = {
     ...input,
@@ -51,7 +51,7 @@ export async function summarizeVideo(input: VideoSummarizerInput): Promise<Video
 
 const videoSummarizerPrompt = ai.definePrompt({
   name: 'videoSummarizerPrompt',
-  input: {schema: EnrichedVideoSummarizerInputSchema}, 
+  input: {schema: EnrichedVideoSummarizerInputSchema},
   output: {schema: VideoSummarizerOutputSchema},
   prompt: `Sen, YouTube videolarındaki eğitimsel içeriği (özellikle YKS öğrencileri için) analiz edip özetleyen bir AI eğitim asistanısın.
 Görevin, verilen YouTube video URL'sindeki içeriği (başlık, açıklama, varsa transkript) değerlendirerek öğrenci için önemli bilgileri çıkarmaktır.
@@ -66,7 +66,7 @@ Kullanıcının Üyelik Planı: {{{userPlan}}}
 {{#if isCustomModelSelected}}
 (Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
   {{#if isGemini25PreviewSelected}}
-  (Gemini 2.5 Flash Preview Notu: Videonun BAŞLIĞINI ve AÇIKLAMASINI analiz et. Varsa TRANSKRİPTİNE odaklan. ANA EĞİTİMSEL konusunu, 2-3 ANAHTAR ÖĞRENİM NOKTASINI ve genel bir ÖZETİNİ kısa, net ve YKS öğrencisine faydalı olacak şekilde çıkar. HIZLI yanıtla.)
+  (Gemini 2.5 Flash Preview 05-20 Notu: Verilen YouTube URL'sindeki videonun BAŞLIĞINI ve AÇIKLAMASINI analiz et. Eğer erişebiliyorsan TRANSKRİPTİNE odaklan. Bu bilgilerden yola çıkarak videonun ANA EĞİTİMSEL konusunu, en önemli 2-3 ANAHTAR ÖĞRENİM NOKTASINI ve genel bir ÖZETİNİ kısa, net ve YKS öğrencisine faydalı olacak şekilde çıkar. Hızlı yanıt vermesi önemlidir.)
   {{/if}}
 {{/if}}
 
@@ -87,11 +87,11 @@ Eğitimsel özet çıkaramıyorsan, 'summary' ve 'keyPoints' alanlarını boş b
 const videoSummarizerFlow = ai.defineFlow(
   {
     name: 'videoSummarizerFlow',
-    inputSchema: EnrichedVideoSummarizerInputSchema, 
+    inputSchema: EnrichedVideoSummarizerInputSchema,
     outputSchema: VideoSummarizerOutputSchema,
   },
-  async (enrichedInput: z.infer<typeof EnrichedVideoSummarizerInputSchema>): Promise<VideoSummarizerOutput> => { 
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
+  async (enrichedInput: z.infer<typeof EnrichedVideoSummarizerInputSchema>): Promise<VideoSummarizerOutput> => {
+    let modelToUse = 'googleai/gemini-1.5-flash-latest';
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
     if (enrichedInput.customModelIdentifier) {
@@ -102,31 +102,33 @@ const videoSummarizerFlow = ai.defineFlow(
         case 'experimental_gemini_1_5_flash':
           modelToUse = 'googleai/gemini-1.5-flash-latest';
           break;
-        case 'experimental_gemini_2_5_flash_preview':
-          modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
+        case 'experimental_gemini_2_5_flash_preview_05_20':
+          modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
           break;
         default:
           console.warn(`[Video Summarizer Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (enrichedInput.isProUser) { 
+    } else if (enrichedInput.isProUser) {
       modelToUse = 'googleai/gemini-1.5-flash-latest';
+    } else {
+      modelToUse = 'googleai/gemini-2.0-flash'; // Default for free/premium
     }
-    
+
     callOptions.model = modelToUse;
-    callOptions.config = {}; // Avoid sending generationConfig for video summarizer for now
-    
-    console.log(`[Video Summarizer Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier} with callOptions:`, JSON.stringify(callOptions));
+    callOptions.config = {}; // Avoid sending generationConfig for video summarizer for now, as it might cause issues with some models.
+
+    console.log(`[Video Summarizer Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier} with callOptions:`, JSON.stringify(callOptions.config));
 
     try {
-      const {output} = await prompt(enrichedInput, callOptions); 
-      
+      const {output} = await prompt(enrichedInput, callOptions);
+
       if (!output) {
          console.warn(`[Video Summarizer Flow] AI model (${modelToUse}) returned null or undefined output.`);
         return {
           warnings: [`Yapay zeka modeli (${modelToUse}) bir yanıt üretemedi.`]
         };
       }
-      
+
       if (!output.summary && (!output.keyPoints || output.keyPoints.length === 0) && (!output.warnings || output.warnings.length === 0)) {
          return {
           ...output,
@@ -139,18 +141,19 @@ const videoSummarizerFlow = ai.defineFlow(
       let errorMessage = `Video özetlenirken sunucu tarafında beklenmedik bir hata oluştu (Model: ${modelToUse}).`;
       if (error.message) {
         errorMessage += ` Detay: ${error.message.substring(0, 250)}`;
-        if (error.message.includes('Invalid JSON payload')) {
-            errorMessage += ` (JSON Hatası algılandı. Geliştiriciye bildirin.)`;
+        if (error.message.includes('Invalid JSON payload') || error.message.includes('Unknown name "config"')) {
+            errorMessage = `AI modeli (${modelToUse}) ile iletişimde bir yapılandırma sorunu oluştu (Geçersiz JSON veya bilinmeyen config).`;
         } else if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
             errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen video içeriğini kontrol edin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
+        } else if (error.message.includes('400 Bad Request')) {
+             errorMessage = `AI modeli (${modelToUse}) isteği işleyemedi (400 Bad Request). Video URL'si veya model uyumluluğunu kontrol edin. Detay: ${error.message.substring(0,150)}`;
         }
       }
-      
+
       return {
         warnings: [errorMessage]
       };
     }
   }
 );
-
     

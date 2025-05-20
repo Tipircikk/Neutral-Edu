@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { extractTextFromPdf } from "@/lib/pdfUtils";
 import { analyzeExamReport, type ExamReportAnalyzerOutput, type ExamReportAnalyzerInput } from "@/ai/flows/exam-report-analyzer-flow";
-import { Input as ShadInput } from "@/components/ui/input"; 
+import { Input as ShadInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -60,8 +60,8 @@ export default function ExamReportAnalyzerPage() {
         }
         setSelectedFile(file);
         setCurrentFileName(file.name);
-        setPdfTextContent(null); 
-        setAnalysisOutput(null); 
+        setPdfTextContent(null);
+        setAnalysisOutput(null);
     } else {
         setSelectedFile(null);
         setCurrentFileName(undefined);
@@ -79,30 +79,36 @@ export default function ExamReportAnalyzerPage() {
     setAnalysisOutput(null);
 
     const currentProfile = await memoizedCheckAndResetQuota();
-    if (!currentProfile || (currentProfile.dailyRemainingQuota ?? 0) <= 0) {
+    if (!currentProfile) {
+        toast({ title: "Kullanıcı Bilgisi Yüklenemedi", description: "Lütfen sayfayı yenileyin veya tekrar giriş yapın.", variant: "destructive" });
+        setIsAnalyzing(false);
+        setCanProcess(false);
+        return;
+    }
+    const currentCanProcess = (currentProfile.dailyRemainingQuota ?? 0) > 0;
+     setCanProcess(currentCanProcess);
+
+    if (!currentCanProcess) {
       toast({ title: "Kota Aşıldı", description: "Bugünkü analiz hakkınızı doldurdunuz.", variant: "destructive" });
       setIsAnalyzing(false);
-      setCanProcess(false);
       return;
     }
-    setCanProcess(true);
+
 
     try {
       toast({ title: "Rapor İşleniyor...", description: "Sınav raporunuzdan metin içeriği çıkarılıyor." });
       const text = await extractTextFromPdf(selectedFile);
       setPdfTextContent(text);
-      
+
       if (text.length < 100) {
         toast({ title: "Metin Çok Kısa", description: "Analiz için PDF'ten yeterli metin çıkarılamadı (en az 100 karakter gerekli). Lütfen raporunuzun okunabilir olduğundan emin olun.", variant: "destructive" });
         setIsAnalyzing(false);
         return;
       }
-      
+
       toast({ title: "Metin Çıkarıldı", description: "Şimdi raporunuz analiz ediliyor..." });
 
-      if (!currentProfile?.plan) {
-        throw new Error("Kullanıcı planı bulunamadı.");
-      }
+
       const input: ExamReportAnalyzerInput = {
         reportTextContent: text,
         userPlan: currentProfile.plan,
@@ -114,11 +120,19 @@ export default function ExamReportAnalyzerPage() {
         setAnalysisOutput(result);
         toast({ title: "Analiz Hazır!", description: "Sınav raporunuz için detaylı analiz oluşturuldu." });
         if (decrementQuota) {
-            await decrementQuota(currentProfile);
-        }
-        const updatedProfileAgain = await memoizedCheckAndResetQuota();
-        if (updatedProfileAgain) {
-          setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
+            const decrementSuccess = await decrementQuota(currentProfile);
+            if (decrementSuccess) {
+                 const updatedProfileAfterDecrement = await memoizedCheckAndResetQuota();
+                 if (updatedProfileAfterDecrement) {
+                   setCanProcess((updatedProfileAfterDecrement.dailyRemainingQuota ?? 0) > 0);
+                 }
+            } else {
+                // Decrement failed, refresh quota to be sure
+                const refreshedProfile = await memoizedCheckAndResetQuota();
+                if(refreshedProfile){
+                  setCanProcess((refreshedProfile.dailyRemainingQuota ?? 0) > 0);
+                }
+            }
         }
       } else {
         const errorMessage = result?.overallFeedback || "Yapay zeka bir analiz üretemedi veya format hatalı.";
@@ -133,20 +147,20 @@ export default function ExamReportAnalyzerPage() {
       setIsAnalyzing(false);
     }
   };
-  
-  const isSubmitButtonDisabled = 
-    isAnalyzing || 
+
+  const isSubmitButtonDisabled =
+    isAnalyzing ||
     !selectedFile ||
     (!userProfileLoading && userProfile && !canProcess) ||
     (!userProfileLoading && !userProfile);
 
-  const isModelSelectDisabled = 
-    isAnalyzing || 
+  const isModelSelectDisabled =
+    isAnalyzing ||
     !userProfile?.isAdmin ||
     (!userProfileLoading && userProfile && !canProcess) ||
     (!userProfileLoading && !userProfile);
 
-  const isFormElementsDisabled = 
+  const isFormElementsDisabled =
     isAnalyzing ||
     (!userProfileLoading && userProfile && !canProcess) ||
     (!userProfileLoading && !userProfile);
@@ -166,7 +180,7 @@ export default function ExamReportAnalyzerPage() {
       <Card className="shadow-sm">
         <CardHeader>
           <div className="flex items-center gap-3">
-            <ClipboardCheck className="h-7 w-7 text-primary" /> 
+            <ClipboardCheck className="h-7 w-7 text-primary" />
             <CardTitle className="text-2xl">AI Sınav Raporu Analizcisi</CardTitle>
           </div>
           <CardDescription>
@@ -177,9 +191,9 @@ export default function ExamReportAnalyzerPage() {
          {userProfile?.isAdmin && (
               <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
                 <Label htmlFor="adminModelSelectExamReport" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
-                <Select 
-                  value={adminSelectedModel} 
-                  onValueChange={setAdminSelectedModel} 
+                <Select
+                  value={adminSelectedModel}
+                  onValueChange={setAdminSelectedModel}
                   disabled={isModelSelectDisabled}
                 >
                   <SelectTrigger id="adminModelSelectExamReport">
@@ -188,7 +202,7 @@ export default function ExamReportAnalyzerPage() {
                   <SelectContent>
                     <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
                     <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
-                    <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
+                    <SelectItem value="experimental_gemini_2_5_flash_preview_05_20">Deneysel (Gemini 2.5 Flash Preview 05-20)</SelectItem>
                   </SelectContent>
                 </Select>
                  <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz.</p>
@@ -216,7 +230,7 @@ export default function ExamReportAnalyzerPage() {
           <CardContent className="pt-6 space-y-4">
             <div className="space-y-2">
                 <Label htmlFor="reportUpload" className="sr-only">Sınav Raporu PDF</Label>
-                <ShadInput 
+                <ShadInput
                     id="reportUpload"
                     type="file"
                     accept="application/pdf"
@@ -263,15 +277,15 @@ export default function ExamReportAnalyzerPage() {
           <CardContent className="space-y-6">
             <ScrollArea className="h-[600px] w-full rounded-md border p-4 bg-muted/30">
               <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-line leading-relaxed">
-                
+
                 <h3 className="text-lg font-semibold mt-3 mb-1 text-foreground">Tespit Edilen Konular ve Analizler:</h3>
                 {analysisOutput.identifiedTopics.length > 0 ? (
                     analysisOutput.identifiedTopics.map((item, index) => (
                         <div key={index} className="p-3 my-2 border rounded-md bg-card">
-                            <p className="font-semibold text-base text-primary">{item.topic} 
+                            <p className="font-semibold text-base text-primary">{item.topic}
                                 <span className={`ml-2 text-xs px-2 py-0.5 rounded-full ${
-                                    item.status === 'strong' ? 'bg-green-500 text-white' : 
-                                    item.status === 'needs_improvement' ? 'bg-yellow-500 text-black' : 
+                                    item.status === 'strong' ? 'bg-green-500 text-white' :
+                                    item.status === 'needs_improvement' ? 'bg-yellow-500 text-black' :
                                     'bg-red-500 text-white'
                                 }`}>
                                     {item.status === 'strong' ? 'Güçlü' : item.status === 'needs_improvement' ? 'Geliştirilmeli' : 'Zayıf'}
@@ -286,7 +300,7 @@ export default function ExamReportAnalyzerPage() {
 
                 <h3 className="text-lg font-semibold mt-4 mb-1 text-foreground">Genel Geri Bildirim:</h3>
                 <p className="text-muted-foreground">{analysisOutput.overallFeedback}</p>
-                
+
                 <h3 className="text-lg font-semibold mt-4 mb-1 text-foreground">Çalışma Önerileri:</h3>
                 {analysisOutput.studySuggestions.length > 0 ? (
                     <ul className="list-disc pl-5 text-muted-foreground">
@@ -318,5 +332,4 @@ export default function ExamReportAnalyzerPage() {
     </div>
   );
 }
-
     

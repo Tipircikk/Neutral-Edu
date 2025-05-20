@@ -35,18 +35,18 @@ const ExamReportAnalyzerOutputSchema = z.object({
 export type ExamReportAnalyzerOutput = z.infer<typeof ExamReportAnalyzerOutputSchema>;
 
 export async function analyzeExamReport(input: ExamReportAnalyzerInput): Promise<ExamReportAnalyzerOutput> {
-  
+
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
   const isCustomModelSelected = !!input.customModelIdentifier;
-  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview_05_20';
 
   const enrichedInput = {
     ...input,
-    isProUser, 
+    isProUser,
     isPremiumUser,
-    isCustomModelSelected, 
-    isGemini25PreviewSelected, 
+    isCustomModelSelected,
+    isGemini25PreviewSelected,
   };
   return examReportAnalyzerFlow(enrichedInput);
 }
@@ -72,7 +72,7 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isCustomModelSelected}}
 (Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
   {{#if isGemini25PreviewSelected}}
-  (Gemini 2.5 Flash Preview Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla.)
+  (Gemini 2.5 Flash Preview 05-20 Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla.)
   {{/if}}
 {{/if}}
 
@@ -101,7 +101,7 @@ Analiz İlkeleri:
 const examReportAnalyzerFlow = ai.defineFlow(
   {
     name: 'examReportAnalyzerFlow',
-    inputSchema: ExamReportAnalyzerInputSchema.extend({ 
+    inputSchema: ExamReportAnalyzerInputSchema.extend({
         isProUser: z.boolean().optional(),
         isPremiumUser: z.boolean().optional(),
         isCustomModelSelected: z.boolean().optional(),
@@ -109,10 +109,10 @@ const examReportAnalyzerFlow = ai.defineFlow(
     }),
     outputSchema: ExamReportAnalyzerOutputSchema,
   },
-  async (enrichedInput: ExamReportAnalyzerInput & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<ExamReportAnalyzerOutput> => {
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
+  async (enrichedInput: z.infer<typeof ExamReportAnalyzerInputSchema> & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<ExamReportAnalyzerOutput> => {
+    let modelToUse = 'googleai/gemini-1.5-flash-latest';
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
-    
+
     if (enrichedInput.customModelIdentifier) {
       switch (enrichedInput.customModelIdentifier) {
         case 'default_gemini_flash':
@@ -121,30 +121,32 @@ const examReportAnalyzerFlow = ai.defineFlow(
         case 'experimental_gemini_1_5_flash':
           modelToUse = 'googleai/gemini-1.5-flash-latest';
           break;
-        case 'experimental_gemini_2_5_flash_preview':
-          modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
+        case 'experimental_gemini_2_5_flash_preview_05_20':
+          modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
           break;
         default:
           console.warn(`[Exam Report Analyzer Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (enrichedInput.isProUser) { 
-      modelToUse = 'googleai/gemini-1.5-flash-latest'; 
+    } else if (enrichedInput.isProUser) {
+      modelToUse = 'googleai/gemini-1.5-flash-latest';
+    } else {
+      modelToUse = 'googleai/gemini-2.0-flash'; // Default for free/premium
     }
-    
+
     callOptions.model = modelToUse;
 
-    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
+    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-05-20') {
       callOptions.config = {
         generationConfig: {
-          maxOutputTokens: 4096, 
+          maxOutputTokens: 4096,
         }
       };
     } else {
-       callOptions.config = {}; 
+       callOptions.config = {};
     }
-    
+
     console.log(`[Exam Report Analyzer Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}`);
-    
+
     try {
         const {output} = await prompt(enrichedInput, callOptions);
         if (!output || !output.identifiedTopics || output.identifiedTopics.length === 0) {
@@ -160,7 +162,7 @@ const examReportAnalyzerFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen rapor metnini kontrol edin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
             }
         }
-        
+
         return {
             identifiedTopics: [],
             overallFeedback: errorMessage,
@@ -170,4 +172,4 @@ const examReportAnalyzerFlow = ai.defineFlow(
     }
   }
 );
-
+    

@@ -10,13 +10,13 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit'; 
+import {z} from 'genkit';
 
 const SolveQuestionInputSchema = z.object({
   questionText: z.string().optional().describe('Öğrencinin çözülmesini istediği, YKS kapsamındaki soru metni.'),
   imageDataUri: z.string().optional().describe("Soruyla ilgili bir görselin data URI'si (Base64 formatında). 'data:<mimetype>;base64,<encoded_data>' formatında olmalıdır. Görsel, soru metni yerine veya ona ek olarak sunulabilir."),
   userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
-  customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi (örn: 'default_gemini_flash', 'experimental_gemini_1_5_flash', 'experimental_gemini_2_5_flash_preview')."),
+  customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi (örn: 'default_gemini_flash', 'experimental_gemini_1_5_flash', 'experimental_gemini_2_5_flash_preview_05_20')."),
 });
 export type SolveQuestionInput = z.infer<typeof SolveQuestionInputSchema>;
 
@@ -26,6 +26,12 @@ const SolveQuestionOutputSchema = z.object({
   examStrategyTips: z.array(z.string()).optional().describe("Bu tür soruları YKS'de çözerken kullanılabilecek stratejiler veya dikkat edilmesi gereken noktalar."),
 });
 export type SolveQuestionOutput = z.infer<typeof SolveQuestionOutputSchema>;
+
+const defaultErrorOutput: SolveQuestionOutput = {
+  solution: "Beklenmedik bir sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.",
+  relatedConcepts: [],
+  examStrategyTips: []
+};
 
 export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQuestionOutput> {
   console.log("[SolveQuestion Action] Received input:", {
@@ -46,19 +52,18 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
   try {
     const result = await questionSolverFlow(input);
 
-    if (!result || typeof result.solution !== 'string' || !result.relatedConcepts || !Array.isArray(result.relatedConcepts) || !result.examStrategyTips || !Array.isArray(result.examStrategyTips)) {
+    if (!result || typeof result.solution !== 'string' || !Array.isArray(result.relatedConcepts) || !Array.isArray(result.examStrategyTips)) {
       console.error("[SolveQuestion Action] Flow returned invalid, null, or malformed result. Raw result:", JSON.stringify(result).substring(0, 500));
       return {
         solution: "AI akışından geçersiz veya eksik bir yanıt alındı. Lütfen tekrar deneyin veya farklı bir soru sorun.",
-        relatedConcepts: ["Hata"],
-        examStrategyTips: ["Tekrar deneyin"],
+        relatedConcepts: result?.relatedConcepts || ["Hata"],
+        examStrategyTips: result?.examStrategyTips || ["Tekrar deneyin"],
       };
     }
     console.log("[SolveQuestion Action] Successfully received result from questionSolverFlow.");
     return result;
   } catch (error: any) {
-    console.error("[SolveQuestion Action] CRITICAL error during server action execution:", error);
-    
+    console.error("[SolveQuestion Action] CRITICAL error during server action execution (outer try-catch):", error);
     let errorMessage = 'Bilinmeyen bir sunucu hatası oluştu.';
     if (error instanceof Error) {
         errorMessage = error.message;
@@ -66,12 +71,11 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
         errorMessage = error;
     } else {
         try {
-            errorMessage = JSON.stringify(error).substring(0, 200); 
+            errorMessage = JSON.stringify(error).substring(0, 200);
         } catch (stringifyError) {
             errorMessage = 'Serileştirilemeyen sunucu hata nesnesi.';
         }
     }
-    
     return {
       solution: `Sunucu tarafında kritik bir hata oluştu: ${errorMessage}.`,
       relatedConcepts: ["Kritik Hata"],
@@ -127,7 +131,7 @@ Soru Analizi:
 *   Soruyu ana adımları mantığıyla birlikte, AÇIKLAYARAK çöz.
 *   Her bir önemli matematiksel işlemi veya mantıksal çıkarımı net bir şekilde belirt.
 *   {{#if isGemini25PreviewSelected}}
-    (Gemini 2.5 Flash Preview Notu: Çözümü ana adımları ve kilit mantıksal çıkarımları vurgulayarak, olabildiğince ÖZ ama ANLAŞILIR olmalıdır. Aşırı detaydan kaçın, doğrudan ve net bir çözüm sun. HIZLI YANIT VERMESİ ÖNEMLİDİR.)
+    (Gemini 2.5 Flash Preview 05-20 Notu: Çözümü ana adımları ve kilit mantıksal çıkarımları vurgulayarak, olabildiğince ÖZ ama ANLAŞILIR olmalıdır. Aşırı detaydan kaçın, doğrudan ve net bir çözüm sun. HIZLI YANIT VERMESİ ÖNEMLİDİR.)
     {{else}}
     Ayrıntılı ve SATIR SATIR açıkla.
     {{/if}}
@@ -162,62 +166,72 @@ const questionSolverFlow = ai.defineFlow(
       customModelIdentifier: input.customModelIdentifier
     });
 
+    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Varsayılan
+    const isProUser = input.userPlan === 'pro';
+    const isPremiumUser = input.userPlan === 'premium';
+    const isCustomModelSelected = !!input.customModelIdentifier;
+    const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview_05_20';
+
     const enrichedInput = {
       ...input,
-      isProUser: input.userPlan === 'pro',
-      isPremiumUser: input.userPlan === 'premium',
-      isGemini25PreviewSelected: input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview',
-      isCustomModelSelected: !!input.customModelIdentifier,
+      isProUser,
+      isPremiumUser,
+      isCustomModelSelected,
+      isGemini25PreviewSelected,
     };
-    
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
+
+    if (isCustomModelSelected) {
+      console.log(`[QuestionSolver Flow] Admin attempting to use custom model: ${input.customModelIdentifier}`);
+      switch (input.customModelIdentifier) {
+        case 'default_gemini_flash':
+          modelToUse = 'googleai/gemini-2.0-flash';
+          break;
+        case 'experimental_gemini_1_5_flash':
+          modelToUse = 'googleai/gemini-1.5-flash-latest';
+          break;
+        case 'experimental_gemini_2_5_flash_preview_05_20':
+          modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+          break;
+        default:
+          console.warn(`[QuestionSolver Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting to ${modelToUse}`);
+      }
+      console.log(`[QuestionSolver Flow] Admin selected model: ${modelToUse}`);
+    } else if (isProUser) {
+      modelToUse = 'googleai/gemini-1.5-flash-latest';
+      console.log(`[QuestionSolver Flow] Pro user using model: ${modelToUse}`);
+    } else {
+      modelToUse = 'googleai/gemini-2.0-flash'; // Varsayılan (ücretsiz/premium)
+      console.log(`[QuestionSolver Flow] Free/Premium user using model: ${modelToUse}`);
+    }
+
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
-    if (enrichedInput.customModelIdentifier) { 
-      console.log(`[QuestionSolver Flow] Admin attempting to use custom model: ${enrichedInput.customModelIdentifier}`);
-      if (enrichedInput.customModelIdentifier === 'default_gemini_flash') {
-        modelToUse = 'googleai/gemini-2.0-flash';
-      } else if (enrichedInput.customModelIdentifier === 'experimental_gemini_1_5_flash') {
-           modelToUse = 'googleai/gemini-1.5-flash-latest'; 
-      } else if (enrichedInput.customModelIdentifier === 'experimental_gemini_2_5_flash_preview') {
-          modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
-      }
-      callOptions.model = modelToUse;
-      console.log(`[QuestionSolver Flow] Admin selected model: ${modelToUse}`);
-    } else if (enrichedInput.isProUser) {
-      modelToUse = 'googleai/gemini-1.5-flash-latest'; 
-      callOptions.model = modelToUse;
-      console.log(`[QuestionSolver Flow] Pro user using model: ${modelToUse}`);
-    }
-    // Free/Premium users without custom model will use the default 'googleai/gemini-1.5-flash-latest'
-
-    // Adjust config only if not the preview model
-    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
+    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-05-20') {
       callOptions.config = {
         generationConfig: {
-          maxOutputTokens: 4096, 
+          maxOutputTokens: 4096,
         }
       };
       console.log(`[QuestionSolver Flow] Using generationConfig for model ${modelToUse}:`, callOptions.config);
     } else {
-      callOptions.config = {}; // No specific config for preview model to avoid errors
+      callOptions.config = {};
       console.log(`[QuestionSolver Flow] NOT using generationConfig for preview model ${modelToUse}.`);
     }
 
-    console.log(`[QuestionSolver Flow] Calling Google prompt with model: ${callOptions.model} and options:`, JSON.stringify(callOptions.config));
-    
+    console.log(`[QuestionSolver Flow] Calling prompt with model: ${callOptions.model} and options:`, JSON.stringify(callOptions.config));
+
     try {
-      const { output } = await questionSolverPrompt(enrichedInput, callOptions); 
-      
+      const { output } = await questionSolverPrompt(enrichedInput, callOptions);
+
       if (!output || typeof output.solution !== 'string') {
-        console.error("[QuestionSolver Flow] AI (Google model) did not produce a valid solution matching the schema. Output received:", JSON.stringify(output).substring(0,300)+"...");
+        console.error("[QuestionSolver Flow] AI did not produce a valid solution matching the schema. Output received:", JSON.stringify(output).substring(0,300)+"...");
         return {
             solution: `AI YKS Uzmanı (${modelToUse}), bu soru için bir çözüm ve detaylı açıklama üretemedi veya yanıt formatı beklenmedik. Lütfen girdilerinizi kontrol edin veya farklı bir soru deneyin. Model: ${modelToUse}`,
             relatedConcepts: output?.relatedConcepts || ["Yanıt Formatı Hatası"],
             examStrategyTips: output?.examStrategyTips || [],
         };
       }
-      console.log("[QuestionSolver Flow] Successfully received solution from Google model.");
+      console.log("[QuestionSolver Flow] Successfully received solution from AI model.");
       return {
         solution: output.solution,
         relatedConcepts: output.relatedConcepts || [],
@@ -236,6 +250,8 @@ const questionSolverFlow = ai.defineFlow(
                 errorMessage = `Görsel ile birlikte metin girmeniz gerekmektedir veya model bu tür bir girdiyi desteklemiyor. Model: ${modelToUse}. Detay: ${promptError.message.substring(0,150)}`;
           } else if (promptError.message.includes('500 Internal Server Error') || promptError.message.includes('internal error has occurred') || promptError.message.includes('Deadline exceeded') || promptError.message.includes('504 Gateway Timeout')) {
               errorMessage = `AI modeli (${modelToUse}) yanıt vermesi çok uzun sürdü veya dahili bir sunucu hatasıyla karşılaştı (örn: 504 Zaman Aşımı). Lütfen daha sonra tekrar deneyin veya farklı bir soru/model deneyin. Detay: ${promptError.message.substring(0,150)}`;
+          } else if (promptError.name === 'GenkitError' && promptError.message.includes('Schema validation failed')){
+              errorMessage = `AI modeli (${modelToUse}) beklenen yanıt şemasına uymayan bir çıktı üretti. Lütfen farklı bir soru deneyin veya modelin yanıtını kontrol edin. Detay: ${promptError.message.substring(0,150)}`;
           } else {
              errorMessage += ` Detay: ${promptError.message.substring(0,200)}`;
           }
@@ -248,4 +264,4 @@ const questionSolverFlow = ai.defineFlow(
     }
   }
 );
-
+    

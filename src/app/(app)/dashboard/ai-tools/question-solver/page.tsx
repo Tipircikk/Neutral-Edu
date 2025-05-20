@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input as ShadInput } from "@/components/ui/input"; 
+import { Input as ShadInput } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { HelpCircle, Send, Loader2, AlertTriangle, UploadCloud, ImageIcon, Settings } from "lucide-react";
@@ -24,6 +24,122 @@ interface ParsedSolution {
   answerValue: React.ReactNode[] | null;
   explanationSections: ParsedSolutionPart[];
 }
+
+const parseInlineFormatting = (line: string | undefined | null): React.ReactNode[] => {
+  if (!line) return [<React.Fragment key={`empty-${Math.random()}`}></React.Fragment>];
+
+  const elements: React.ReactNode[] = [];
+  const regex = /(\S+?)\^(\S+?)|\*\*([^*]+)\*\*|`([^`]+)`|(\S+?)_(\S+?)/g; // Adjusted regex order
+  let lastIndex = 0;
+  let keyIndex = 0;
+
+  while ((match = regex.exec(line)) !== null) {
+    if (match.index > lastIndex) {
+      elements.push(<Fragment key={`text-${keyIndex++}`}>{line.substring(lastIndex, match.index)}</Fragment>);
+    }
+
+    if (match[1] && match[2]) { // Superscript: text^exponent
+      elements.push(<Fragment key={`base-sup-${keyIndex}`}>{match[1]}</Fragment>);
+      elements.push(<sup key={`sup-${keyIndex++}`}>{match[2]}</sup>);
+    } else if (match[3]) { // Bold: **text**
+      elements.push(<strong key={`bold-${keyIndex++}`}>{match[3]}</strong>);
+    } else if (match[4]) { // Inline code: `text`
+      elements.push(<code key={`code-${keyIndex++}`} className="bg-muted text-muted-foreground px-1 py-0.5 rounded text-sm">{match[4]}</code>);
+    } else if (match[5] && match[6]) { // Subscript: text_subscript
+      elements.push(<Fragment key={`base-sub-${keyIndex}`}>{match[5]}</Fragment>);
+      elements.push(<sub key={`sub-${keyIndex++}`}>{match[6]}</sub>);
+    }
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < line.length) {
+    elements.push(<Fragment key={`text-end-${keyIndex}`}>{line.substring(lastIndex)}</Fragment>);
+  }
+
+  return elements.filter(el => el !== "");
+};
+
+const formatSolverOutputForDisplay = (text: string | undefined | null): ParsedSolution => {
+  if (!text) return { answerValue: null, explanationSections: [] };
+  const lines = text.split('\n');
+  let answerValue: React.ReactNode[] | null = null;
+  const explanationSections: ParsedSolutionPart[] = [];
+  let isExplanationSection = false;
+  let inCodeBlock = false;
+  let codeBlockContent = "";
+  let keyCounter = 0;
+
+  const flushCodeBlock = () => {
+      if (inCodeBlock) {
+          explanationSections.push({
+              type: "codeblock",
+              content: [codeBlockContent.trimEnd()]
+          });
+          codeBlockContent = "";
+          inCodeBlock = false;
+      }
+  };
+
+  let captureAnswer = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmedLine = line.trim();
+
+    if (trimmedLine.startsWith("```")) {
+        flushCodeBlock();
+        inCodeBlock = !inCodeBlock;
+        if (inCodeBlock && lines[i+1] && lines[i+1].startsWith("```")) {
+           inCodeBlock = false; i++;
+        }
+        continue;
+    }
+
+    if (inCodeBlock) {
+        codeBlockContent += line + '\n';
+        continue;
+    }
+
+    if (trimmedLine.toLowerCase().startsWith("cevap:")) {
+      isExplanationSection = false;
+      captureAnswer = true;
+      const answerText = trimmedLine.substring("cevap:".length).trim();
+      if (answerText) {
+        answerValue = parseInlineFormatting(answerText);
+      } else if (lines[i+1] && lines[i+1].trim() && !lines[i+1].trim().toLowerCase().startsWith("açıklama:")) {
+        answerValue = parseInlineFormatting(lines[i+1].trim());
+        i++;
+      }
+      continue;
+    }
+
+    if (trimmedLine.toLowerCase().startsWith("açıklama:") || trimmedLine.toLowerCase().startsWith("çözüm yolu (adım adım):") || trimmedLine.toLowerCase().startsWith("soru analizi:")) {
+      isExplanationSection = true;
+      captureAnswer = false;
+      explanationSections.push({type: "heading", content: parseInlineFormatting(trimmedLine.replace(/:$/, ''))});
+      continue;
+    }
+
+    if (captureAnswer && trimmedLine && !trimmedLine.toLowerCase().startsWith("açıklama:")) {
+      answerValue = [...(answerValue || []), ...parseInlineFormatting((answerValue ? "\n" : "") + trimmedLine)];
+      continue;
+    }
+
+    if (isExplanationSection) {
+      if (trimmedLine.startsWith('### ')) {
+        explanationSections.push({ type: "subheading", content: parseInlineFormatting(trimmedLine.substring(4)) });
+      } else if (trimmedLine.startsWith('## ')) {
+        explanationSections.push({ type: "heading", content: parseInlineFormatting(trimmedLine.substring(3)) });
+      } else if (trimmedLine.startsWith('* ') || trimmedLine.startsWith('- ')) {
+        explanationSections.push({ type: "listitem", content: parseInlineFormatting(trimmedLine.substring(trimmedLine.indexOf(' ') + 1)) });
+      } else if (trimmedLine !== "") {
+        explanationSections.push({ type: "paragraph", content: parseInlineFormatting(line) });
+      }
+    }
+  }
+  flushCodeBlock();
+
+  return { answerValue, explanationSections };
+};
+
 
 export default function QuestionSolverPage() {
   const [questionText, setQuestionText] = useState("");
@@ -61,153 +177,45 @@ export default function QuestionSolverPage() {
   useEffect(() => {
     if (isSolving) {
       loadingStartTimeRef.current = Date.now();
-      setLoadingMessage("Çözüm oluşturuluyor...");
       const messages = [
+        { time: 0, message: "Çözüm oluşturuluyor..." },
         { time: 15, message: "Yapay zeka düşünüyor, bu biraz zaman alabilir..." },
-        { time: 30, message: "Karmaşık bir soru üzerinde çalışılıyor, bu işlem birkaç dakika sürebilir, lütfen bekleyin..." },
+        { time: 30, message: "Karmaşık bir soru üzerinde çalışılıyor, lütfen bekleyin..." },
         { time: 60, message: "Hesaplama devam ediyor. Çok karmaşık soruların çözümü beklenenden uzun sürebilir. Sabrınız için teşekkürler." },
-        { time: 120, message: "İşlem hala devam ediyor. Sunucu zaman aşımı limitlerine yaklaşılıyor olabilir. Eğer çözüm çok uzun sürerse, soruyu basitleştirmeyi veya farklı bir modelle denemeyi düşünebilirsiniz." },
+        { time: 120, message: "İşlem hala devam ediyor. Sunucu zaman aşımı limitlerine yaklaşılıyor olabilir." },
         { time: 180, message: "Bu gerçekten uzun sürdü... Sunucunun yanıt vermesi bekleniyor. Gerekirse sayfayı yenileyip daha basit bir soruyla tekrar deneyebilirsiniz." },
-        { time: 240, message: "Çok uzun bir bekleme süresi oldu. Teknik bir sorun olabilir veya model soruyu işlemekte zorlanıyor. Biraz daha bekleyebilir veya işlemi iptal etmeyi düşünebilirsiniz."}
+        { time: 240, message: "Çok uzun bir bekleme süresi oldu. Teknik bir sorun olabilir veya model soruyu işlemekte zorlanıyor."}
       ];
       let messageIndex = 0;
+      setLoadingMessage(messages[messageIndex].message); // Set initial message immediately
+      messageIndex++;
+
       loadingMessageIntervalRef.current = setInterval(() => {
         if (loadingStartTimeRef.current) {
           const elapsedTimeSeconds = Math.floor((Date.now() - loadingStartTimeRef.current) / 1000);
-          if (messageIndex < messages.length && elapsedTimeSeconds >= messages[messageIndex].time) {
+          const nextMessage = messages.find(m => elapsedTimeSeconds >= m.time && m.message !== loadingMessage);
+          if (nextMessage && messageIndex < messages.length && elapsedTimeSeconds >= messages[messageIndex].time ) {
             setLoadingMessage(messages[messageIndex].message);
             messageIndex++;
           }
         }
-      }, 5000); 
+      }, 5000);
     } else {
       if (loadingMessageIntervalRef.current) clearInterval(loadingMessageIntervalRef.current);
       loadingStartTimeRef.current = null;
     }
     return () => { if (loadingMessageIntervalRef.current) clearInterval(loadingMessageIntervalRef.current); };
-  }, [isSolving]);
-
-  const parseInlineFormatting = (line: string | undefined | null): React.ReactNode[] => {
-    if (!line) return [<React.Fragment key={`empty-${Math.random()}`}></React.Fragment>];
-    
-    const elements: React.ReactNode[] = [];
-    const regex = /(\S+?)\^(\d+|\{[\d\w.-]+\})|(\S+?)_(\d+|\{[\d\w.-]+\})|\*\*(.*?)\*\*|`(.*?)`/g;
-    let lastIndex = 0;
-    let match;
-    let keyIndex = 0;
-  
-    while ((match = regex.exec(line)) !== null) {
-      if (match.index > lastIndex) {
-        elements.push(<Fragment key={`text-${keyIndex++}`}>{line.substring(lastIndex, match.index)}</Fragment>);
-      }
-      
-      if (match[5]) { // Bold: **text**
-        elements.push(<strong key={`bold-${keyIndex++}`}>{match[5]}</strong>);
-      } else if (match[6]) { // Inline code: `text`
-        elements.push(<code key={`code-${keyIndex++}`} className="bg-muted text-muted-foreground px-1 py-0.5 rounded text-sm">{match[6]}</code>);
-      } else if (match[1] && match[2]) { // Superscript: text^number or text^{number}
-        elements.push(<Fragment key={`base-sup-${keyIndex}`}>{match[1]}</Fragment>);
-        elements.push(<sup key={`sup-${keyIndex++}`}>{match[2].replace(/[{}]/g, '')}</sup>);
-      } else if (match[3] && match[4]) { // Subscript: text_number or text_{number}
-        elements.push(<Fragment key={`base-sub-${keyIndex}`}>{match[3]}</Fragment>);
-        elements.push(<sub key={`sub-${keyIndex++}`}>{match[4].replace(/[{}]/g, '')}</sub>);
-      }
-      lastIndex = regex.lastIndex;
-    }
-    if (lastIndex < line.length) {
-      elements.push(<Fragment key={`text-end-${keyIndex}`}>{line.substring(lastIndex)}</Fragment>);
-    }
-    
-    return elements.filter(el => el !== ""); 
-  };
-
- const formatSolverOutputForDisplay = (text: string): ParsedSolution => {
-    const lines = text.split('\n');
-    let answerValue: React.ReactNode[] | null = null;
-    const explanationSections: ParsedSolutionPart[] = [];
-    let isExplanationSection = false;
-    let inCodeBlock = false;
-    let codeBlockContent = "";
-    let keyCounter = 0;
-
-    const flushCodeBlock = () => {
-        if (inCodeBlock) {
-            explanationSections.push({
-                type: "codeblock",
-                content: [codeBlockContent.trimEnd()]
-            });
-            codeBlockContent = "";
-            inCodeBlock = false;
-        }
-    };
-
-    let captureAnswer = false;
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const trimmedLine = line.trim();
-
-      if (trimmedLine.startsWith("```")) {
-          flushCodeBlock(); 
-          inCodeBlock = !inCodeBlock; 
-          if (inCodeBlock && lines[i+1] && lines[i+1].startsWith("```")) { 
-             inCodeBlock = false; i++; 
-          }
-          continue;
-      }
-
-      if (inCodeBlock) {
-          codeBlockContent += line + '\n';
-          continue;
-      }
-
-      if (trimmedLine.toLowerCase().startsWith("cevap:")) {
-        isExplanationSection = false;
-        captureAnswer = true;
-        const answerText = trimmedLine.substring("cevap:".length).trim();
-        if (answerText) {
-          answerValue = parseInlineFormatting(answerText);
-        } else if (lines[i+1] && lines[i+1].trim() && !lines[i+1].trim().toLowerCase().startsWith("açıklama:")) {
-          answerValue = parseInlineFormatting(lines[i+1].trim());
-          i++; 
-        }
-        continue;
-      }
-      
-      if (trimmedLine.toLowerCase().startsWith("açıklama:")) {
-        isExplanationSection = true;
-        captureAnswer = false;
-        explanationSections.push({type: "paragraph", content: [<React.Fragment key={`desc-label-${keyCounter++}`}></React.Fragment>]}); 
-        continue;
-      }
-
-      if (captureAnswer && trimmedLine && !trimmedLine.toLowerCase().startsWith("açıklama:")) {
-        answerValue = [...(answerValue || []), ...parseInlineFormatting((answerValue ? "\n" : "") + trimmedLine)];
-        continue;
-      }
-      
-      if (isExplanationSection) {
-        if (trimmedLine.startsWith('### ')) {
-          explanationSections.push({ type: "subheading", content: parseInlineFormatting(trimmedLine.substring(4)) });
-        } else if (trimmedLine.startsWith('## ')) {
-          explanationSections.push({ type: "heading", content: parseInlineFormatting(trimmedLine.substring(3)) });
-        } else if (trimmedLine.startsWith('* ') || trimmedLine.startsWith('- ')) {
-          explanationSections.push({ type: "listitem", content: parseInlineFormatting(trimmedLine.substring(trimmedLine.indexOf(' ') + 1)) });
-        } else if (trimmedLine !== "") {
-          explanationSections.push({ type: "paragraph", content: parseInlineFormatting(line) });
-        }
-      }
-    }
-    flushCodeBlock();
-
-    return { answerValue, explanationSections };
-  };
-
+  }, [isSolving, loadingMessage]);
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) { 
+      if (file.size > 5 * 1024 * 1024) {
         toast({ title: "Dosya Boyutu Büyük", description: "Lütfen 5MB'den küçük bir görsel yükleyin.", variant: "destructive" });
+        event.target.value = ""; setImageFile(null); setImageDataUri(null); return;
+      }
+      if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type)) {
+        toast({ title: "Geçersiz Dosya Türü", description: "Lütfen bir resim dosyası (JPEG, PNG, GIF, WebP) yükleyin.", variant: "destructive" });
         event.target.value = ""; setImageFile(null); setImageDataUri(null); return;
       }
       setImageFile(file);
@@ -227,14 +235,23 @@ export default function QuestionSolverPage() {
     setIsSolving(true); setAnswer(null); setParsedSolution(null);
 
     const currentProfile = await memoizedCheckAndResetQuota();
-    if (!currentProfile || (currentProfile.dailyRemainingQuota ?? 0) <= 0) {
-      toast({ title: "Kota Aşıldı", description: "Bugünkü hakkınızı doldurdunuz.", variant: "destructive" });
-      setIsSolving(false); setCanProcess(false); return;
+     if (!currentProfile) {
+        toast({ title: "Kullanıcı Bilgisi Yüklenemedi", description: "Lütfen sayfayı yenileyin veya tekrar giriş yapın.", variant: "destructive" });
+        setIsSolving(false);
+        setCanProcess(false);
+        return;
     }
-    setCanProcess(true);
+    const currentCanProcess = (currentProfile.dailyRemainingQuota ?? 0) > 0;
+    setCanProcess(currentCanProcess);
+
+    if (!currentCanProcess) {
+      toast({ title: "Kota Aşıldı", description: "Bugünkü hakkınızı doldurdunuz.", variant: "destructive" });
+      setIsSolving(false); return;
+    }
+
 
     try {
-      if (!currentProfile?.plan) throw new Error("Kullanıcı planı bulunamadı.");
+
       const input: SolveQuestionInput = {
         questionText: questionText.trim() || undefined,
         imageDataUri: imageDataUri || undefined,
@@ -283,20 +300,20 @@ export default function QuestionSolverPage() {
       setIsSolving(false);
     }
   };
-  
-  const isSubmitButtonDisabled = 
-    isSolving || 
+
+  const isSubmitButtonDisabled =
+    isSolving ||
     (!questionText.trim() && !imageDataUri) ||
     (!userProfileLoading && userProfile && !canProcess) ||
     (!userProfileLoading && !userProfile);
 
-  const isModelSelectDisabled = 
-    isSolving || 
+  const isModelSelectDisabled =
+    isSolving ||
     !userProfile?.isAdmin ||
     (!userProfileLoading && userProfile && !canProcess) ||
     (!userProfileLoading && !userProfile);
 
-  const isFormElementsDisabled = 
+  const isFormElementsDisabled =
     isSolving ||
     (!userProfileLoading && userProfile && !canProcess) ||
     (!userProfileLoading && !userProfile);
@@ -315,15 +332,15 @@ export default function QuestionSolverPage() {
       <Card className="shadow-sm">
         <CardHeader>
           <div className="flex items-center gap-3"> <HelpCircle className="h-7 w-7 text-primary" /> <CardTitle className="text-2xl">AI Soru Çözücü</CardTitle> </div>
-          <CardDescription> Aklınızdaki YKS sorularını sorun, yapay zeka size adım adım çözümler ve açıklamalar sunsun. İsterseniz soru içeren bir görsel de yükleyebilirsiniz. </CardDescription>
+          <CardDescription> Aklınızdaki YKS sorularını sorun, yapay zeka size adım adım çözümler ve açıklamalar sunsun. İsterseniz soru içeren bir görsel de yükleyebilirsiniz. Bu özellik geliştirme aşamasındadır ve özellikle karmaşık matematik sorularında hatalı çözümler üretebilir. </CardDescription>
         </CardHeader>
         <CardContent>
             {userProfile?.isAdmin && (
               <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
                 <Label htmlFor="adminModelSelectSolver" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
-                <Select 
-                  value={adminSelectedModel} 
-                  onValueChange={setAdminSelectedModel} 
+                <Select
+                  value={adminSelectedModel}
+                  onValueChange={setAdminSelectedModel}
                   disabled={isModelSelectDisabled}
                 >
                   <SelectTrigger id="adminModelSelectSolver">
@@ -332,7 +349,7 @@ export default function QuestionSolverPage() {
                   <SelectContent>
                     <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
                     <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
-                    <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
+                    <SelectItem value="experimental_gemini_2_5_flash_preview_05_20">Deneysel (Gemini 2.5 Flash Preview 05-20)</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground"> Farklı AI modellerini test edebilirsiniz. </p>
@@ -390,25 +407,20 @@ export default function QuestionSolverPage() {
                     <div className="text-lg font-bold text-foreground">{parsedSolution.answerValue}</div>
                   </div>
                 )}
-                {parsedSolution.explanationSections.length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-semibold text-primary mb-2">Açıklama:</h3>
-                    {parsedSolution.explanationSections.map((part, index) => {
-                        let key = `part-${index}-${Math.random()}`;
-                        switch(part.type) {
-                            case "heading": return <h3 key={key} className="text-lg font-semibold mt-4 mb-2 text-foreground">{part.content}</h3>;
-                            case "subheading": return <h4 key={key} className="text-md font-semibold mt-3 mb-1 text-foreground">{part.content}</h4>;
-                            case "listitem": return <li key={key} className="ml-4 list-disc">{part.content}</li>;
-                            case "codeblock": return <pre key={key} className="bg-background/50 p-2 my-2 rounded-md overflow-x-auto text-sm"><code className="text-foreground">{part.content}</code></pre>;
-                            case "paragraph":
-                            default:
-                                return <p key={key} className="mb-2 last:mb-0">{part.content}</p>;
-                        }
-                    })}
-                  </div>
-                )}
+                {parsedSolution.explanationSections.map((part, index) => {
+                    let key = `part-${index}-${Math.random()}`;
+                    switch(part.type) {
+                        case "heading": return <h3 key={key} className="text-lg font-semibold mt-4 mb-2 text-foreground">{part.content}</h3>;
+                        case "subheading": return <h4 key={key} className="text-md font-semibold mt-3 mb-1 text-foreground">{part.content}</h4>;
+                        case "listitem": return <li key={key} className="ml-4 list-disc">{part.content}</li>;
+                        case "codeblock": return <pre key={key} className="bg-background/50 p-2 my-2 rounded-md overflow-x-auto text-sm"><code className="text-foreground">{part.content}</code></pre>;
+                        case "paragraph":
+                        default:
+                            return <p key={key} className="mb-2 last:mb-0">{part.content}</p>;
+                    }
+                })}
                 {!parsedSolution.answerValue && parsedSolution.explanationSections.length === 0 && answer?.solution && (
-                   <p>{parseInlineFormatting(answer.solution)}</p> 
+                   <p>{parseInlineFormatting(answer.solution)}</p>
                 )}
               </div>
             </ScrollArea>
@@ -444,5 +456,4 @@ export default function QuestionSolverPage() {
     </div>
   );
 }
-
     

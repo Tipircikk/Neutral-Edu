@@ -34,7 +34,7 @@ export async function summarizeTopic(input: SummarizeTopicInput): Promise<Summar
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
   const isCustomModelSelected = !!input.customModelIdentifier;
-  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview_05_20';
 
   const enrichedInput = {
     ...input,
@@ -68,7 +68,7 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isCustomModelSelected}}
 (Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
   {{#if isGemini25PreviewSelected}}
-  (Gemini 2.5 Flash Preview Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla.)
+  (Gemini 2.5 Flash Preview 05-20 Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla.)
   {{/if}}
 {{/if}}
 
@@ -85,7 +85,7 @@ Bilgilerin doğruluğundan ve YKS'ye uygunluğundan emin ol.
 const topicSummarizerFlow = ai.defineFlow(
   {
     name: 'topicSummarizerFlow',
-    inputSchema: SummarizeTopicInputSchema.extend({ 
+    inputSchema: SummarizeTopicInputSchema.extend({
         isProUser: z.boolean().optional(),
         isPremiumUser: z.boolean().optional(),
         isCustomModelSelected: z.boolean().optional(),
@@ -93,8 +93,8 @@ const topicSummarizerFlow = ai.defineFlow(
     }),
     outputSchema: SummarizeTopicOutputSchema,
   },
-  async (enrichedInput: SummarizeTopicInput & {isProUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<SummarizeTopicOutput> => {
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
+  async (enrichedInput: z.infer<typeof SummarizeTopicInputSchema> & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<SummarizeTopicOutput> => {
+    let modelToUse = 'googleai/gemini-1.5-flash-latest';
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
     if (enrichedInput.customModelIdentifier) {
@@ -105,33 +105,35 @@ const topicSummarizerFlow = ai.defineFlow(
         case 'experimental_gemini_1_5_flash':
           modelToUse = 'googleai/gemini-1.5-flash-latest';
           break;
-        case 'experimental_gemini_2_5_flash_preview':
-          modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
+        case 'experimental_gemini_2_5_flash_preview_05_20':
+          modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
           break;
         default:
           console.warn(`[Topic Summarizer Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (enrichedInput.isProUser) { 
+    } else if (enrichedInput.isProUser) {
       modelToUse = 'googleai/gemini-1.5-flash-latest';
+    } else {
+      modelToUse = 'googleai/gemini-2.0-flash'; // Default for free/premium
     }
-    
+
     callOptions.model = modelToUse;
 
     let maxTokensForOutput = 2048; // Default for medium
-    if (enrichedInput.summaryLength === 'detailed') maxTokensForOutput = 8000; 
+    if (enrichedInput.summaryLength === 'detailed') maxTokensForOutput = 8000;
     else if (enrichedInput.summaryLength === 'short') maxTokensForOutput = 1024;
 
 
-    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
+    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-05-20') {
       callOptions.config = {
         generationConfig: {
           maxOutputTokens: maxTokensForOutput,
         }
       };
     } else {
-        callOptions.config = {}; 
+        callOptions.config = {};
     }
-    
+
     console.log(`[Topic Summarizer Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}`);
 
     try {
@@ -149,7 +151,7 @@ const topicSummarizerFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
             }
         }
-        
+
         return {
             topicSummary: errorMessage,
             keyConcepts: [],
@@ -159,5 +161,4 @@ const topicSummarizerFlow = ai.defineFlow(
     }
   }
 );
-
     

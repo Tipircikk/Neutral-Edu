@@ -37,7 +37,7 @@ export async function generateFlashcards(input: GenerateFlashcardsInput): Promis
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
   const isCustomModelSelected = !!input.customModelIdentifier;
-  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview';
+  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview_05_20';
 
   const enrichedInput = {
     ...input,
@@ -46,7 +46,7 @@ export async function generateFlashcards(input: GenerateFlashcardsInput): Promis
     isCustomModelSelected,
     isGemini25PreviewSelected,
   };
-  return flashcardGeneratorFlow(enrichedInput); 
+  return flashcardGeneratorFlow(enrichedInput);
 }
 
 const prompt = ai.definePrompt({
@@ -70,7 +70,7 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isCustomModelSelected}}
 (Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
   {{#if isGemini25PreviewSelected}}
-  (Gemini 2.5 Flash Preview Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla.)
+  (Gemini 2.5 Flash Preview 05-20 Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla.)
   {{/if}}
 {{/if}}
 
@@ -106,7 +106,7 @@ Genel Prensipler:
 const flashcardGeneratorFlow = ai.defineFlow(
   {
     name: 'flashcardGeneratorFlow',
-    inputSchema: GenerateFlashcardsInputSchema.extend({ 
+    inputSchema: GenerateFlashcardsInputSchema.extend({
         isProUser: z.boolean().optional(),
         isPremiumUser: z.boolean().optional(),
         isCustomModelSelected: z.boolean().optional(),
@@ -115,7 +115,7 @@ const flashcardGeneratorFlow = ai.defineFlow(
     outputSchema: GenerateFlashcardsOutputSchema,
   },
   async (enrichedInput: z.infer<typeof GenerateFlashcardsInputSchema> & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<GenerateFlashcardsOutput> => {
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; 
+    let modelToUse = 'googleai/gemini-1.5-flash-latest';
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
     if (enrichedInput.customModelIdentifier) {
@@ -126,34 +126,36 @@ const flashcardGeneratorFlow = ai.defineFlow(
         case 'experimental_gemini_1_5_flash':
           modelToUse = 'googleai/gemini-1.5-flash-latest';
           break;
-        case 'experimental_gemini_2_5_flash_preview':
-          modelToUse = 'googleai/gemini-2.5-flash-preview-04-17';
+        case 'experimental_gemini_2_5_flash_preview_05_20':
+          modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
           break;
         default:
           console.warn(`[Flashcard Generator Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
       }
-    } else if (enrichedInput.isProUser) { 
+    } else if (enrichedInput.isProUser) {
       modelToUse = 'googleai/gemini-1.5-flash-latest';
+    } else {
+      modelToUse = 'googleai/gemini-2.0-flash'; // Default for free/premium
     }
-    
-    callOptions.model = modelToUse;
-    
-    let maxTokensForOutput = (enrichedInput.numFlashcards || 5) * 200; 
-    if (maxTokensForOutput > 8000) maxTokensForOutput = 8000; 
-    if (maxTokensForOutput < 1024) maxTokensForOutput = 1024; 
 
-    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-04-17') {
+    callOptions.model = modelToUse;
+
+    let maxTokensForOutput = (enrichedInput.numFlashcards || 5) * 200;
+    if (maxTokensForOutput > 8000) maxTokensForOutput = 8000;
+    if (maxTokensForOutput < 1024) maxTokensForOutput = 1024;
+
+    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-05-20') {
       callOptions.config = {
         generationConfig: {
-          maxOutputTokens: maxTokensForOutput, 
+          maxOutputTokens: maxTokensForOutput,
         }
       };
     } else {
-        callOptions.config = {}; 
+        callOptions.config = {};
     }
-    
+
     console.log(`[Flashcard Generator Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}`);
-    
+
     try {
         const {output} = await prompt(enrichedInput, callOptions);
         if (!output || !output.flashcards || output.flashcards.length === 0) {
@@ -169,7 +171,7 @@ const flashcardGeneratorFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
             }
         }
-        
+
         return {
             flashcards: [],
             summaryTitle: `Hata: ${errorMessage}`
@@ -177,4 +179,4 @@ const flashcardGeneratorFlow = ai.defineFlow(
     }
   }
 );
-
+    

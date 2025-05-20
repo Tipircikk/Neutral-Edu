@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -5,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CalendarDays, Wand2, Loader2, AlertTriangle, Settings, UploadCloud, FileText as FileTextIcon, ChevronDown, ChevronUp } from "lucide-react";
 import { Label } from "@/components/ui/label";
-import { Input as ShadInput } from "@/components/ui/input"; 
+import { Input as ShadInput } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -22,7 +23,7 @@ const renderFormattedText = (text: string | undefined | null, keyPrefix: string)
   if (text === null || text === undefined || text.trim() === "") {
     return [<Fragment key={`${keyPrefix}-empty`}></Fragment>];
   }
-  
+
   const lines = text.split('\n');
   const elements: JSX.Element[] = [];
   let listItems: React.ReactNode[] = [];
@@ -39,9 +40,9 @@ const renderFormattedText = (text: string | undefined | null, keyPrefix: string)
     }
   };
 
-  lines.forEach((line, index) => {
+  lines.forEach((line) => {
     const trimmedLine = line.trim();
-    const specialLabelMatch = trimmedLine.match(/^(PRO KULLANICI İÇİN STRATEJİLER|PREMIUM KULLANICI İÇİN STRATEJİLER|ÜCRETSİZ KULLANICI İÇİN STRATEJİLER|ÖNEMLİ NOT|UNUTMA|GENEL STRATEJİLER VE YKS TAKTİKLERİ|NOT|PRO İPUCU)\s*:\s*(.*)/i);
+    const specialLabelMatch = trimmedLine.match(/^(PRO KULLANICI NOTU|PREMIUM KULLANICI NOTU|ÜCRETSİZ KULLANICI NOTU|PRO KULLANICI İÇİN STRATEJİLER|PREMIUM KULLANICI İÇİN STRATEJİLER|ÜCRETSİZ KULLANICI İÇİN STRATEJİLER|ÖNEMLİ NOT|UNUTMA|GENEL STRATEJİLER VE YKS TAKTİKLERİ|NOT|PRO İPUCU|YKS TAKTİKLERİ)\s*:\s*(.*)/i);
 
 
     if (specialLabelMatch) {
@@ -67,10 +68,10 @@ const renderFormattedText = (text: string | undefined | null, keyPrefix: string)
     }
     else {
       flushList();
-      elements.push(<p key={`${keyPrefix}-p-${keyCounter++}`} className="my-1 text-muted-foreground leading-relaxed">{line || <Fragment>&nbsp;</Fragment>}</p>); 
+      elements.push(<p key={`${keyPrefix}-p-${keyCounter++}`} className="my-1 text-muted-foreground leading-relaxed">{line || <Fragment>&nbsp;</Fragment>}</p>);
     }
   });
-  flushList(); 
+  flushList();
   return elements.length > 0 ? elements : [<Fragment key={`${keyPrefix}-empty-final`}></Fragment>];
 };
 
@@ -96,7 +97,7 @@ export default function StudyPlanGeneratorPage() {
   const [canProcess, setCanProcess] = useState(false);
 
   const memoizedCheckAndResetQuota = useCallback(async () => {
-    if (!checkAndResetQuota) return userProfile; 
+    if (!checkAndResetQuota) return userProfile;
     return checkAndResetQuota();
   }, [checkAndResetQuota, userProfile]);
 
@@ -107,7 +108,7 @@ export default function StudyPlanGeneratorPage() {
           setCanProcess((updatedProfile?.dailyRemainingQuota ?? 0) > 0);
         });
       } else {
-         setCanProcess(false); 
+         setCanProcess(false);
       }
     }
   }, [userProfile, userProfileLoading, memoizedCheckAndResetQuota]);
@@ -125,15 +126,15 @@ export default function StudyPlanGeneratorPage() {
         setPdfFile(null); setPdfFileName(null); setPdfContextText(null);
         event.target.value = ""; return;
       }
-      
+
       const confirmUpload = window.confirm(`"${file.name}" adlı dosyayı yükleyip içeriğini çalışma planı için ek bağlam olarak kullanmak istediğinize emin misiniz? Bu işlem dosya boyutuna göre zaman alabilir.`);
       if (!confirmUpload) {
-        event.target.value = ""; 
+        event.target.value = "";
         setPdfFile(null); setPdfFileName(null); setPdfContextText(null);
         return;
       }
-      
-      setPdfFile(file); setPdfFileName(file.name); setPlanOutput(null); 
+
+      setPdfFile(file); setPdfFileName(file.name); setPlanOutput(null);
       setIsProcessingPdf(true);
       toast({ title: "PDF İşleniyor...", description: "Lütfen bekleyin." });
       try {
@@ -144,7 +145,7 @@ export default function StudyPlanGeneratorPage() {
         console.error("PDF metin çıkarma hatası:", error);
         toast({ title: "PDF İşleme Hatası", description: error.message || "PDF'ten metin çıkarılırken bir hata oluştu.", variant: "destructive" });
         setPdfFile(null); setPdfFileName(null); setPdfContextText(null);
-        event.target.value = ""; 
+        event.target.value = "";
       } finally {
         setIsProcessingPdf(false);
       }
@@ -169,33 +170,33 @@ export default function StudyPlanGeneratorPage() {
     setExpandedWeeks({});
 
     const currentProfile = await memoizedCheckAndResetQuota();
-    if (!currentProfile) { 
+    if (!currentProfile) {
       toast({ title: "Kullanıcı Bilgisi Yüklenemedi", description: "Lütfen sayfayı yenileyin veya tekrar giriş yapın.", variant: "destructive" });
       setIsGenerating(false);
-      setCanProcess(false); 
+      setCanProcess(false);
       return;
     }
-    
+
     const currentCanProcess = (currentProfile.dailyRemainingQuota ?? 0) > 0;
-    setCanProcess(currentCanProcess); 
+    setCanProcess(currentCanProcess);
 
     if (!currentCanProcess) {
       toast({ title: "Kota Aşıldı", description: "Bugünkü plan oluşturma hakkınızı doldurdunuz.", variant: "destructive" });
       setIsGenerating(false);
       return;
     }
-    
+
     try {
       const input: GenerateStudyPlanInput = {
         userField: userField || undefined,
         customSubjectsInput: customSubjectsInput.trim() || undefined,
         studyDuration,
         hoursPerDay,
-        userPlan: currentProfile.plan, 
+        userPlan: currentProfile.plan,
         customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
         pdfContextText: pdfContextText || undefined,
       };
-      
+
       let flowOutput = await generateStudyPlan(input);
 
       if (!flowOutput || typeof flowOutput.planTitle !== 'string' || typeof flowOutput.introduction !== 'string' || !Array.isArray(flowOutput.weeklyPlans)) {
@@ -205,18 +206,27 @@ export default function StudyPlanGeneratorPage() {
                             !Array.isArray(flowOutput.weeklyPlans) ? "Haftalık planlar (weeklyPlans) bir dizi değil." :
                             "Bilinmeyen yapısal hata.";
         console.error(`[Study Plan Generator Page] Flow returned invalid structure: ${errorDetail}. Raw output:`, JSON.stringify(flowOutput).substring(0, 500));
-        
-        const introMessage = flowOutput?.introduction && typeof flowOutput.introduction === 'string' ? flowOutput.introduction : `AI akışından beklenen yapıda bir yanıt alınamadı. ${errorDetail}. Lütfen tekrar deneyin.`;
+
+        let introMessage = flowOutput?.introduction && typeof flowOutput.introduction === 'string' ? flowOutput.introduction : `AI akışından beklenen yapıda bir yanıt alınamadı. ${errorDetail}. Lütfen tekrar deneyin.`;
+        // Check for specific Zod error messages related to week or focusTopics
+        if (errorDetail.includes("weeklyPlans") && flowOutput && Array.isArray(flowOutput.weeklyPlans)) {
+          if(flowOutput.weeklyPlans.some((p:any) => typeof p?.week !== 'number' || isNaN(p?.week))){
+            introMessage = "AI, haftalık planları oluştururken hafta numaralarını doğru formatta üretemedi. Lütfen tekrar deneyin veya farklı bir süre seçin.";
+          } else if (flowOutput.weeklyPlans.some((p:any) => !Array.isArray(p?.dailyTasks) || p.dailyTasks.some((dt:any) => !Array.isArray(dt?.focusTopics) || dt.focusTopics.length === 0 || dt.focusTopics.some((ft:any)=> typeof ft !== 'string' || !ft.trim())))) {
+            introMessage = "AI, günlük görevler için odak konularını doğru formatta üretemedi. Lütfen tekrar deneyin.";
+          }
+        }
+
+
         setPlanOutput({
             planTitle: flowOutput?.planTitle || "Plan Oluşturma Başarısız",
             introduction: introMessage,
-            weeklyPlans: [], 
+            weeklyPlans: [],
             disclaimer: flowOutput?.disclaimer || "Bir hata nedeniyle plan oluşturulamadı."
         });
         toast({ title: "Plan Oluşturma Sonucu Yetersiz", description: introMessage, variant: "destructive"});
 
       } else {
-        // Client-side post-processing just in case, flow should ideally handle this
         flowOutput.weeklyPlans = flowOutput.weeklyPlans.map((plan: any, index) => ({
           ...plan,
           week: (plan && typeof plan.week === 'number' && !isNaN(plan.week)) ? plan.week : index + 1,
@@ -228,8 +238,8 @@ export default function StudyPlanGeneratorPage() {
         }));
         setPlanOutput(flowOutput);
         toast({ title: "Çalışma Planı Hazır!", description: "Kişiselleştirilmiş çalışma planınız oluşturuldu." });
-        
-        const decrementSuccess = await decrementQuota(currentProfile); 
+
+        const decrementSuccess = await decrementQuota(currentProfile);
         if (decrementSuccess) {
             const updatedProfileAfterDecrement = await memoizedCheckAndResetQuota();
             if (updatedProfileAfterDecrement) {
@@ -258,25 +268,25 @@ export default function StudyPlanGeneratorPage() {
       setIsGenerating(false);
     }
   };
-  
-  const isSubmitButtonDisabled = 
-    isGenerating || 
-    isProcessingPdf || 
+
+  const isSubmitButtonDisabled =
+    isGenerating ||
+    isProcessingPdf ||
     (!userField && !customSubjectsInput.trim()) ||
-    (hoursPerDay < 1 || hoursPerDay > 12) || 
-    (!userProfileLoading && userProfile && !canProcess) || 
-    (!userProfileLoading && !userProfile); 
-  
-  const isModelSelectDisabled = 
-    isGenerating || 
+    (hoursPerDay < 1 || hoursPerDay > 12) ||
+    (!userProfileLoading && userProfile && !canProcess) ||
+    (!userProfileLoading && !userProfile);
+
+  const isModelSelectDisabled =
+    isGenerating ||
     isProcessingPdf ||
     !userProfile?.isAdmin ||
     (!userProfileLoading && userProfile && !canProcess) ||
     (!userProfileLoading && !userProfile);
 
-  const isFormElementsDisabled = 
-    isGenerating || 
-    isProcessingPdf || 
+  const isFormElementsDisabled =
+    isGenerating ||
+    isProcessingPdf ||
     (!userProfileLoading && userProfile && !canProcess) ||
     (!userProfileLoading && !userProfile);
 
@@ -284,7 +294,7 @@ export default function StudyPlanGeneratorPage() {
     setExpandedWeeks(prev => ({ ...prev, [weekNumber]: !prev[weekNumber] }));
   };
 
-  if (userProfileLoading && !userProfile) { 
+  if (userProfileLoading && !userProfile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-20rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -298,7 +308,7 @@ export default function StudyPlanGeneratorPage() {
       <Card className="shadow-sm">
         <CardHeader>
           <div className="flex items-center gap-3">
-            <CalendarDays className="h-7 w-7 text-primary" /> 
+            <CalendarDays className="h-7 w-7 text-primary" />
             <CardTitle className="text-2xl">AI Çalışma Planı Oluşturucu</CardTitle>
           </div>
           <CardDescription>
@@ -309,9 +319,9 @@ export default function StudyPlanGeneratorPage() {
          {userProfile?.isAdmin && (
               <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
                 <Label htmlFor="adminModelSelectStudyPlan" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
-                <Select 
-                  value={adminSelectedModel} 
-                  onValueChange={setAdminSelectedModel} 
+                <Select
+                  value={adminSelectedModel}
+                  onValueChange={setAdminSelectedModel}
                   disabled={isModelSelectDisabled}
                 >
                   <SelectTrigger id="adminModelSelectStudyPlan">
@@ -320,7 +330,7 @@ export default function StudyPlanGeneratorPage() {
                   <SelectContent>
                     <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
                     <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
-                    <SelectItem value="experimental_gemini_2_5_flash_preview">Deneysel (Gemini 2.5 Flash Preview)</SelectItem>
+                    <SelectItem value="experimental_gemini_2_5_flash_preview_05_20">Deneysel (Gemini 2.5 Flash Preview 05-20)</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz.</p>
@@ -397,13 +407,13 @@ export default function StudyPlanGeneratorPage() {
                     <ShadInput type="number" id="hoursPerDay" value={hoursPerDay} onChange={(e) => setHoursPerDay(parseInt(e.target.value, 10))} min="1" max="12" disabled={isFormElementsDisabled} className="mt-1"/>
                 </div>
             </div>
-           
+
             <div className="space-y-2">
                 <Label htmlFor="pdfUploadStudyPlan" className="flex items-center gap-2">
                     <UploadCloud className="h-5 w-5 text-muted-foreground" />
                     Ek Bağlam İçin PDF Yükle (İsteğe Bağlı, Maks {MAX_PDF_SIZE_MB}MB)
                 </Label>
-                <ShadInput 
+                <ShadInput
                     id="pdfUploadStudyPlan"
                     type="file"
                     accept="application/pdf"
@@ -456,14 +466,14 @@ export default function StudyPlanGeneratorPage() {
                     </CardContent>
                 </Card>
              )}
-            
+
             <h3 className="text-2xl font-semibold text-center text-primary mt-6 mb-4">Haftalık Planlar</h3>
             <ScrollArea className="h-auto max-h-[700px] w-full rounded-md border">
               <div className="p-1 sm:p-4">
               {planOutput.weeklyPlans && planOutput.weeklyPlans.length > 0 ? (
                 planOutput.weeklyPlans.map((weekPlan, weekIndex) => (
                   <Card key={`week-${weekPlan.week ?? weekIndex}`} className="bg-card shadow-md mb-6 last:mb-0">
-                    <CardHeader 
+                    <CardHeader
                         className="flex flex-row items-center justify-between cursor-pointer hover:bg-muted/50 transition-colors rounded-t-lg p-4"
                         onClick={() => toggleWeekExpansion(weekPlan.week ?? weekIndex)}
                     >
@@ -520,7 +530,7 @@ export default function StudyPlanGeneratorPage() {
           </CardContent>
         </Card>
       )}
-       {!isGenerating && !isProcessingPdf && !planOutput && !userProfileLoading && (!userProfile || (userProfile && canProcess)) && ( 
+       {!isGenerating && !isProcessingPdf && !planOutput && !userProfileLoading && (!userProfile || (userProfile && canProcess)) && (
          <Alert className="mt-6">
           <CalendarDays className="h-4 w-4" />
           <AlertTitle>Plana Hazır!</AlertTitle>
@@ -532,3 +542,4 @@ export default function StudyPlanGeneratorPage() {
     </div>
   );
 }
+    
