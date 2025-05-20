@@ -198,6 +198,39 @@ export default function StudyPlanGeneratorPage() {
       };
 
       let flowOutput = await generateStudyPlan(input);
+      
+      // Client-side validation and correction for critical fields
+      if (flowOutput && typeof flowOutput.planTitle !== 'string') flowOutput.planTitle = "Çalışma Planı";
+      if (flowOutput && typeof flowOutput.introduction !== 'string') flowOutput.introduction = "Planınız için genel bir giriş ve motivasyon mesajı.";
+      if (flowOutput && typeof flowOutput.disclaimer !== 'string') flowOutput.disclaimer = "Bu, yapay zeka tarafından oluşturulmuş bir taslak plandır. Kendi öğrenme hızınıza ve ihtiyaçlarınıza göre uyarlamanız önemlidir.";
+      
+      if (flowOutput && Array.isArray(flowOutput.weeklyPlans)) {
+        flowOutput.weeklyPlans = flowOutput.weeklyPlans.map((plan: any, index) => {
+          const correctedPlan: any = { ...plan };
+          if (typeof correctedPlan.week !== 'number' || isNaN(correctedPlan.week)) {
+            console.warn(`[Study Plan Generator Page] Correcting missing/invalid week number for week index ${index}.`);
+            correctedPlan.week = index + 1;
+          }
+          if (!Array.isArray(correctedPlan.dailyTasks) || correctedPlan.dailyTasks.length === 0) {
+             console.warn(`[Study Plan Generator Page] Correcting missing/empty dailyTasks for week ${correctedPlan.week}.`);
+            correctedPlan.dailyTasks = [{ day: "1. Gün", focusTopics: ["Bu hafta için görevler üretilemedi."], activities: [], estimatedTime: "Esnek", notes: "Lütfen girdilerinizi kontrol edin." }];
+          } else {
+            correctedPlan.dailyTasks = correctedPlan.dailyTasks.map((task: any, taskIndex: number) => {
+              const correctedTask = { ...task };
+              if (typeof correctedTask.day !== 'string' || !correctedTask.day.trim()) correctedTask.day = `Gün ${taskIndex + 1}`;
+              if (!Array.isArray(correctedTask.focusTopics) || correctedTask.focusTopics.length === 0 || correctedTask.focusTopics.some((ft:any)=> typeof ft !== 'string' || !ft.trim())) {
+                correctedTask.focusTopics = ["Genel Tekrar / Boş Zaman"];
+              }
+              return correctedTask;
+            });
+          }
+          return correctedPlan;
+        });
+      } else if (flowOutput) {
+        console.warn(`[Study Plan Generator Page] weeklyPlans is not an array. Setting to empty array.`);
+        flowOutput.weeklyPlans = [];
+      }
+
 
       if (!flowOutput || typeof flowOutput.planTitle !== 'string' || typeof flowOutput.introduction !== 'string' || !Array.isArray(flowOutput.weeklyPlans)) {
         const errorDetail = !flowOutput ? "Flow tanımsız bir yanıt döndürdü." :
@@ -207,35 +240,17 @@ export default function StudyPlanGeneratorPage() {
                             "Bilinmeyen yapısal hata.";
         console.error(`[Study Plan Generator Page] Flow returned invalid structure: ${errorDetail}. Raw output:`, JSON.stringify(flowOutput).substring(0, 500));
 
-        let introMessage = flowOutput?.introduction && typeof flowOutput.introduction === 'string' ? flowOutput.introduction : `AI akışından beklenen yapıda bir yanıt alınamadı. ${errorDetail}. Lütfen tekrar deneyin.`;
-        // Check for specific Zod error messages related to week or focusTopics
-        if (errorDetail.includes("weeklyPlans") && flowOutput && Array.isArray(flowOutput.weeklyPlans)) {
-          if(flowOutput.weeklyPlans.some((p:any) => typeof p?.week !== 'number' || isNaN(p?.week))){
-            introMessage = "AI, haftalık planları oluştururken hafta numaralarını doğru formatta üretemedi. Lütfen tekrar deneyin veya farklı bir süre seçin.";
-          } else if (flowOutput.weeklyPlans.some((p:any) => !Array.isArray(p?.dailyTasks) || p.dailyTasks.some((dt:any) => !Array.isArray(dt?.focusTopics) || dt.focusTopics.length === 0 || dt.focusTopics.some((ft:any)=> typeof ft !== 'string' || !ft.trim())))) {
-            introMessage = "AI, günlük görevler için odak konularını doğru formatta üretemedi. Lütfen tekrar deneyin.";
-          }
-        }
-
-
+        let introMessage = (flowOutput && typeof flowOutput.introduction === 'string' ? flowOutput.introduction : `AI akışından beklenen yapıda bir yanıt alınamadı. ${errorDetail}. Lütfen tekrar deneyin.`);
+        
         setPlanOutput({
-            planTitle: flowOutput?.planTitle || "Plan Oluşturma Başarısız",
+            planTitle: (flowOutput && typeof flowOutput.planTitle === 'string' ? flowOutput.planTitle : "Plan Oluşturma Başarısız"),
             introduction: introMessage,
             weeklyPlans: [],
-            disclaimer: flowOutput?.disclaimer || "Bir hata nedeniyle plan oluşturulamadı."
+            disclaimer: (flowOutput && typeof flowOutput.disclaimer === 'string' ? flowOutput.disclaimer : "Bir hata nedeniyle plan oluşturulamadı.")
         });
         toast({ title: "Plan Oluşturma Sonucu Yetersiz", description: introMessage, variant: "destructive"});
 
       } else {
-        flowOutput.weeklyPlans = flowOutput.weeklyPlans.map((plan: any, index) => ({
-          ...plan,
-          week: (plan && typeof plan.week === 'number' && !isNaN(plan.week)) ? plan.week : index + 1,
-          dailyTasks: Array.isArray(plan.dailyTasks) ? plan.dailyTasks.map((task: any, taskIndex: number) => ({
-            ...task,
-            day: (task && typeof task.day === 'string' && task.day.trim() !== "") ? task.day.trim() : `Gün ${taskIndex + 1}`,
-            focusTopics: (task && Array.isArray(task.focusTopics) && task.focusTopics.length > 0 && task.focusTopics.every((t:any) => typeof t === 'string' && t.trim() !== "")) ? task.focusTopics.map(t => t.trim()).filter(t => t) : ["Genel Tekrar / Boş Zaman"],
-          })) : [{ day: "1. Gün", focusTopics: ["Bu hafta için görevler üretilemedi."], activities: [], estimatedTime: "Esnek", notes: "Lütfen girdilerinizi kontrol edin." }],
-        }));
         setPlanOutput(flowOutput);
         toast({ title: "Çalışma Planı Hazır!", description: "Kişiselleştirilmiş çalışma planınız oluşturuldu." });
 
@@ -468,8 +483,8 @@ export default function StudyPlanGeneratorPage() {
              )}
 
             <h3 className="text-2xl font-semibold text-center text-primary mt-6 mb-4">Haftalık Planlar</h3>
-            <ScrollArea className="h-auto max-h-[700px] w-full rounded-md border">
-              <div className="p-1 sm:p-4">
+            <ScrollArea className="h-auto max-h-[700px] w-full rounded-md border p-1 sm:p-4">
+              <div className="p-1">
               {planOutput.weeklyPlans && planOutput.weeklyPlans.length > 0 ? (
                 planOutput.weeklyPlans.map((weekPlan, weekIndex) => (
                   <Card key={`week-${weekPlan.week ?? weekIndex}`} className="bg-card shadow-md mb-6 last:mb-0">
@@ -516,7 +531,8 @@ export default function StudyPlanGeneratorPage() {
               )}
               </div>
             </ScrollArea>
-             {planOutput.disclaimer && (
+            
+            {planOutput.disclaimer && (
                 <Alert className="mt-4" variant="default">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>Sorumluluk Reddi</AlertTitle>
@@ -542,4 +558,3 @@ export default function StudyPlanGeneratorPage() {
     </div>
   );
 }
-    
