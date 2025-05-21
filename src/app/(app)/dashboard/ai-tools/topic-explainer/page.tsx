@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback, Fragment } from "react";
+import React, { useState, useEffect, useCallback, Fragment, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -25,12 +25,18 @@ export default function TopicExplainerPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [adminSelectedModel, setAdminSelectedModel] = useState<string | undefined>(undefined);
-  const [generateTtsSwitch, setGenerateTtsSwitch] = useState(false); // For admin switch state
-  const [submittedGenerateTtsRequest, setSubmittedGenerateTtsRequest] = useState(false); // To track if TTS was requested for the current output
+  const [generateTtsSwitch, setGenerateTtsSwitch] = useState(false); 
+  const [submittedGenerateTtsRequest, setSubmittedGenerateTtsRequest] = useState(false);
+  const [loadingSubMessage, setLoadingSubMessage] = useState("AI YKS Süper Öğretmeniniz konuyu hazırlıyor... Bu işlem biraz zaman alabilir.");
 
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
   const [canProcess, setCanProcess] = useState(false);
+
+  const isGeneratingRef = useRef(isGenerating);
+  useEffect(() => {
+    isGeneratingRef.current = isGenerating;
+  }, [isGenerating]);
 
   const memoizedCheckAndResetQuota = useCallback(async () => {
     if (!checkAndResetQuota) return userProfile;
@@ -63,12 +69,12 @@ export default function TopicExplainerPage() {
         elements.push(<Fragment key={`text-${keyIndex++}`}>{line.substring(lastIndex, match.index)}</Fragment>);
       }
       
-      if (match[5]) { // Bold: **text**
+      if (match[5]) { 
         elements.push(<strong key={`bold-${keyIndex++}`}>{match[5]}</strong>);
-      } else if (match[1] && match[2]) { // Superscript: text^number or text^{number}
+      } else if (match[1] && match[2]) { 
         elements.push(<Fragment key={`base-sup-${keyIndex}`}>{match[1]}</Fragment>);
         elements.push(<sup key={`sup-${keyIndex++}`}>{match[2].replace(/[{}]/g, '')}</sup>);
-      } else if (match[3] && match[4]) { // Subscript: text_number or text_{number}
+      } else if (match[3] && match[4]) { 
         elements.push(<Fragment key={`base-sub-${keyIndex}`}>{match[3]}</Fragment>);
         elements.push(<sub key={`sub-${keyIndex++}`}>{match[4].replace(/[{}]/g, '')}</sub>);
       }
@@ -132,6 +138,7 @@ export default function TopicExplainerPage() {
     }
 
     setIsGenerating(true);
+    setLoadingSubMessage("AI YKS Süper Öğretmeniniz metin anlatımını hazırlıyor... Bu işlem biraz zaman alabilir.");
     setExplanationOutput(null);
     const ttsRequestedThisTime = userProfile?.isAdmin && generateTtsSwitch;
     setSubmittedGenerateTtsRequest(ttsRequestedThisTime);
@@ -145,6 +152,14 @@ export default function TopicExplainerPage() {
       return;
     }
     setCanProcess(true);
+
+    if (ttsRequestedThisTime) {
+      setTimeout(() => {
+        if (isGeneratingRef.current) { 
+          setLoadingSubMessage("Sesli anlatımınız oluşturuluyor... Bu işlem biraz daha uzun sürebilir.");
+        }
+      }, 7000); 
+    }
 
     try {
       if (!currentProfile?.plan) {
@@ -466,8 +481,7 @@ export default function TopicExplainerPage() {
               <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
               <p className="text-lg font-medium text-foreground">Konu Anlatımı Oluşturuluyor...</p>
               <p className="text-sm text-muted-foreground">
-                AI YKS Süper Öğretmeniniz konuyu hazırlıyor... Bu işlem biraz zaman alabilir.
-                {submittedGenerateTtsRequest && " Sesli anlatım da oluşturuluyor, bu işlem biraz daha uzun sürebilir."}
+                {loadingSubMessage}
               </p>
             </div>
           </CardContent>
