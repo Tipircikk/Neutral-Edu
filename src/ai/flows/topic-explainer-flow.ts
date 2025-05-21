@@ -12,7 +12,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { GoogleGenAI, type GenerationConfig, type Content } from '@google/genai';
+import { GoogleGenAI, type Content } from '@google/genai'; // Removed GenerationConfig as it's not directly used for ttsRequestConfig structure
 import { Buffer } from 'buffer'; // Node.js Buffer
 
 // Helper types for WAV conversion
@@ -24,14 +24,14 @@ interface WavConversionOptions {
 
 // Helper function to parse mimeType for WAV conversion
 function parseMimeType(mimeType: string): WavConversionOptions {
-  const [fileType, ...params] = mimeType.split(';').map(s => s.trim());
+  const [fileType, ...params] = mimeType.split(';').map(s => s.trim().toLowerCase()); // Ensure case-insensitivity for keys
   const [_, format] = fileType.split('/');
 
   const options: Partial<WavConversionOptions> = {
     numChannels: 1, // Default to mono
   };
 
-  if (format && format.toUpperCase().startsWith('L')) {
+  if (format && format.startsWith('l')) { // Ensure 'l' is lowercase for comparison
     const bits = parseInt(format.slice(1), 10);
     if (!isNaN(bits)) {
       options.bitsPerSample = bits;
@@ -40,9 +40,9 @@ function parseMimeType(mimeType: string): WavConversionOptions {
 
   for (const param of params) {
     const [key, value] = param.split('=').map(s => s.trim());
-    if (key.toLowerCase() === 'rate' && value) {
+    if (key === 'rate' && value) {
       options.sampleRate = parseInt(value, 10);
-    } else if (key.toLowerCase() === 'channels' && value) {
+    } else if (key === 'channels' && value) {
       options.numChannels = parseInt(value, 10);
     }
   }
@@ -118,14 +118,14 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
       responseModalities: ['AUDIO'], 
       speechConfig: {
         voiceConfig: {
-          // prebuiltVoiceConfig: { voiceName: 'Zephyr' } // Example voice, might cause issues if not supported. Let's try without for wider compatibility.
+          prebuiltVoiceConfig: { voiceName: 'Puck' } // Using 'Puck' as one of the suggested voices
         }
       },
     };
 
     const contents: Content[] = [{ role: 'user', parts: [{ text }] }];
     
-    console.log("[TTS Generation] Sending request to Gemini TTS model (gemini-2.5-pro-preview-tts)...");
+    console.log("[TTS Generation] Sending request to Gemini TTS model (gemini-2.5-pro-preview-tts) with voice: Puck...");
     // @ts-ignore - Allow pass-through of custom config keys if the endpoint expects them
     const result = await ttsModel.generateContentStream({ contents, generationConfig: ttsRequestConfig });
 
@@ -201,7 +201,7 @@ const defaultErrorOutput: ExplainTopicOutput = {
 };
 
 export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTopicOutput> {
-  console.log("[ExplainTopic Action] Received input:", { topicName: input.topicName, userPlan: input.userPlan, customModel: input.customModelIdentifier, generateTts: input.generateTts });
+  console.log("[ExplainTopic Action] Received input:", { topicName: input.topicName, userPlan: input.userPlan, customModelIdentifier: input.customModelIdentifier, generateTts: input.generateTts });
 
   try {
     const isProUser = input.userPlan === 'pro';
@@ -210,29 +210,28 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
 
     if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.startsWith('googleai/')) {
         modelToUseForText = input.customModelIdentifier;
-    } else {
-        switch (input.customModelIdentifier) {
+        console.log(`[ExplainTopic Action] Admin selected a direct Genkit model: ${modelToUseForText}`);
+    } else if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string') {
+        switch (input.customModelIdentifier.toLowerCase()) {
             case 'default_gemini_flash': modelToUseForText = 'googleai/gemini-2.0-flash'; break;
             case 'experimental_gemini_1_5_flash': modelToUseForText = 'googleai/gemini-1.5-flash-latest'; break;
             case 'experimental_gemini_2_5_flash_preview_05_20': modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20'; break;
             default:
-                if (input.customModelIdentifier) { // Log if an unknown non-empty string was provided
-                    console.warn(`[Topic Explainer Flow] Unknown or invalid customModelIdentifier: '${input.customModelIdentifier}'. Defaulting based on plan.`);
-                }
-                if (isProUser || isPremiumUser) {
-                    modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20';
-                } else {
-                    modelToUseForText = 'googleai/gemini-2.0-flash';
-                }
+                console.warn(`[ExplainTopic Action] Unknown customModelIdentifier: '${input.customModelIdentifier}'. Defaulting based on plan.`);
+                if (isProUser || isPremiumUser) modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20';
+                else modelToUseForText = 'googleai/gemini-2.0-flash';
                 break;
         }
+    } else {
+        if (isProUser || isPremiumUser) modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20';
+        else modelToUseForText = 'googleai/gemini-2.0-flash';
     }
     
-    if (!modelToUseForText || typeof modelToUseForText !== 'string' || !modelToUseForText.startsWith('googleai/')) {
-      console.error(`[Topic Explainer Flow] CRITICAL: modelToUseForText is invalid after logic: '${modelToUseForText}'. Original customId: '${input.customModelIdentifier}'. Forcing fallback.`);
-      modelToUseForText = 'googleai/gemini-2.0-flash'; // Absolute fallback to prevent Genkit errors
+    if (!modelToUseForText || !modelToUseForText.startsWith('googleai/')) {
+      console.error(`[ExplainTopic Action] CRITICAL: modelToUseForText is invalid: '${modelToUseForText}'. Forcing fallback. Original customId: '${input.customModelIdentifier}'`);
+      modelToUseForText = 'googleai/gemini-2.0-flash'; // Absolute fallback
     }
-    console.log(`[ExplainTopic Action] Determined modelToUseForText: ${modelToUseForText}`);
+    console.log(`[ExplainTopic Action] Determined modelToUseForText for Genkit flow: ${modelToUseForText}`);
     
     const isGemini25FlashPreviewSelectedForText = modelToUseForText === 'googleai/gemini-2.5-flash-preview-05-20';
 
@@ -251,13 +250,14 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
     let flowOutput = await topicExplainerFlow(enrichedInput, modelToUseForText);
 
     let audioDataUri: string | null = null;
-    if (input.generateTts && (isProUser || isPremiumUser || input.userPlan === 'admin_equivalent_for_testing') && flowOutput.explanation) { // Allow TTS for admin and pro/premium users
-      console.log("[Topic Explainer Flow] TTS requested. Synthesizing speech for explanation...");
+    // Allow TTS for admin, pro, or premium users if requested. Free users cannot request TTS.
+    if (input.generateTts && (isProUser || isPremiumUser || userProfile?.isAdmin) && flowOutput.explanation) {
+      console.log("[ExplainTopic Action] TTS requested by eligible user. Synthesizing speech for explanation...");
       audioDataUri = await synthesizeSpeechWithGoogleGenAI(flowOutput.explanation);
       if (audioDataUri) {
-        console.log("[Topic Explainer Flow] TTS audio URI generated and added to output.");
+        console.log("[ExplainTopic Action] TTS audio URI generated and added to output.");
       } else {
-        console.warn("[Topic Explainer Flow] TTS audio URI generation failed. Proceeding without audio.");
+        console.warn("[ExplainTopic Action] TTS audio URI generation failed. Proceeding without audio.");
       }
     }
 
@@ -279,7 +279,7 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
     }
     return {
         ...defaultErrorOutput,
-        explanationTitle: `Sunucu Hatası: ${input.topicName}`,
+        explanationTitle: `Sunucu Hatası: ${input.topicName || 'Konu Belirtilmemiş'}`,
         explanation: `Konu anlatımı oluşturulurken sunucuda kritik bir hata oluştu. Detay: ${errorMessage}. Lütfen daha sonra tekrar deneyin.`
     };
   }
@@ -390,7 +390,7 @@ const topicExplainerFlow = ai.defineFlow(
         const {output} = await topicExplainerPrompt(enrichedInput, callOptions);
         if (!output || !output.explanation) {
           console.error("[Topic Explainer Flow - Text Gen] AI did not produce a valid explanation. Output:", JSON.stringify(output).substring(0,500));
-          throw new Error(`AI YKS Süper Öğretmeniniz, belirtilen konu için bir anlatım oluşturamadı. Kullanılan Model: ${modelToUseForText}. Lütfen konuyu ve ayarları kontrol edin veya farklı bir model deneyin.`);
+          throw new Error(`AI YKS Süper Öğretmeniniz, belirtilen konu ("${enrichedInput.topicName}") için bir anlatım oluşturamadı. Kullanılan Model: ${modelToUseForText}. Lütfen konuyu ve ayarları kontrol edin veya farklı bir model deneyin.`);
         }
         return {
             explanationTitle: output.explanationTitle,
@@ -401,9 +401,9 @@ const topicExplainerFlow = ai.defineFlow(
             activeRecallQuestions: output.activeRecallQuestions || [],
         };
     } catch (error: any) {
-        console.error(`[Topic Explainer Flow - Text Gen] INNER CRITICAL error during generation with model ${modelToUseForText}:`, error);
+        console.error(`[Topic Explainer Flow - Text Gen] INNER CRITICAL error during generation with model ${modelToUseForText} for topic "${enrichedInput.topicName}":`, error);
         if (error instanceof Error) {
-           let errorMessage = `AI modeli (${modelToUseForText}) ile konu anlatımı oluşturulurken bir Genkit/AI hatası oluştu.`;
+           let errorMessage = `AI modeli (${modelToUseForText}) ile "${enrichedInput.topicName}" konusu için anlatım oluşturulurken bir Genkit/AI hatası oluştu.`;
            if (error.message) {
                 errorMessage += ` Detay: ${error.message.substring(0, 250)}`;
                 if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
@@ -416,8 +416,9 @@ const topicExplainerFlow = ai.defineFlow(
             }
             throw new Error(errorMessage); 
         } else {
-            throw new Error(`AI modeli (${modelToUseForText}) ile konu anlatımı oluşturulurken bilinmeyen bir Genkit/AI hatası oluştu.`);
+            throw new Error(`AI modeli (${modelToUseForText}) ile "${enrichedInput.topicName}" konusu için anlatım oluşturulurken bilinmeyen bir Genkit/AI hatası oluştu.`);
         }
     }
   }
 );
+
