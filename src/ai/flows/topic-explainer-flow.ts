@@ -29,7 +29,6 @@ function parseMimeType(mimeType: string): WavConversionOptions {
   const fileTypePart = parts[0]?.toLowerCase() || ""; 
   const paramsArray = parts.slice(1); 
 
-  // More robust defaults, ensure they are always positive numbers
   const options: WavConversionOptions = {
     numChannels: 1,
     bitsPerSample: 16, 
@@ -44,7 +43,7 @@ function parseMimeType(mimeType: string): WavConversionOptions {
         options.bitsPerSample = bits;
         console.log(`[TTS parseMimeType] Parsed bitsPerSample: ${bits} from format: ${format}`);
       } else {
-        console.warn(`[TTS parseMimeType] Could not parse valid bits from format: "${format}". Using default bitsPerSample: ${options.bitsPerSample}`);
+        console.warn(`[TTS parseMimeType] Could not parse valid bits from format: "${format}". Defaulting to ${options.bitsPerSample}.`);
       }
     }
   } else {
@@ -53,7 +52,7 @@ function parseMimeType(mimeType: string): WavConversionOptions {
 
   for (const param of paramsArray) {
     const [keyDirty, valueDirty] = param.split('=').map(s => s.trim());
-    const key = keyDirty.toLowerCase(); // Ensure key is compared in lowercase
+    const key = keyDirty.toLowerCase();
     const value = valueDirty;
 
     if (key === 'rate' && value) {
@@ -62,7 +61,7 @@ function parseMimeType(mimeType: string): WavConversionOptions {
         options.sampleRate = parsedRate;
         console.log(`[TTS parseMimeType] Parsed sampleRate: ${parsedRate} for key: "${key}"`);
       } else {
-         console.warn(`[TTS parseMimeType] Could not parse valid rate from value: "${value}" for key: "${key}". Using default sampleRate: ${options.sampleRate}`);
+         console.warn(`[TTS parseMimeType] Could not parse valid rate from value: "${value}" for key: "${key}". Defaulting to ${options.sampleRate}.`);
       }
     } else if (key === 'channels' && value) {
       const parsedChannels = parseInt(value, 10);
@@ -70,14 +69,23 @@ function parseMimeType(mimeType: string): WavConversionOptions {
         options.numChannels = parsedChannels;
         console.log(`[TTS parseMimeType] Parsed numChannels: ${parsedChannels} for key: "${key}"`);
       } else {
-        console.warn(`[TTS parseMimeType] Could not parse valid channels from value: "${value}" for key: "${key}". Using default numChannels: ${options.numChannels}`);
+        console.warn(`[TTS parseMimeType] Could not parse valid channels from value: "${value}" for key: "${key}". Defaulting to ${options.numChannels}.`);
       }
     }
   }
   // Final check for defaults if parsing failed or values are invalid
-  if (isNaN(options.sampleRate) || options.sampleRate <= 0) options.sampleRate = 24000;
-  if (isNaN(options.bitsPerSample) || options.bitsPerSample <= 0) options.bitsPerSample = 16;
-  if (isNaN(options.numChannels) || options.numChannels <= 0) options.numChannels = 1;
+  if (isNaN(options.sampleRate) || options.sampleRate <= 0) {
+    console.warn(`[TTS parseMimeType] Invalid sampleRate (${options.sampleRate}), defaulting to 24000.`);
+    options.sampleRate = 24000;
+  }
+  if (isNaN(options.bitsPerSample) || options.bitsPerSample <= 0) {
+     console.warn(`[TTS parseMimeType] Invalid bitsPerSample (${options.bitsPerSample}), defaulting to 16.`);
+    options.bitsPerSample = 16;
+  }
+  if (isNaN(options.numChannels) || options.numChannels <= 0) {
+    console.warn(`[TTS parseMimeType] Invalid numChannels (${options.numChannels}), defaulting to 1.`);
+    options.numChannels = 1;
+  }
   
   console.log(`[TTS parseMimeType] Final determined options for "${mimeType}": ${JSON.stringify(options)}`);
   return options;
@@ -130,14 +138,12 @@ function convertToWavDataUri(base64RawData: string, mimeType: string): string | 
   try {
     const options = parseMimeType(mimeType);
 
-    // Crucial check: ensure options are valid before proceeding
     if (!options.sampleRate || options.sampleRate <= 0 || 
         !options.bitsPerSample || options.bitsPerSample <= 0 ||
         !options.numChannels || options.numChannels <= 0 ||
         isNaN(options.sampleRate) || isNaN(options.bitsPerSample) || isNaN(options.numChannels)
       ) {
         console.error(`[TTS WAV Conversion] CRITICAL: Missing or invalid parameters after parsing mimeType: "${mimeType}". Cannot convert to WAV. Parsed Options: ${JSON.stringify(options)}`);
-        // Return original data with its mime type if conversion is not possible due to bad params
         return `data:${mimeType};base64,${base64RawData}`; 
     }
 
@@ -150,7 +156,6 @@ function convertToWavDataUri(base64RawData: string, mimeType: string): string | 
     return `data:audio/wav;base64,${wavBase64}`;
   } catch (error: any) {
     console.error("[TTS WAV Conversion] Error converting to WAV:", error.message ? error.message : error);
-    // Fallback to returning the original data URI if WAV conversion fails
     return `data:${mimeType};base64,${base64RawData}`; 
   }
 }
@@ -161,38 +166,32 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
     console.error("[TTS Generation] FATAL: GEMINI_API_KEY is not set in environment variables. Cannot proceed with TTS.");
     return null;
   }
-  const apiKeyLast5 = apiKey.slice(-5);
-  console.log(`[TTS Generation] Using API Key (last 5 chars): ...${apiKeyLast5}`);
+  const apiKeyLast5 = "..." + apiKey.slice(-5); // Avoid logging full key
+  console.log(`[TTS Generation] Using API Key (last 5 chars): ${apiKeyLast5}`);
 
 
-  if (!text || text.trim().length === 0) {
-    console.warn("[TTS Generation] Input text is empty. Skipping TTS generation.");
+  if (!text || text.trim().length < 10) { 
+    console.warn(`[TTS Generation] Input text is too short (length: ${text?.trim().length || 0}). Skipping TTS generation.`);
     return null;
-  }
-   if (text.trim().length < 10) { // Stricter minimum length
-    console.warn(`[TTS Generation] Input text is very short (length: ${text.trim().length}). This might affect TTS quality or cause issues. Text: "${text.substring(0,50)}"`);
-    // Potentially return null here if too short is problematic for the API
-    // return null;
   }
 
   try {
     const genAI = new GoogleGenAI(apiKey);
     const ttsModel = genAI.getGenerativeModel({ model: "gemini-2.5-pro-preview-tts" });
 
-    // Configuration based on user's example and previous discussions
     const ttsRequestConfig: any = { 
-      temperature: 0.7, // Adjusted temperature, 1 was in user example but 0.7 is often more stable for TTS
-      responseModalities: ['audio'], // Explicitly request only audio
+      temperature: 0.7, 
+      responseModalities: ['audio'], // Keep as per user's last working example (if any) or API docs
       speechConfig: {
         voiceConfig: {
-          prebuiltVoiceConfig: { voiceName: 'Rasalgethi' } // Using one of the suggested voices
+          prebuiltVoiceConfig: { voiceName: 'Rasalgethi' } 
         }
       },
     };
     
     const contents: Content[] = [{ role: 'user', parts: [{ text }] }];
     
-    console.log(`[TTS Generation] Sending request to Gemini TTS model (gemini-2.5-pro-preview-tts). Voice: Rasalgethi. Text length: ${text.length}. First 50 chars: "${text.substring(0,50)}..."`);
+    console.log(`[TTS Generation] Sending request to Gemini TTS model (gemini-2.5-pro-preview-tts). Voice: Rasalgethi. Text length: ${text.length}.`);
     console.log("[TTS Generation] Full request payload to generateContentStream (generationConfig part):", JSON.stringify(ttsRequestConfig));
     
     const result = await ttsModel.generateContentStream({ contents, generationConfig: ttsRequestConfig });
@@ -203,19 +202,18 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
 
     for await (const chunk of result.stream) {
       console.log(`[TTS Generation] Received chunk ${chunkIndex}.`);
-      // Log the full chunk for detailed debugging, especially if inlineData is not found
       console.log(`[TTS Generation] Full chunk ${chunkIndex} content (raw):`, JSON.stringify(chunk, null, 2));
       
       if (chunk.candidates && chunk.candidates.length > 0 && chunk.candidates[0].content && chunk.candidates[0].content.parts) {
         const part = chunk.candidates[0].content.parts[0];
-        // @ts-ignore - inlineData might not be in standard Part type, but is expected from TTS model
+        // @ts-ignore 
         if (part && part.inlineData && typeof part.inlineData.mimeType === 'string' && typeof part.inlineData.data === 'string') {
           // @ts-ignore
           audioMimeType = part.inlineData.mimeType;
           // @ts-ignore
           audioBase64 = part.inlineData.data;
           console.log(`[TTS Generation] SUCCESS: Found inlineData in chunk ${chunkIndex}. MimeType: "${audioMimeType}", Base64 Data Length: ${audioBase64?.length}`);
-          break; // Found audio data, no need to process further chunks
+          break; 
         } else {
           console.log(`[TTS Generation] Chunk ${chunkIndex}, Part 0 does NOT have expected inlineData with string data and mimeType. Part content:`, JSON.stringify(part, null, 2));
         }
@@ -228,22 +226,18 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
     if (audioBase64 && audioMimeType) {
       console.log(`[TTS Generation] Audio data processing. MimeType: ${audioMimeType}`);
       const lowerMimeType = audioMimeType.toLowerCase();
-      // Check for directly playable formats first
       if (lowerMimeType === 'audio/mpeg' || lowerMimeType === 'audio/mp3' || lowerMimeType === 'audio/wav') {
         console.log("[TTS Generation] Audio mimeType is directly playable or standard WAV. Returning as data URI.");
         return `data:${audioMimeType};base64,${audioBase64}`;
       } else if (lowerMimeType.includes('audio/l16') || lowerMimeType.includes('audio/raw') || lowerMimeType.startsWith('audio/l')) {
-        // Handle raw audio formats by converting to WAV
         console.log("[TTS Generation] Raw audio format detected, attempting WAV conversion.");
         return convertToWavDataUri(audioBase64, audioMimeType);
       } else {
-         // If mimeType is unknown but we have data, log a warning and return it as is.
-         // The browser might not be able to play it.
          console.warn(`[TTS Generation] Received audio with unhandled playable mimeType: "${audioMimeType}". Returning as is. This might not be playable directly in browser.`);
          return `data:${audioMimeType};base64,${audioBase64}`;
       }
     } else {
-      console.error("[TTS Generation] CRITICAL: No audio data (inlineData with mimeType and data) found after processing all chunks from Gemini TTS model stream. This indicates the API did not return audio as expected or the response structure has changed. Ensure model 'gemini-2.5-pro-preview-tts' supports speechConfig with the specified voice or responseModalities.");
+      console.error("[TTS Generation] CRITICAL: No audio data (inlineData with mimeType and data) found after processing all chunks from Gemini TTS model stream. Ensure model 'gemini-2.5-pro-preview-tts' supports speechConfig with the specified voice or responseModalities.");
       return null;
     }
 
@@ -304,7 +298,6 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
   const isPremiumUser = input.userPlan === 'premium';
   
   let modelToUseForText = '';
-  // Determine modelToUseForText based on input.customModelIdentifier and plan
   if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.trim().startsWith('googleai/')) {
       modelToUseForText = input.customModelIdentifier.trim();
       console.log(`[ExplainTopic Action] Admin explicitly selected Genkit model: ${modelToUseForText}`);
@@ -347,30 +340,33 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
     isPersonaOzel: input.teacherPersona === 'ozel',
   };
   
-  let flowOutputWithoutAudio: Omit<ExplainTopicOutput, 'audioDataUri' | 'ttsError'>;
+  let flowOutput: Omit<ExplainTopicOutput, 'audioDataUri' | 'ttsError'>;
   let audioDataUri: string | null = null;
   let ttsErrorMessage: string | undefined = undefined;
   
   try {
-    flowOutputWithoutAudio = await topicExplainerFlow(enrichedInput, modelToUseForText);
+    flowOutput = await topicExplainerFlow(enrichedInput, modelToUseForText);
 
-    if (input.generateTts && flowOutputWithoutAudio.explanation && flowOutputWithoutAudio.explanation.trim().length > 10) {
+    // Attempt TTS generation only if the main text explanation was successful and TTS was requested
+    if (input.generateTts && flowOutput.explanation && !flowOutput.explanation.startsWith("AI modeli") && !flowOutput.explanation.startsWith("Hata:") && flowOutput.explanation.trim().length > 10) {
       console.log(`[ExplainTopic Action] TTS generation requested. Synthesizing speech for explanation...`);
-      audioDataUri = await synthesizeSpeechWithGoogleGenAI(flowOutputWithoutAudio.explanation);
-      if (audioDataUri) {
-        console.log("[ExplainTopic Action] TTS audio URI generated successfully.");
+      audioDataUri = await synthesizeSpeechWithGoogleGenAI(flowOutput.explanation);
+      if (!audioDataUri) {
+        console.warn("[ExplainTopic Action] TTS audio URI generation failed or returned null. Setting ttsError.");
+        ttsErrorMessage = "Sesli anlatım oluşturulamadı. Lütfen API anahtarınızı, model erişiminizi ve sunucu loglarını kontrol edin.";
       } else {
-        console.warn("[ExplainTopic Action] TTS audio URI generation failed or returned null.");
-        ttsErrorMessage = "Sesli anlatım oluşturulamadı. Lütfen daha sonra tekrar deneyin veya bir sorun olduğunu düşünüyorsanız destek ile iletişime geçin.";
+        console.log("[ExplainTopic Action] TTS audio URI generated successfully.");
       }
     } else if (input.generateTts) { 
-        console.log(`[ExplainTopic Action] TTS generation requested but SKIPPED. Reason: generateTts=${input.generateTts}, explanation length=${flowOutputWithoutAudio.explanation?.trim().length || 0}`);
-        if (flowOutputWithoutAudio.explanation && flowOutputWithoutAudio.explanation.trim().length <= 10) {
+        console.log(`[ExplainTopic Action] TTS generation requested but SKIPPED. Reason: generateTts=${input.generateTts}, explanation successful=${!!(flowOutput.explanation && !flowOutput.explanation.startsWith("AI modeli") && !flowOutput.explanation.startsWith("Hata:"))}, explanation length=${flowOutput.explanation?.trim().length || 0}`);
+        if (flowOutput.explanation && flowOutput.explanation.trim().length <= 10) {
             ttsErrorMessage = "Sesli anlatım için metin çok kısa. Lütfen daha uzun bir konu anlatımı oluşturun.";
+        } else if (flowOutput.explanation && (flowOutput.explanation.startsWith("AI modeli") || flowOutput.explanation.startsWith("Hata:"))) {
+            ttsErrorMessage = "Ana konu anlatımı oluşturulamadığı için sesli anlatım da üretilemedi.";
         }
     }
 
-    return { ...flowOutputWithoutAudio, audioDataUri: audioDataUri ?? undefined, ttsError: ttsErrorMessage };
+    return { ...flowOutput, audioDataUri: audioDataUri ?? undefined, ttsError: ttsErrorMessage };
 
   } catch (error: any) {
     console.error("[ExplainTopic Action] CRITICAL error during server action execution (outer try-catch):", error);
@@ -497,7 +493,6 @@ const topicExplainerFlow = ai.defineFlow(
 
     let callOptions: { model: string; config?: Record<string, any> } = { model: finalModelToUse };
 
-    // Explicitly set safetySettings to avoid overly restrictive blocking for educational content
     const safetySettings = [
         { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
         { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
@@ -569,3 +564,4 @@ const topicExplainerFlow = ai.defineFlow(
   }
 );
 
+    

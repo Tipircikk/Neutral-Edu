@@ -559,6 +559,7 @@ export default function TopicExplainerPage() {
         </Card>
       )}
 
+      {/* Separate Card for Audio Player */}
       {submittedGenerateTtsRequest && !isGenerating && explanationOutput && (
         <Card className="mt-6">
             <CardHeader>
@@ -605,4 +606,6 @@ export default function TopicExplainerPage() {
     </div>
   );
 }
+    
+
     
