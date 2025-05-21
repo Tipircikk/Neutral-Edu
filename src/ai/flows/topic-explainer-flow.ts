@@ -12,7 +12,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { GoogleGenAI, type Content } from '@google/genai';
+import { GoogleGenerativeAI as GoogleGenAI, type Content } from '@google/generative-ai'; // Updated import
 import { Buffer } from 'buffer'; // Node.js Buffer
 
 // Helper types for WAV conversion
@@ -26,29 +26,29 @@ interface WavConversionOptions {
 function parseMimeType(mimeType: string): WavConversionOptions {
   console.log(`[TTS parseMimeType] Received mimeType: "${mimeType}"`);
   const parts = mimeType.split(';').map(s => s.trim());
-  const [fileTypeDirty] = parts; 
-  const fileType = fileTypeDirty ? fileTypeDirty.toLowerCase() : ""; 
-  const paramsArray = parts.slice(1); 
+  const fileTypeDirty = parts[0] || "";
+  const fileType = fileTypeDirty.toLowerCase();
+  const paramsArray = parts.slice(1);
 
   // Default options, these are critical for WAV header
   const options: WavConversionOptions = {
-    numChannels: 1, 
-    bitsPerSample: 16, 
-    sampleRate: 24000, 
+    numChannels: 1,
+    bitsPerSample: 16,
+    sampleRate: 24000, // Common default for speech
   };
 
   if (fileType) {
-    const [_, format] = fileType.split('/'); 
-    if (format && format.toLowerCase().startsWith('l')) { // L16, L24 etc. (Linear PCM)
-      const bits = parseInt(format.slice(1), 10);
+    const formatPart = fileType.split('/')[1];
+    if (formatPart && formatPart.toLowerCase().startsWith('l')) { // L16, L24 etc. (Linear PCM)
+      const bits = parseInt(formatPart.slice(1), 10);
       if (!isNaN(bits) && bits > 0) {
         options.bitsPerSample = bits;
-        console.log(`[TTS parseMimeType] Parsed bitsPerSample: ${bits} from format: ${format}`);
+        console.log(`[TTS parseMimeType] Parsed bitsPerSample: ${bits} from format: ${formatPart}`);
       } else {
-        console.warn(`[TTS parseMimeType] Could not parse valid bits from format: "${format}". Using default bitsPerSample: ${options.bitsPerSample}`);
+        console.warn(`[TTS parseMimeType] Could not parse valid bits from format: "${formatPart}". Using default bitsPerSample: ${options.bitsPerSample}`);
       }
     } else {
-      console.log(`[TTS parseMimeType] Format "${format}" does not start with 'l'. Using default bitsPerSample: ${options.bitsPerSample}`);
+      console.log(`[TTS parseMimeType] Format "${formatPart}" does not start with 'l' or is missing. Using default bitsPerSample: ${options.bitsPerSample}`);
     }
   } else {
     console.warn(`[TTS parseMimeType] fileType is missing in mimeType: "${mimeType}". Using default bitsPerSample: ${options.bitsPerSample}`);
@@ -93,8 +93,9 @@ function createWavHeader(dataLength: number, options: WavConversionOptions): Buf
   console.log(`[TTS createWavHeader] Creating WAV header with DataLength: ${dataLength}, Options: ${JSON.stringify(options)}`);
 
   if (!numChannels || !sampleRate || !bitsPerSample || numChannels <= 0 || sampleRate <= 0 || bitsPerSample <= 0) {
-    console.error(`[TTS createWavHeader] Invalid options for WAV header creation: ${JSON.stringify(options)}. Cannot create header.`);
-    throw new Error("Invalid options for WAV header creation.");
+    const errorMsg = `[TTS createWavHeader] Invalid options for WAV header creation: ${JSON.stringify(options)}. Cannot create header.`;
+    console.error(errorMsg);
+    throw new Error(errorMsg);
   }
 
   const byteRate = sampleRate * numChannels * bitsPerSample / 8;
@@ -123,12 +124,11 @@ function convertToWavDataUri(base64RawData: string, mimeType: string): string | 
   console.log(`[TTS convertToWavDataUri] Attempting WAV conversion for mimeType: ${mimeType}, Base64 Data Length: ${base64RawData.length}`);
   try {
     const options = parseMimeType(mimeType);
-    // Critical check for WAV parameters before proceeding
     if (!options.sampleRate || options.sampleRate <= 0 || 
         !options.bitsPerSample || options.bitsPerSample <= 0 ||
         !options.numChannels || options.numChannels <= 0) {
         console.error(`[TTS WAV Conversion] CRITICAL: Missing or invalid parameters after parsing mimeType: "${mimeType}". Cannot convert to WAV. Parsed Options: ${JSON.stringify(options)}`);
-        return `data:${mimeType};base64,${base64RawData}`; // Return original if params are bad
+        return `data:${mimeType};base64,${base64RawData}`; // Return original if params are bad, might not be playable
     }
     const rawDataBuffer = Buffer.from(base64RawData, 'base64');
     console.log(`[TTS convertToWavDataUri] Raw data buffer length: ${rawDataBuffer.length}`);
@@ -137,8 +137,8 @@ function convertToWavDataUri(base64RawData: string, mimeType: string): string | 
     const wavBase64 = fullWavBuffer.toString('base64');
     console.log("[TTS convertToWavDataUri] Successfully converted to WAV data URI. WAV Base64 Length: " + wavBase64.length);
     return `data:audio/wav;base64,${wavBase64}`;
-  } catch (error) {
-    console.error("[TTS WAV Conversion] Error converting to WAV:", error);
+  } catch (error: any) {
+    console.error("[TTS WAV Conversion] Error converting to WAV:", error.message ? error.message : error);
     return `data:${mimeType};base64,${base64RawData}`; // Return original on error as a fallback
   }
 }
@@ -147,37 +147,38 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     console.error("[TTS Generation] FATAL: GEMINI_API_KEY is not set in environment variables. Cannot proceed with TTS.");
-    return null;
+    throw new Error("GEMINI_API_KEY is not configured for TTS generation.");
   }
-  console.log("[TTS Generation] GEMINI_API_KEY found and will be used.");
+  console.log("[TTS Generation] GEMINI_API_KEY found. Attempting to synthesize speech.");
 
   if (!text || text.trim().length === 0) {
     console.warn("[TTS Generation] Input text is empty. Skipping TTS generation.");
     return null;
   }
-   if (text.trim().length < 10) { // Increased minimum length slightly
-    console.warn(`[TTS Generation] Input text is very short (length: ${text.trim().length}). This might affect TTS quality or cause issues. Text: "${text}"`);
+   if (text.trim().length < 10) { 
+    console.warn(`[TTS Generation] Input text is very short (length: ${text.trim().length}). This might affect TTS quality or cause issues. Text: "${text.substring(0,50)}"`);
   }
 
   try {
-    const genAI = new GoogleGenAI(apiKey);
-    const ttsModel = genAI.getGenerativeModel({ model: "gemini-2.5-pro-preview-tts" }); 
+    const genAI = new GoogleGenAI(apiKey); // Use the new package name
+    const ttsModel = genAI.getGenerativeModel({ model: "gemini-2.5-pro-preview-tts" });
 
-    // @ts-ignore - Allow pass-through of custom config keys
-    const ttsRequestConfig = {
-      responseModalities: ['AUDIO'], // Forcing AUDIO only as per Gemini example
+    const ttsRequestConfig: any = { // Use 'any' to allow custom fields not in standard GenerationConfig
+      responseModalities: ['TEXT', 'audio'], // Try with TEXT and lowercase 'audio'
       speechConfig: {
         voiceConfig: {
-          prebuiltVoiceConfig: { voiceName: 'Puck' } // Using one of the suggested voices like Puck
+          prebuiltVoiceConfig: { voiceName: 'Puck' } // Using Puck as a valid voice
         }
       },
+      temperature: 0.7, // Adding temperature as it's often in generation configs
     };
     
     const contents: Content[] = [{ role: 'user', parts: [{ text }] }];
     
-    console.log(`[TTS Generation] Sending request to Gemini TTS model (gemini-2.5-pro-preview-tts) with voice: Puck. Text length to synthesize: ${text.length}. First 50 chars: "${text.substring(0,50)}..."`);
-    console.log("[TTS Generation] Request Config:", JSON.stringify(ttsRequestConfig));
+    console.log(`[TTS Generation] Sending request to Gemini TTS model (gemini-2.5-pro-preview-tts). Voice: Puck. Text length: ${text.length}. First 50 chars: "${text.substring(0,50)}..."`);
+    console.log("[TTS Generation] Request Config (passed to generationConfig):", JSON.stringify(ttsRequestConfig));
     
+    // Pass ttsRequestConfig as generationConfig
     const result = await ttsModel.generateContentStream({ contents, generationConfig: ttsRequestConfig });
 
     let audioBase64: string | null = null;
@@ -185,21 +186,20 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
     let chunkIndex = 0;
 
     for await (const chunk of result.stream) {
-      console.log(`[TTS Generation] Received chunk ${chunkIndex}. Full chunk object:`, JSON.stringify(chunk).substring(0, 500) + "...");
-      if (chunk.candidates && chunk.candidates[0]?.content?.parts?.[0]) {
-        const part = chunk.candidates[0].content.parts[0];
-        // @ts-ignore
-        if (part.inlineData && part.inlineData.mimeType && part.inlineData.data) {
-          // @ts-ignore
-          audioMimeType = part.inlineData.mimeType;
-          // @ts-ignore
-          audioBase64 = part.inlineData.data;
-          console.log(`[TTS Generation] SUCCESS: Found inlineData in chunk ${chunkIndex}. MimeType: "${audioMimeType}", Base64 Data Length: ${audioBase64?.length}`);
-          break; // Found audio data, no need to process further chunks for this part
-        } else {
-          // @ts-ignore
-          console.log(`[TTS Generation] Chunk ${chunkIndex} part does not contain complete inlineData. Part content:`, JSON.stringify(part).substring(0,300) + "...");
+      console.log(`[TTS Generation] Received chunk ${chunkIndex}. Full chunk:`, JSON.stringify(chunk).substring(0, 500) + (JSON.stringify(chunk).length > 500 ? "..." : ""));
+      if (chunk.candidates && chunk.candidates[0]?.content?.parts) {
+        for (const part of chunk.candidates[0].content.parts) {
+          // @ts-ignore - inlineData might not be in standard Part type
+          if (part.inlineData && part.inlineData.mimeType && part.inlineData.data) {
+            // @ts-ignore
+            audioMimeType = part.inlineData.mimeType;
+            // @ts-ignore
+            audioBase64 = part.inlineData.data;
+            console.log(`[TTS Generation] SUCCESS: Found inlineData in chunk ${chunkIndex}. MimeType: "${audioMimeType}", Base64 Data Length: ${audioBase64?.length}`);
+            break; // Found audio data
+          }
         }
+        if (audioBase64) break; // Exit outer loop if audio found
       } else {
          console.log(`[TTS Generation] Chunk ${chunkIndex} does not have expected structure (candidates/content/parts).`);
       }
@@ -216,7 +216,7 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
         console.log("[TTS Generation] Raw audio format detected (e.g., L16), attempting WAV conversion.");
         return convertToWavDataUri(audioBase64, audioMimeType);
       } else {
-         console.warn(`[TTS Generation] Received audio with unhandled playable mimeType: "${audioMimeType}". Returning as is. This might not be playable directly.`);
+         console.warn(`[TTS Generation] Received audio with unhandled playable mimeType: "${audioMimeType}". Returning as is. This might not be playable directly in browser.`);
          return `data:${audioMimeType};base64,${audioBase64}`;
       }
     } else {
@@ -228,7 +228,7 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
     console.error("[TTS Generation] CRITICAL Error during speech synthesis with GoogleGenAI:", error);
     if (error.message) console.error("[TTS Generation] Error message:", error.message);
     if (error.stack) console.error("[TTS Generation] Error stack:", error.stack);
-    if (error.details) console.error("[TTS Generation] Error details:", error.details); // Gemini specific error details
+    if (error.details) console.error("[TTS Generation] Error details:", JSON.stringify(error.details)); // Gemini specific error details
     return null;
   }
 }
@@ -274,6 +274,8 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
     explanationLevel: input.explanationLevel,
     teacherPersona: input.teacherPersona 
   });
+  console.log(`[ExplainTopic Action] Raw customModelIdentifier from client: '${input.customModelIdentifier}'`);
+
 
   let modelToUseForText = '';
   const isProUser = input.userPlan === 'pro';
@@ -282,8 +284,9 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
   if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.startsWith('googleai/')) {
       modelToUseForText = input.customModelIdentifier;
       console.log(`[ExplainTopic Action] Admin explicitly selected Genkit model: ${modelToUseForText}`);
-  } else if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string') {
-      switch (input.customModelIdentifier.toLowerCase()) {
+  } else if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.trim() !== "") {
+      // Handle non-prefixed but specific custom model IDs
+      switch (input.customModelIdentifier.toLowerCase().trim()) {
           case 'default_gemini_flash': modelToUseForText = 'googleai/gemini-2.0-flash'; break;
           case 'experimental_gemini_1_5_flash': modelToUseForText = 'googleai/gemini-1.5-flash-latest'; break;
           case 'experimental_gemini_2_5_flash_preview_05_20': modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20'; break;
@@ -293,15 +296,16 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
               else modelToUseForText = 'googleai/gemini-2.0-flash';
               break;
       }
+       console.log(`[ExplainTopic Action] Admin selected model (non-prefixed, resolved): ${modelToUseForText}`);
   } else { 
-      console.log(`[ExplainTopic Action] No valid custom model ID provided by admin. Using plan-based default.`);
+      console.log(`[ExplainTopic Action] No valid custom model ID provided or it was empty. Using plan-based default.`);
       if (isProUser || isPremiumUser) modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20';
       else modelToUseForText = 'googleai/gemini-2.0-flash';
   }
   
   if (!modelToUseForText || !modelToUseForText.startsWith('googleai/')) {
     console.error(`[ExplainTopic Action] CRITICAL: modelToUseForText became invalid ('${modelToUseForText}') after all checks. Forcing fallback to general default. Original customId: '${input.customModelIdentifier}'`);
-    modelToUseForText = 'googleai/gemini-2.0-flash'; // General fallback
+    modelToUseForText = 'googleai/gemini-2.0-flash'; 
   }
   console.log(`[ExplainTopic Action] Determined final modelToUseForText for Genkit flow: ${modelToUseForText}`);
   
@@ -311,7 +315,7 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
     ...input,
     isProUser,
     isPremiumUser,
-    isCustomModelSelected: !!input.customModelIdentifier,
+    isCustomModelSelected: !!input.customModelIdentifier && input.customModelIdentifier.trim() !== "",
     isGemini25PreviewSelected: isGemini25FlashPreviewSelectedForText, 
     isPersonaSamimi: input.teacherPersona === 'samimi',
     isPersonaEglenceli: input.teacherPersona === 'eglenceli',
@@ -323,11 +327,8 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
     let flowOutput = await topicExplainerFlow(enrichedInput, modelToUseForText);
 
     let audioDataUri: string | null = null;
-    // TTS is generated if input.generateTts is true (client ensures only admin can set this)
-    // AND text explanation was successfully generated and is not trivial.
-    // For now, let's allow TTS for any plan if admin requests it, for testing.
-    // We can restrict by plan later if needed: && (isProUser || isPremiumUser || input.userPlan === 'admin_override_for_tts_test')
-    if (input.generateTts && input.userPlan && flowOutput.explanation && flowOutput.explanation.trim().length > 10) {
+    // TTS for Admin only, and if text explanation was successful and not trivial
+    if (input.generateTts && userProfile?.isAdmin && flowOutput.explanation && flowOutput.explanation.trim().length > 10) {
       console.log("[ExplainTopic Action] TTS generation requested by admin. Synthesizing speech for explanation...");
       audioDataUri = await synthesizeSpeechWithGoogleGenAI(flowOutput.explanation);
       if (audioDataUri) {
@@ -336,8 +337,10 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
         console.warn("[ExplainTopic Action] TTS audio URI generation failed or returned null. Proceeding without audio.");
       }
     } else {
-        if (input.generateTts) {
-            console.log(`[ExplainTopic Action] TTS generation skipped. Reason: generateTts flag is true, but explanation might be too short or missing. Explanation length: ${flowOutput.explanation?.trim().length || 0}`);
+        if (input.generateTts && userProfile?.isAdmin) {
+            console.log(`[ExplainTopic Action] TTS generation skipped. Reason: generateTts flag is true for admin, but explanation might be too short or missing. Explanation length: ${flowOutput.explanation?.trim().length || 0}`);
+        } else if (input.generateTts && !userProfile?.isAdmin) {
+            console.log("[ExplainTopic Action] TTS generation skipped. Reason: Requested by non-admin user.");
         }
     }
 
@@ -352,7 +355,12 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
     return {
         ...defaultErrorOutput,
         explanationTitle: `Sunucu Hatası: ${input.topicName || 'Konu Belirtilmemiş'}`,
-        explanation: `Konu anlatımı oluşturulurken sunucuda kritik bir hata oluştu. Detay: ${errorMessage}. Lütfen daha sonra tekrar deneyin.`
+        explanation: `Konu anlatımı oluşturulurken sunucuda kritik bir hata oluştu. Detay: ${errorMessage}. Lütfen daha sonra tekrar deneyin.`,
+        keyConcepts: [],
+        commonMistakes: [],
+        yksTips: [],
+        activeRecallQuestions: [],
+        audioDataUri: undefined,
     };
   }
 }
@@ -445,11 +453,11 @@ const topicExplainerFlow = ai.defineFlow(
   async (enrichedInput: z.infer<typeof TopicExplainerPromptInputSchema>, modelToUseForTextParam: string ): Promise<Omit<ExplainTopicOutput, 'audioDataUri'>> => {
     
     let finalModelToUse = modelToUseForTextParam; 
-    console.log(`[Topic Explainer Flow - Initial Model] Received modelToUseForTextParam: '${finalModelToUse}' from explainTopic action.`);
-    console.log(`[Topic Explainer Flow - Input Check] Enriched Input:`, {userPlan: enrichedInput.userPlan, customModelId: enrichedInput.customModelIdentifier, isPro: enrichedInput.isProUser, isPremium: enrichedInput.isPremiumUser, isGemini25SelectedForText: enrichedInput.isGemini25PreviewSelected});
+    console.log(`[Topic Explainer Flow - Initial Check] Received modelToUseForTextParam: '${finalModelToUse}' from explainTopic action. Enriched Input Plan: ${enrichedInput.userPlan}, Custom Model ID: ${enrichedInput.customModelIdentifier}`);
 
+    // Defensive check for modelToUseForTextParam inside the flow
     if (!finalModelToUse || typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
-        console.warn(`[Topic Explainer Flow] CRITICAL FALLBACK: modelToUseForTextParam ('${finalModelToUse}') was invalid INSIDE the flow. Determining default based on plan from enrichedInput.`);
+        console.warn(`[Topic Explainer Flow] CRITICAL FALLBACK: modelToUseForTextParam ('${finalModelToUse}') was invalid or not prefixed with 'googleai/' INSIDE the flow. Determining default based on plan from enrichedInput.`);
         if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
             finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
         } else {
@@ -457,6 +465,7 @@ const topicExplainerFlow = ai.defineFlow(
         }
         console.log(`[Topic Explainer Flow] Corrected/Defaulted model INSIDE FLOW to: ${finalModelToUse}`);
     }
+
 
     let callOptions: { model: string; config?: Record<string, any> } = { model: finalModelToUse };
 
@@ -521,3 +530,5 @@ const topicExplainerFlow = ai.defineFlow(
     }
   }
 );
+
+    
