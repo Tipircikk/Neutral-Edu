@@ -12,7 +12,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { GoogleGenAI, type Content } from '@google/genai'; // Removed GenerationConfig as it's not directly used for ttsRequestConfig structure
+import { GoogleGenAI, type Content } from '@google/genai';
 import { Buffer } from 'buffer'; // Node.js Buffer
 
 // Helper types for WAV conversion
@@ -41,9 +41,11 @@ function parseMimeType(mimeType: string): WavConversionOptions {
   for (const param of params) {
     const [key, value] = param.split('=').map(s => s.trim());
     if (key === 'rate' && value) {
-      options.sampleRate = parseInt(value, 10);
+      const parsedRate = parseInt(value, 10);
+      if (!isNaN(parsedRate)) options.sampleRate = parsedRate;
     } else if (key === 'channels' && value) {
-      options.numChannels = parseInt(value, 10);
+      const parsedChannels = parseInt(value, 10);
+      if (!isNaN(parsedChannels)) options.numChannels = parsedChannels;
     }
   }
   // Provide defaults if not parsed
@@ -113,12 +115,13 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
     const genAI = new GoogleGenAI(apiKey);
     const ttsModel = genAI.getGenerativeModel({ model: "gemini-2.5-pro-preview-tts" });
 
+    // @ts-ignore - Allow pass-through of custom config keys if the endpoint expects them
     const ttsRequestConfig = {
       temperature: 0.7, 
       responseModalities: ['AUDIO'], 
       speechConfig: {
         voiceConfig: {
-          prebuiltVoiceConfig: { voiceName: 'Puck' } // Using 'Puck' as one of the suggested voices
+          prebuiltVoiceConfig: { voiceName: 'Puck' } 
         }
       },
     };
@@ -126,7 +129,7 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
     const contents: Content[] = [{ role: 'user', parts: [{ text }] }];
     
     console.log("[TTS Generation] Sending request to Gemini TTS model (gemini-2.5-pro-preview-tts) with voice: Puck...");
-    // @ts-ignore - Allow pass-through of custom config keys if the endpoint expects them
+    
     const result = await ttsModel.generateContentStream({ contents, generationConfig: ttsRequestConfig });
 
     let audioBase64: string | null = null;
@@ -208,28 +211,32 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
     const isPremiumUser = input.userPlan === 'premium';
     let modelToUseForText = '';
 
-    if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.startsWith('googleai/')) {
-        modelToUseForText = input.customModelIdentifier;
-        console.log(`[ExplainTopic Action] Admin selected a direct Genkit model: ${modelToUseForText}`);
-    } else if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string') {
-        switch (input.customModelIdentifier.toLowerCase()) {
-            case 'default_gemini_flash': modelToUseForText = 'googleai/gemini-2.0-flash'; break;
-            case 'experimental_gemini_1_5_flash': modelToUseForText = 'googleai/gemini-1.5-flash-latest'; break;
-            case 'experimental_gemini_2_5_flash_preview_05_20': modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20'; break;
-            default:
-                console.warn(`[ExplainTopic Action] Unknown customModelIdentifier: '${input.customModelIdentifier}'. Defaulting based on plan.`);
-                if (isProUser || isPremiumUser) modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20';
-                else modelToUseForText = 'googleai/gemini-2.0-flash';
-                break;
+    console.log("[ExplainTopic Action] Initial input.customModelIdentifier:", input.customModelIdentifier, "User Plan:", input.userPlan);
+
+    if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string') {
+        if (input.customModelIdentifier.startsWith('googleai/')) {
+            modelToUseForText = input.customModelIdentifier;
+        } else {
+            switch (input.customModelIdentifier.toLowerCase()) {
+                case 'default_gemini_flash': modelToUseForText = 'googleai/gemini-2.0-flash'; break;
+                case 'experimental_gemini_1_5_flash': modelToUseForText = 'googleai/gemini-1.5-flash-latest'; break;
+                case 'experimental_gemini_2_5_flash_preview_05_20': modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20'; break;
+                default:
+                    console.warn(`[ExplainTopic Action] Unknown or invalid customModelIdentifier: '${input.customModelIdentifier}'. Defaulting based on plan.`);
+                    if (isProUser || isPremiumUser) modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20';
+                    else modelToUseForText = 'googleai/gemini-2.0-flash';
+                    break;
+            }
         }
-    } else {
+    } else { 
+        console.log(`[ExplainTopic Action] No customModelIdentifier provided or invalid type. Defaulting based on plan.`);
         if (isProUser || isPremiumUser) modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20';
         else modelToUseForText = 'googleai/gemini-2.0-flash';
     }
     
     if (!modelToUseForText || !modelToUseForText.startsWith('googleai/')) {
-      console.error(`[ExplainTopic Action] CRITICAL: modelToUseForText is invalid: '${modelToUseForText}'. Forcing fallback. Original customId: '${input.customModelIdentifier}'`);
-      modelToUseForText = 'googleai/gemini-2.0-flash'; // Absolute fallback
+      console.error(`[ExplainTopic Action] CRITICAL: modelToUseForText became invalid ('${modelToUseForText}') despite checks. Forcing fallback. Original customId: '${input.customModelIdentifier}'`);
+      modelToUseForText = 'googleai/gemini-2.0-flash';
     }
     console.log(`[ExplainTopic Action] Determined modelToUseForText for Genkit flow: ${modelToUseForText}`);
     
@@ -250,8 +257,8 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
     let flowOutput = await topicExplainerFlow(enrichedInput, modelToUseForText);
 
     let audioDataUri: string | null = null;
-    // Allow TTS for admin, pro, or premium users if requested. Free users cannot request TTS.
-    if (input.generateTts && (isProUser || isPremiumUser || userProfile?.isAdmin) && flowOutput.explanation) {
+    // Allow TTS for admin, pro, or premium users if requested. Free users cannot request TTS for now.
+    if (input.generateTts && (isProUser || isPremiumUser /* || userProfile?.isAdmin - userProfile not directly available here */) && flowOutput.explanation) {
       console.log("[ExplainTopic Action] TTS requested by eligible user. Synthesizing speech for explanation...");
       audioDataUri = await synthesizeSpeechWithGoogleGenAI(flowOutput.explanation);
       if (audioDataUri) {
@@ -268,15 +275,7 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
     let errorMessage = 'Bilinmeyen bir sunucu hatası oluştu.';
     if (error instanceof Error) {
         errorMessage = error.message;
-    } else if (typeof error === 'string') {
-        errorMessage = error;
-    } else {
-        try {
-            errorMessage = JSON.stringify(error).substring(0, 200);
-        } catch (stringifyError) {
-            errorMessage = 'Serileştirilemeyen sunucu hata nesnesi.';
-        }
-    }
+    } // Removed complex error message construction that might include the faulty model name
     return {
         ...defaultErrorOutput,
         explanationTitle: `Sunucu Hatası: ${input.topicName || 'Konu Belirtilmemiş'}`,
@@ -370,11 +369,26 @@ const topicExplainerFlow = ai.defineFlow(
     inputSchema: TopicExplainerPromptInputSchema,
     outputSchema: ExplainTopicOutputSchema.omit({ audioDataUri: true }),
   },
-  async (enrichedInput: z.infer<typeof TopicExplainerPromptInputSchema>, modelToUseForText: string ): Promise<Omit<ExplainTopicOutput, 'audioDataUri'>> => {
+  async (enrichedInput: z.infer<typeof TopicExplainerPromptInputSchema>, modelToUseForTextParam: string ): Promise<Omit<ExplainTopicOutput, 'audioDataUri'>> => {
+    
+    let finalModelToUse = modelToUseForTextParam;
 
-    let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUseForText };
+    // Sanitize/Validate finalModelToUse right at the beginning of the flow
+    if (!finalModelToUse || typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
+        console.warn(`[Topic Explainer Flow] Received invalid model parameter: '${finalModelToUse}'. Defaulting based on plan from enrichedInput.`);
+        const { isProUser, isPremiumUser } = enrichedInput; 
+        if (isProUser || isPremiumUser) {
+            finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+        } else {
+            finalModelToUse = 'googleai/gemini-2.0-flash';
+        }
+        console.log(`[Topic Explainer Flow] Corrected model to: ${finalModelToUse}`);
+    }
 
-    if (modelToUseForText === 'googleai/gemini-2.5-flash-preview-05-20') {
+
+    let callOptions: { model: string; config?: Record<string, any> } = { model: finalModelToUse };
+
+    if (finalModelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
         callOptions.config = { temperature: 0.7 }; 
     } else {
       callOptions.config = {
@@ -384,13 +398,13 @@ const topicExplainerFlow = ai.defineFlow(
       };
     }
 
-    console.log(`[Topic Explainer Flow - Text Gen] Using model: ${modelToUseForText} with config: ${JSON.stringify(callOptions.config)} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}, level: ${enrichedInput.explanationLevel}, persona: ${enrichedInput.teacherPersona}`);
+    console.log(`[Topic Explainer Flow - Text Gen] Using model: ${finalModelToUse} with config: ${JSON.stringify(callOptions.config)} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}, level: ${enrichedInput.explanationLevel}, persona: ${enrichedInput.teacherPersona}`);
 
     try {
         const {output} = await topicExplainerPrompt(enrichedInput, callOptions);
         if (!output || !output.explanation) {
           console.error("[Topic Explainer Flow - Text Gen] AI did not produce a valid explanation. Output:", JSON.stringify(output).substring(0,500));
-          throw new Error(`AI YKS Süper Öğretmeniniz, belirtilen konu ("${enrichedInput.topicName}") için bir anlatım oluşturamadı. Kullanılan Model: ${modelToUseForText}. Lütfen konuyu ve ayarları kontrol edin veya farklı bir model deneyin.`);
+          throw new Error(`AI YKS Süper Öğretmeniniz, belirtilen konu ("${enrichedInput.topicName}") için bir anlatım oluşturamadı. Kullanılan Model: ${finalModelToUse}. Lütfen konuyu ve ayarları kontrol edin veya farklı bir model deneyin.`);
         }
         return {
             explanationTitle: output.explanationTitle,
@@ -401,24 +415,26 @@ const topicExplainerFlow = ai.defineFlow(
             activeRecallQuestions: output.activeRecallQuestions || [],
         };
     } catch (error: any) {
-        console.error(`[Topic Explainer Flow - Text Gen] INNER CRITICAL error during generation with model ${modelToUseForText} for topic "${enrichedInput.topicName}":`, error);
+        // Use finalModelToUse for the error message here as it's the sanitized version
+        console.error(`[Topic Explainer Flow - Text Gen] INNER CRITICAL error during generation with model ${finalModelToUse} for topic "${enrichedInput.topicName}":`, error);
         if (error instanceof Error) {
-           let errorMessage = `AI modeli (${modelToUseForText}) ile "${enrichedInput.topicName}" konusu için anlatım oluşturulurken bir Genkit/AI hatası oluştu.`;
+           let errorMessage = `AI modeli (${finalModelToUse}) ile "${enrichedInput.topicName}" konusu için anlatım oluşturulurken bir Genkit/AI hatası oluştu.`;
            if (error.message) {
                 errorMessage += ` Detay: ${error.message.substring(0, 250)}`;
                 if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
-                  errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${modelToUseForText}. Detay: ${error.message.substring(0, 150)}`;
+                  errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${finalModelToUse}. Detay: ${error.message.substring(0, 150)}`;
                 } else if (error.message.includes('400 Bad Request') && (error.message.includes('generationConfig') || error.message.includes('generation_config'))) {
-                   errorMessage = `Seçilen model (${modelToUseForText}) bazı yapılandırma ayarlarını desteklemiyor olabilir. Model: ${modelToUseForText}. Detay: ${error.message.substring(0,150)}`;
+                   errorMessage = `Seçilen model (${finalModelToUse}) bazı yapılandırma ayarlarını desteklemiyor olabilir. Model: ${finalModelToUse}. Detay: ${error.message.substring(0,150)}`;
                 } else if (error.message.includes('Handlebars')) {
-                   errorMessage = `AI şablonunda bir hata oluştu. Geliştiriciye bildirin. Model: ${modelToUseForText}. Detay: ${error.message.substring(0,150)}`;
+                   errorMessage = `AI şablonunda bir hata oluştu. Geliştiriciye bildirin. Model: ${finalModelToUse}. Detay: ${error.message.substring(0,150)}`;
+                } else if (error.message.includes('NOT_FOUND') || error.message.includes('sentinelNoopStreamingCallback')) {
+                    errorMessage = `AI modeli (${finalModelToUse}) bulunamadı veya yapılandırması hatalı. Lütfen admin panelinden geçerli bir model seçin veya varsayılanı kullanın. Detay: ${error.message.substring(0,150)}`;
                 }
             }
             throw new Error(errorMessage); 
         } else {
-            throw new Error(`AI modeli (${modelToUseForText}) ile "${enrichedInput.topicName}" konusu için anlatım oluşturulurken bilinmeyen bir Genkit/AI hatası oluştu.`);
+            throw new Error(`AI modeli (${finalModelToUse}) ile "${enrichedInput.topicName}" konusu için anlatım oluşturulurken bilinmeyen bir Genkit/AI hatası oluştu.`);
         }
     }
   }
 );
-
