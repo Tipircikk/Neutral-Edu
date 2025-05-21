@@ -48,9 +48,55 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
       examStrategyTips: [],
     };
   }
+  
+  const isProUser = input.userPlan === 'pro';
+  const isPremiumUser = input.userPlan === 'premium';
+  const isCustomModelSelected = !!input.customModelIdentifier;
+
+  let modelToUse = '';
+  if (input.customModelIdentifier) {
+    console.log(`[QuestionSolver Flow] Admin attempting to use custom model: ${input.customModelIdentifier}`);
+    switch (input.customModelIdentifier) {
+      case 'default_gemini_flash':
+        modelToUse = 'googleai/gemini-2.0-flash';
+        break;
+      case 'experimental_gemini_1_5_flash':
+        modelToUse = 'googleai/gemini-1.5-flash-latest';
+        break;
+      case 'experimental_gemini_2_5_flash_preview_05_20':
+        modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+        break;
+      default:
+        console.warn(`[QuestionSolver Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting based on plan.`);
+         if (isProUser || isPremiumUser) {
+          modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+        } else { 
+          modelToUse = 'googleai/gemini-2.0-flash';
+        }
+        break;
+    }
+    console.log(`[QuestionSolver Flow] Admin selected model: ${modelToUse}`);
+  } else { 
+    if (isProUser || isPremiumUser) {
+      modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+      console.log(`[QuestionSolver Flow] Pro/Premium user using model: ${modelToUse}`);
+    } else { 
+      modelToUse = 'googleai/gemini-2.0-flash'; 
+      console.log(`[QuestionSolver Flow] Free user using model: ${modelToUse}`);
+    }
+  }
+  const isGemini25PreviewSelected = modelToUse === 'googleai/gemini-2.5-flash-preview-05-20';
+
+  const enrichedInput = {
+    ...input,
+    isProUser,
+    isPremiumUser,
+    isCustomModelSelected,
+    isGemini25PreviewSelected,
+  };
 
   try {
-    const result = await questionSolverFlow(input);
+    const result = await questionSolverFlow(enrichedInput, modelToUse);
 
     if (!result || typeof result.solution !== 'string' || !Array.isArray(result.relatedConcepts) || !Array.isArray(result.examStrategyTips)) {
       console.error("[SolveQuestion Action] Flow returned invalid, null, or malformed result. Raw result:", JSON.stringify(result).substring(0, 500));
@@ -100,14 +146,15 @@ Matematiksel sembolleri (örn: x^2, H_2O, √, π, ±, ≤, ≥) metin içinde a
 Cevapların her zaman Türkçe olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
-{{#if isCustomModelSelected}}
-(Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
-{{/if}}
 
 {{#if isProUser}}
 (Pro Kullanıcı Notu: Çözümlerini üst düzeyde akademik titizlikle sun. Varsa birden fazla çözüm yolunu kısaca belirt. Sorunun çözümünde kullanılan anahtar kavramları derinlemesine açıkla. Sorunun YKS'deki stratejik önemine değin.)
 {{else if isPremiumUser}}
 (Premium Kullanıcı Notu: Daha derinlemesine açıklamalar yapmaya çalış, varsa alternatif çözüm yollarına kısaca değin.)
+{{/if}}
+
+{{#if isCustomModelSelected}}
+(Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
 {{/if}}
 
 Kullanıcının girdileri aşağıdadır:
@@ -131,7 +178,7 @@ Soru Analizi:
 *   Soruyu ana adımları mantığıyla birlikte, AÇIKLAYARAK çöz.
 *   Her bir önemli matematiksel işlemi veya mantıksal çıkarımı net bir şekilde belirt.
 *   {{#if isGemini25PreviewSelected}}
-    (Gemini 2.5 Flash Preview 05-20 Notu: Çözümü ana adımları ve kilit mantıksal çıkarımları vurgulayarak, olabildiğince ÖZ ama ANLAŞILIR olmalıdır. Aşırı detaydan kaçın, doğrudan ve net bir çözüm sun. HIZLI YANIT VERMESİ ÖNEMLİDİR.)
+    (Gemini 2.5 Flash Preview 05-20 Modeli Notu: Çözümü ana adımları ve kilit mantıksal çıkarımları vurgulayarak, olabildiğince ÖZ ama ANLAŞILIR olmalıdır. Aşırı detaydan kaçın, doğrudan ve net bir çözüm sun. HIZLI YANIT VERMESİ ÖNEMLİDİR.)
     {{else}}
     Ayrıntılı ve SATIR SATIR açıkla.
     {{/if}}
@@ -155,72 +202,31 @@ Davranış Kuralları:
 const questionSolverFlow = ai.defineFlow(
   {
     name: 'questionSolverFlow',
-    inputSchema: SolveQuestionInputSchema,
+    inputSchema: SolveQuestionInputSchema.extend({
+      isProUser: z.boolean().optional(),
+      isPremiumUser: z.boolean().optional(),
+      isCustomModelSelected: z.boolean().optional(),
+      isGemini25PreviewSelected: z.boolean().optional(),
+    }),
     outputSchema: SolveQuestionOutputSchema,
   },
-  async (input): Promise<SolveQuestionOutput> => {
+  async (enrichedInput: z.infer<typeof SolveQuestionInputSchema> & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean}, modelToUse: string): Promise<SolveQuestionOutput> => {
     console.log("[QuestionSolver Flow] Flow started. Raw Input received:", {
-      hasQuestionText: !!input.questionText,
-      hasImageDataUri: !!input.imageDataUri && input.imageDataUri.length > 30 ? input.imageDataUri.substring(0,30) + "..." : "No Image",
-      userPlan: input.userPlan,
-      customModelIdentifier: input.customModelIdentifier
+      hasQuestionText: !!enrichedInput.questionText,
+      hasImageDataUri: !!enrichedInput.imageDataUri && enrichedInput.imageDataUri.length > 30 ? enrichedInput.imageDataUri.substring(0,30) + "..." : "No Image",
+      userPlan: enrichedInput.userPlan,
+      customModelIdentifier: enrichedInput.customModelIdentifier
     });
-
-    let modelToUse = ''; // Default will be set based on plan
-    const isProUser = input.userPlan === 'pro';
-    const isPremiumUser = input.userPlan === 'premium';
-    const isCustomModelSelected = !!input.customModelIdentifier;
-    const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview_05_20';
-
-    const enrichedInput = {
-      ...input,
-      isProUser,
-      isPremiumUser,
-      isCustomModelSelected,
-      isGemini25PreviewSelected,
-    };
-
-    if (enrichedInput.customModelIdentifier) {
-      console.log(`[QuestionSolver Flow] Admin attempting to use custom model: ${enrichedInput.customModelIdentifier}`);
-      switch (enrichedInput.customModelIdentifier) {
-        case 'default_gemini_flash': // This refers to Gemini 2.0 Flash
-          modelToUse = 'googleai/gemini-2.0-flash';
-          break;
-        case 'experimental_gemini_1_5_flash':
-          modelToUse = 'googleai/gemini-1.5-flash-latest';
-          break;
-        case 'experimental_gemini_2_5_flash_preview_05_20':
-          modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-          break;
-        default:
-          console.warn(`[QuestionSolver Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting based on plan.`);
-           if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
-            modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-          } else { // Free user
-            modelToUse = 'googleai/gemini-2.0-flash';
-          }
-          break;
-      }
-      console.log(`[QuestionSolver Flow] Admin selected model: ${modelToUse}`);
-    } else { // No customModelIdentifier, use plan-based defaults
-      if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
-        modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-        console.log(`[QuestionSolver Flow] Pro/Premium user using model: ${modelToUse}`);
-      } else { // Free user
-        modelToUse = 'googleai/gemini-2.0-flash'; 
-        console.log(`[QuestionSolver Flow] Free user using model: ${modelToUse}`);
-      }
-    }
-
+    
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
-    if (modelToUse === 'googleai/gemini-2.5-flash-preview-05_20') {
-      callOptions.config = {}; // Gemini 2.5 Flash Preview might not need or support maxOutputTokens
+    if (modelToUse === 'googleai/gemini-2.5-flash-preview-05-20') { // Note: corrected model name based on previous context if it was a typo
+      callOptions.config = {}; 
       console.log(`[QuestionSolver Flow] NOT using generationConfig for preview model ${modelToUse}.`);
     } else {
        callOptions.config = {
         generationConfig: {
-          maxOutputTokens: 4096, // Default for other models
+          maxOutputTokens: 4096, 
         }
       };
       console.log(`[QuestionSolver Flow] Using generationConfig for model ${modelToUse}:`, callOptions.config);
@@ -272,6 +278,8 @@ const questionSolverFlow = ai.defineFlow(
     }
   }
 );
+    
+
     
 
     

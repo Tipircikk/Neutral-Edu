@@ -37,7 +37,36 @@ export async function generateFlashcards(input: GenerateFlashcardsInput): Promis
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
   const isCustomModelSelected = !!input.customModelIdentifier;
-  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview_05_20';
+
+  let modelToUse = '';
+  if (input.customModelIdentifier) {
+    switch (input.customModelIdentifier) {
+      case 'default_gemini_flash':
+        modelToUse = 'googleai/gemini-2.0-flash';
+        break;
+      case 'experimental_gemini_1_5_flash':
+        modelToUse = 'googleai/gemini-1.5-flash-latest';
+        break;
+      case 'experimental_gemini_2_5_flash_preview_05_20':
+        modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+        break;
+      default:
+        console.warn(`[Flashcard Generator Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting based on plan.`);
+        if (isProUser || isPremiumUser) {
+          modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+        } else { 
+          modelToUse = 'googleai/gemini-2.0-flash';
+        }
+        break;
+    }
+  } else { 
+    if (isProUser || isPremiumUser) {
+      modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+    } else { 
+      modelToUse = 'googleai/gemini-2.0-flash';
+    }
+  }
+  const isGemini25PreviewSelected = modelToUse === 'googleai/gemini-2.5-flash-preview-05-20';
 
   const enrichedInput = {
     ...input,
@@ -46,7 +75,7 @@ export async function generateFlashcards(input: GenerateFlashcardsInput): Promis
     isCustomModelSelected,
     isGemini25PreviewSelected,
   };
-  return flashcardGeneratorFlow(enrichedInput);
+  return flashcardGeneratorFlow(enrichedInput, modelToUse);
 }
 
 const prompt = ai.definePrompt({
@@ -69,9 +98,10 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 
 {{#if isCustomModelSelected}}
 (Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
-  {{#if isGemini25PreviewSelected}}
-  (Gemini 2.5 Flash Preview 05-20 Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla.)
-  {{/if}}
+{{/if}}
+
+{{#if isGemini25PreviewSelected}}
+(Gemini 2.5 Flash Preview 05-20 Modeli Notu: Yanıtların ÖZ ama ANLAŞILIR ve YKS öğrencisine doğrudan fayda sağlayacak şekilde olsun. HIZLI yanıt vermeye odaklan. Gereksiz uzun açıklamalardan ve detaylardan kaçın, doğrudan konuya girerek en kritik bilgileri vurgula.)
 {{/if}}
 
 Kullanıcının Girdileri:
@@ -114,39 +144,9 @@ const flashcardGeneratorFlow = ai.defineFlow(
     }),
     outputSchema: GenerateFlashcardsOutputSchema,
   },
-  async (enrichedInput: z.infer<typeof GenerateFlashcardsInputSchema> & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<GenerateFlashcardsOutput> => {
-    let modelToUse = ''; 
+  async (enrichedInput: z.infer<typeof GenerateFlashcardsInputSchema> & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean}, modelToUse: string ): Promise<GenerateFlashcardsOutput> => {
+    
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
-
-    if (enrichedInput.customModelIdentifier) {
-      switch (enrichedInput.customModelIdentifier) {
-        case 'default_gemini_flash':
-          modelToUse = 'googleai/gemini-2.0-flash';
-          break;
-        case 'experimental_gemini_1_5_flash':
-          modelToUse = 'googleai/gemini-1.5-flash-latest';
-          break;
-        case 'experimental_gemini_2_5_flash_preview_05_20':
-          modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-          break;
-        default:
-          console.warn(`[Flashcard Generator Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting based on plan.`);
-          if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
-            modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-          } else { // Free user
-            modelToUse = 'googleai/gemini-2.0-flash';
-          }
-          break;
-      }
-    } else { // No customModelIdentifier, use plan-based defaults
-      if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
-        modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-      } else { // Free user
-        modelToUse = 'googleai/gemini-2.0-flash';
-      }
-    }
-
-    callOptions.model = modelToUse;
 
     let maxTokensForOutput = (enrichedInput.numFlashcards || 5) * 200;
     if (maxTokensForOutput > 8000) maxTokensForOutput = 8000;
@@ -187,6 +187,8 @@ const flashcardGeneratorFlow = ai.defineFlow(
     }
   }
 );
+    
+
     
 
     

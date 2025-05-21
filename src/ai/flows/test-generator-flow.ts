@@ -42,7 +42,36 @@ export async function generateTest(input: GenerateTestInput): Promise<GenerateTe
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
   const isCustomModelSelected = !!input.customModelIdentifier;
-  const isGemini25PreviewSelected = input.customModelIdentifier === 'experimental_gemini_2_5_flash_preview_05_20';
+
+  let modelToUse = '';
+  if (input.customModelIdentifier) {
+    switch (input.customModelIdentifier) {
+      case 'default_gemini_flash':
+        modelToUse = 'googleai/gemini-2.0-flash';
+        break;
+      case 'experimental_gemini_1_5_flash':
+        modelToUse = 'googleai/gemini-1.5-flash-latest';
+        break;
+      case 'experimental_gemini_2_5_flash_preview_05_20':
+        modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+        break;
+      default:
+        console.warn(`[Test Generator Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting based on plan.`);
+        if (isProUser || isPremiumUser) {
+          modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+        } else { 
+          modelToUse = 'googleai/gemini-2.0-flash';
+        }
+        break;
+    }
+  } else { 
+    if (isProUser || isPremiumUser) {
+      modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+    } else { 
+      modelToUse = 'googleai/gemini-2.0-flash';
+    }
+  }
+  const isGemini25PreviewSelected = modelToUse === 'googleai/gemini-2.5-flash-preview-05-20';
 
   const enrichedInput = {
       ...input,
@@ -52,7 +81,7 @@ export async function generateTest(input: GenerateTestInput): Promise<GenerateTe
       isCustomModelSelected,
       isGemini25PreviewSelected,
     };
-  return testGeneratorFlow(enrichedInput);
+  return testGeneratorFlow(enrichedInput, modelToUse);
 }
 
 const prompt = ai.definePrompt({
@@ -76,9 +105,10 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 
 {{#if isCustomModelSelected}}
 (Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
-  {{#if isGemini25PreviewSelected}}
-  (Gemini 2.5 Flash Preview 05-20 Notu: Yanıtların ÖZ ama ANLAŞILIR olsun. HIZLI yanıtla.)
-  {{/if}}
+{{/if}}
+
+{{#if isGemini25PreviewSelected}}
+(Gemini 2.5 Flash Preview 05-20 Modeli Notu: Yanıtların ÖZ ama ANLAŞILIR ve YKS öğrencisine doğrudan fayda sağlayacak şekilde olsun. HIZLI yanıt vermeye odaklan. Gereksiz uzun açıklamalardan ve detaylardan kaçın, doğrudan konuya girerek en kritik bilgileri vurgula. Sorular YKS formatına uygun, net ve tek doğru cevaplı olsun.)
 {{/if}}
 
 Kullanıcının İstekleri:
@@ -117,45 +147,15 @@ const testGeneratorFlow = ai.defineFlow(
     }),
     outputSchema: GenerateTestOutputSchema,
   },
-  async (enrichedInput: z.infer<typeof GenerateTestInputSchema> & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean; questionTypes: Array<"multiple_choice" | "true_false" | "short_answer">} ): Promise<GenerateTestOutput> => {
-    let modelToUse = ''; 
+  async (enrichedInput: z.infer<typeof GenerateTestInputSchema> & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean; questionTypes: Array<"multiple_choice" | "true_false" | "short_answer">}, modelToUse: string ): Promise<GenerateTestOutput> => {
+    
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
-
-    if (enrichedInput.customModelIdentifier) {
-      switch (enrichedInput.customModelIdentifier) {
-        case 'default_gemini_flash':
-          modelToUse = 'googleai/gemini-2.0-flash';
-          break;
-        case 'experimental_gemini_1_5_flash':
-          modelToUse = 'googleai/gemini-1.5-flash-latest';
-          break;
-        case 'experimental_gemini_2_5_flash_preview_05_20':
-          modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-          break;
-        default:
-          console.warn(`[Test Generator Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting based on plan.`);
-          if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
-            modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-          } else { // Free user
-            modelToUse = 'googleai/gemini-2.0-flash';
-          }
-          break;
-      }
-    } else { // No customModelIdentifier, use plan-based defaults
-      if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
-        modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-      } else { // Free user
-        modelToUse = 'googleai/gemini-2.0-flash';
-      }
-    }
-
-    callOptions.model = modelToUse;
 
     let maxTokensForOutput = enrichedInput.numQuestions * 500;
     if (maxTokensForOutput > 8000) maxTokensForOutput = 8000;
     if (maxTokensForOutput < 2048) maxTokensForOutput = 2048;
 
-    if (modelToUse === 'googleai/gemini-2.5-flash-preview-05_20') {
+    if (modelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
        callOptions.config = { temperature: 0.7 };
     } else {
        callOptions.config = {
@@ -197,6 +197,8 @@ const testGeneratorFlow = ai.defineFlow(
     }
   }
 );
+    
+
     
 
     
