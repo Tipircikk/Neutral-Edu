@@ -1,5 +1,4 @@
-
-'use server';
+'use strict';
 /**
  * @fileOverview Kullanıcının girdiği bir YKS konusunu derinlemesine açıklayan,
  * anahtar kavramları, YKS için stratejik bilgileri ve aktif hatırlama soruları sunan uzman bir AI YKS öğretmeni.
@@ -52,7 +51,7 @@ function parseMimeType(mimeType: string): WavConversionOptions {
 
   for (const param of paramsArray) {
     const [keyDirty, valueDirty] = param.split('=').map(s => s.trim());
-    const key = keyDirty.toLowerCase();
+    const key = keyDirty.toLowerCase(); // Ensure key comparison is case-insensitive
     const value = valueDirty;
 
     if (key === 'rate' && value) {
@@ -143,7 +142,10 @@ function convertToWavDataUri(base64RawData: string, mimeType: string): string | 
         !options.numChannels || options.numChannels <= 0 ||
         isNaN(options.sampleRate) || isNaN(options.bitsPerSample) || isNaN(options.numChannels)
       ) {
-        console.error(`[TTS WAV Conversion] CRITICAL: Missing or invalid parameters after parsing mimeType: "${mimeType}". Cannot convert to WAV. Parsed Options: ${JSON.stringify(options)}`);
+        const errorMsg = `[TTS WAV Conversion] CRITICAL: Missing or invalid parameters after parsing mimeType: "${mimeType}". Cannot convert to WAV. Parsed Options: ${JSON.stringify(options)}`;
+        console.error(errorMsg);
+        // Fallback to returning the original data with original mimeType if WAV conversion pre-check fails.
+        // This is better than throwing an error here and losing the data entirely if it was somewhat valid.
         return `data:${mimeType};base64,${base64RawData}`; 
     }
 
@@ -156,23 +158,26 @@ function convertToWavDataUri(base64RawData: string, mimeType: string): string | 
     return `data:audio/wav;base64,${wavBase64}`;
   } catch (error: any) {
     console.error("[TTS WAV Conversion] Error converting to WAV:", error.message ? error.message : error);
+    // Fallback if conversion itself throws an error
     return `data:${mimeType};base64,${base64RawData}`; 
   }
 }
 
-async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | null> {
+async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | { error: string } | null> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    console.error("[TTS Generation] FATAL: GEMINI_API_KEY is not set in environment variables. Cannot proceed with TTS.");
-    return null;
+    const errorMsg = "Gemini API anahtarı bulunamadı. Lütfen .env dosyasını kontrol edin.";
+    console.error("[TTS Generation] FATAL:", errorMsg);
+    return { error: errorMsg };
   }
-  const apiKeyLast5 = "..." + apiKey.slice(-5); // Avoid logging full key
+  const apiKeyLast5 = "..." + apiKey.slice(-5);
   console.log(`[TTS Generation] Using API Key (last 5 chars): ${apiKeyLast5}`);
 
 
   if (!text || text.trim().length < 10) { 
-    console.warn(`[TTS Generation] Input text is too short (length: ${text?.trim().length || 0}). Skipping TTS generation.`);
-    return null;
+    const errorMsg = `Sesli anlatım için metin çok kısa (uzunluk: ${text?.trim().length || 0}). TTS üretimi atlandı.`;
+    console.warn(`[TTS Generation] Input text is too short. Skipping TTS. Length: ${text?.trim().length || 0}`);
+    return { error: errorMsg };
   }
 
   try {
@@ -181,7 +186,7 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
 
     const ttsRequestConfig: any = { 
       temperature: 0.7, 
-      responseModalities: ['audio'], // Keep as per user's last working example (if any) or API docs
+      responseModalities: ['audio'], 
       speechConfig: {
         voiceConfig: {
           prebuiltVoiceConfig: { voiceName: 'Rasalgethi' } 
@@ -231,22 +236,38 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
         return `data:${audioMimeType};base64,${audioBase64}`;
       } else if (lowerMimeType.includes('audio/l16') || lowerMimeType.includes('audio/raw') || lowerMimeType.startsWith('audio/l')) {
         console.log("[TTS Generation] Raw audio format detected, attempting WAV conversion.");
-        return convertToWavDataUri(audioBase64, audioMimeType);
+        const wavDataUri = convertToWavDataUri(audioBase64, audioMimeType);
+        if (wavDataUri) return wavDataUri;
+        // Fallback if WAV conversion somehow returns null (should not happen with current convertToWavDataUri logic)
+        return { error: "Ham ses verisi WAV formatına dönüştürülürken bir hata oluştu." };
       } else {
          console.warn(`[TTS Generation] Received audio with unhandled playable mimeType: "${audioMimeType}". Returning as is. This might not be playable directly in browser.`);
          return `data:${audioMimeType};base64,${audioBase64}`;
       }
     } else {
-      console.error("[TTS Generation] CRITICAL: No audio data (inlineData with mimeType and data) found after processing all chunks from Gemini TTS model stream. Ensure model 'gemini-2.5-pro-preview-tts' supports speechConfig with the specified voice or responseModalities.");
-      return null;
+      const noAudioErrorMsg = "Gemini API'sinden ses verisi (inlineData) alınamadı. Model 'gemini-2.5-pro-preview-tts' veya yapılandırmayı kontrol edin.";
+      console.error("[TTS Generation] CRITICAL: No audio data (inlineData with mimeType and data) found after processing all chunks from Gemini TTS model stream.");
+      return { error: noAudioErrorMsg };
     }
 
   } catch (error: any) {
     console.error("[TTS Generation] CRITICAL Error during speech synthesis with GoogleGenAI:", error);
-    if (error.message) console.error("[TTS Generation] Error message:", error.message);
+    let specificErrorMessage = "Google GenAI ile ses sentezlenirken bir hata oluştu.";
+    if (error.message) {
+        specificErrorMessage += ` Detay: ${error.message.substring(0,150)}`;
+    }
+    // Check if it's a GoogleGenerativeAIError which might have more details
+    // @ts-ignore
+    if (error.errorInfo && error.errorInfo.message) { // Heuristic check for GoogleGenerativeAIError structure
+        // @ts-ignore
+        specificErrorMessage += ` Google API Hatası: ${error.errorInfo.message.substring(0,150)}`;
+    // @ts-ignore
+    } else if (error.details) { 
+        // @ts-ignore
+        specificErrorMessage += ` API Detayları: ${JSON.stringify(error.details).substring(0,150)}`;
+    }
     if (error.stack) console.error("[TTS Generation] Error stack:", error.stack);
-    if (error.details) console.error("[TTS Generation] Error details (if any from GoogleGenAI error):", JSON.stringify(error.details)); 
-    return null;
+    return { error: specificErrorMessage };
   }
 }
 
@@ -282,6 +303,7 @@ const defaultErrorOutput: ExplainTopicOutput = {
   yksTips: [],
   activeRecallQuestions: [],
   ttsError: undefined,
+  audioDataUri: undefined,
 };
 
 export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTopicOutput> {
@@ -341,32 +363,37 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
   };
   
   let flowOutput: Omit<ExplainTopicOutput, 'audioDataUri' | 'ttsError'>;
-  let audioDataUri: string | null = null;
+  let audioDataUri: string | undefined = undefined;
   let ttsErrorMessage: string | undefined = undefined;
   
   try {
     flowOutput = await topicExplainerFlow(enrichedInput, modelToUseForText);
 
-    // Attempt TTS generation only if the main text explanation was successful and TTS was requested
-    if (input.generateTts && flowOutput.explanation && !flowOutput.explanation.startsWith("AI modeli") && !flowOutput.explanation.startsWith("Hata:") && flowOutput.explanation.trim().length > 10) {
-      console.log(`[ExplainTopic Action] TTS generation requested. Synthesizing speech for explanation...`);
-      audioDataUri = await synthesizeSpeechWithGoogleGenAI(flowOutput.explanation);
-      if (!audioDataUri) {
-        console.warn("[ExplainTopic Action] TTS audio URI generation failed or returned null. Setting ttsError.");
-        ttsErrorMessage = "Sesli anlatım oluşturulamadı. Lütfen API anahtarınızı, model erişiminizi ve sunucu loglarını kontrol edin.";
-      } else {
+    if (input.generateTts && flowOutput.explanation && !flowOutput.explanation.startsWith("Hata:") && !flowOutput.explanation.includes("AI modeli") && flowOutput.explanation.trim().length > 10) {
+      console.log(`[ExplainTopic Action] TTS generation requested for text of length ${flowOutput.explanation.length}. Synthesizing speech...`);
+      const ttsResult = await synthesizeSpeechWithGoogleGenAI(flowOutput.explanation);
+      if (typeof ttsResult === 'string') {
+        audioDataUri = ttsResult;
         console.log("[ExplainTopic Action] TTS audio URI generated successfully.");
+      } else if (ttsResult && typeof ttsResult.error === 'string') {
+        ttsErrorMessage = ttsResult.error;
+        console.warn(`[ExplainTopic Action] TTS generation failed with specific error: ${ttsResult.error}`);
+      } else { // ttsResult is null or an unexpected object
+        ttsErrorMessage = "Sesli anlatım oluşturulamadı. Sunucu loglarını kontrol edin.";
+        console.warn("[ExplainTopic Action] TTS generation failed (synthesizeSpeech returned null or unexpected).");
       }
     } else if (input.generateTts) { 
-        console.log(`[ExplainTopic Action] TTS generation requested but SKIPPED. Reason: generateTts=${input.generateTts}, explanation successful=${!!(flowOutput.explanation && !flowOutput.explanation.startsWith("AI modeli") && !flowOutput.explanation.startsWith("Hata:"))}, explanation length=${flowOutput.explanation?.trim().length || 0}`);
-        if (flowOutput.explanation && flowOutput.explanation.trim().length <= 10) {
-            ttsErrorMessage = "Sesli anlatım için metin çok kısa. Lütfen daha uzun bir konu anlatımı oluşturun.";
-        } else if (flowOutput.explanation && (flowOutput.explanation.startsWith("AI modeli") || flowOutput.explanation.startsWith("Hata:"))) {
-            ttsErrorMessage = "Ana konu anlatımı oluşturulamadığı için sesli anlatım da üretilemedi.";
-        }
+        let skipReason = "";
+        if (!flowOutput.explanation || flowOutput.explanation.trim().length <= 10) skipReason = "metin çok kısa";
+        else if (flowOutput.explanation.startsWith("Hata:") || flowOutput.explanation.includes("AI modeli")) skipReason = "ana anlatım hatası";
+        else if (!input.generateTts) skipReason = "TTS istenmedi";
+        
+        console.log(`[ExplainTopic Action] TTS generation SKIPPED. Reason: ${skipReason || "bilinmeyen"}. GenerateTTS flag: ${input.generateTts}, Explanation successful and long enough: ${!!(flowOutput.explanation && flowOutput.explanation.trim().length > 10 && !flowOutput.explanation.startsWith("Hata:") && !flowOutput.explanation.includes("AI modeli"))}`);
+        if (skipReason === "metin çok kısa") ttsErrorMessage = "Sesli anlatım için metin çok kısa. Lütfen daha uzun bir konu anlatımı oluşturun.";
+        else if (skipReason === "ana anlatım hatası") ttsErrorMessage = "Ana konu anlatımı oluşturulamadığı için sesli anlatım da üretilemedi.";
     }
 
-    return { ...flowOutput, audioDataUri: audioDataUri ?? undefined, ttsError: ttsErrorMessage };
+    return { ...flowOutput, audioDataUri, ttsError: ttsErrorMessage };
 
   } catch (error: any) {
     console.error("[ExplainTopic Action] CRITICAL error during server action execution (outer try-catch):", error);
@@ -563,5 +590,4 @@ const topicExplainerFlow = ai.defineFlow(
     }
   }
 );
-
     
