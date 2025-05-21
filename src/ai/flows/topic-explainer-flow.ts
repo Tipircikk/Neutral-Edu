@@ -33,63 +33,93 @@ const ExplainTopicOutputSchema = z.object({
 });
 export type ExplainTopicOutput = z.infer<typeof ExplainTopicOutputSchema>;
 
+const defaultErrorOutput: ExplainTopicOutput = {
+  explanationTitle: "Hata: Konu Anlatımı Oluşturulamadı",
+  explanation: "Konu anlatımı oluşturulurken beklenmedik bir sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin veya destek ile iletişime geçin.",
+  keyConcepts: [],
+  commonMistakes: [],
+  yksTips: [],
+  activeRecallQuestions: []
+};
+
 export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTopicOutput> {
-  const isProUser = input.userPlan === 'pro';
-  const isPremiumUser = input.userPlan === 'premium';
-  const isCustomModelSelected = !!input.customModelIdentifier;
+  try {
+    const isProUser = input.userPlan === 'pro';
+    const isPremiumUser = input.userPlan === 'premium';
+    const isCustomModelSelected = !!input.customModelIdentifier;
 
-  let modelToUse = '';
-  if (input.customModelIdentifier) {
-    switch (input.customModelIdentifier) {
-      case 'default_gemini_flash':
-        modelToUse = 'googleai/gemini-2.0-flash';
-        break;
-      case 'experimental_gemini_1_5_flash':
-        modelToUse = 'googleai/gemini-1.5-flash-latest';
-        break;
-      case 'experimental_gemini_2_5_flash_preview_05_20':
-        modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-        break;
-      default:
-        console.warn(`[Topic Explainer Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting based on plan.`);
-        if (isProUser || isPremiumUser) {
-          modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-        } else {
+    let modelToUse = '';
+    if (input.customModelIdentifier) {
+      switch (input.customModelIdentifier) {
+        case 'default_gemini_flash':
           modelToUse = 'googleai/gemini-2.0-flash';
+          break;
+        case 'experimental_gemini_1_5_flash':
+          modelToUse = 'googleai/gemini-1.5-flash-latest';
+          break;
+        case 'experimental_gemini_2_5_flash_preview_05_20':
+          modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+          break;
+        default:
+          console.warn(`[Topic Explainer Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting based on plan.`);
+          if (isProUser || isPremiumUser) {
+            modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+          } else {
+            modelToUse = 'googleai/gemini-2.0-flash';
+          }
+          break;
+      }
+    } else {
+      if (isProUser || isPremiumUser) {
+        modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+      } else {
+        modelToUse = 'googleai/gemini-2.0-flash';
+      }
+    }
+
+    if (!modelToUse) { 
+      console.error("[Topic Explainer Flow] modelToUse was unexpectedly empty after selection logic. Defaulting based on plan.");
+      if (isProUser || isPremiumUser) {
+        modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+      } else {
+        modelToUse = 'googleai/gemini-2.0-flash';
+      }
+    }
+    
+    const isGemini25PreviewSelected = modelToUse === 'googleai/gemini-2.5-flash-preview-05-20';
+
+    const enrichedInput = {
+      ...input,
+      isProUser,
+      isPremiumUser,
+      isCustomModelSelected,
+      isGemini25PreviewSelected, 
+      isPersonaSamimi: input.teacherPersona === 'samimi',
+      isPersonaEglenceli: input.teacherPersona === 'eglenceli',
+      isPersonaCiddi: input.teacherPersona === 'ciddi',
+      isPersonaOzel: input.teacherPersona === 'ozel',
+    };
+    return topicExplainerFlow(enrichedInput, modelToUse);
+  } catch (error: any) {
+    console.error("[ExplainTopic Action] CRITICAL error during server action execution (outer try-catch):", error);
+    let errorMessage = 'Bilinmeyen bir sunucu hatası oluştu.';
+    if (error instanceof Error) {
+        errorMessage = error.message;
+    } else if (typeof error === 'string') {
+        errorMessage = error;
+    } else {
+        try {
+            errorMessage = JSON.stringify(error).substring(0, 200);
+        } catch (stringifyError) {
+            errorMessage = 'Serileştirilemeyen sunucu hata nesnesi.';
         }
-        break;
     }
-  } else {
-    if (isProUser || isPremiumUser) {
-      modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-    } else {
-      modelToUse = 'googleai/gemini-2.0-flash';
-    }
+    return {
+        ...defaultErrorOutput,
+        explanationTitle: `Sunucu Hatası: ${input.topicName}`,
+        explanation: `Konu anlatımı oluşturulurken sunucuda kritik bir hata oluştu: ${errorMessage}. Lütfen daha sonra tekrar deneyin veya bir sorun olduğunu düşünüyorsanız destek ile iletişime geçin.`
+    };
   }
-
-  if (!modelToUse) { 
-    console.error("[Topic Explainer Flow] modelToUse was unexpectedly empty after selection logic. Defaulting based on plan.");
-    if (isProUser || isPremiumUser) {
-      modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-    } else {
-      modelToUse = 'googleai/gemini-2.0-flash';
-    }
-  }
-  
-  const isGemini25PreviewSelected = modelToUse === 'googleai/gemini-2.5-flash-preview-05-20';
-
-  const enrichedInput = {
-    ...input,
-    isProUser,
-    isPremiumUser,
-    isCustomModelSelected,
-    isGemini25PreviewSelected, // Correctly set based on the final modelToUse
-    isPersonaSamimi: input.teacherPersona === 'samimi',
-    isPersonaEglenceli: input.teacherPersona === 'eglenceli',
-    isPersonaCiddi: input.teacherPersona === 'ciddi',
-    isPersonaOzel: input.teacherPersona === 'ozel',
-  };
-  return topicExplainerFlow(enrichedInput, modelToUse);
 }
 
 const TopicExplainerPromptInputSchema = ExplainTopicInputSchema.extend({
@@ -197,32 +227,32 @@ const topicExplainerFlow = ai.defineFlow(
         const {output} = await topicExplainerPrompt(enrichedInput, callOptions);
         if (!output || !output.explanation) {
           console.error("[Topic Explainer Flow] AI did not produce a valid explanation. Output:", JSON.stringify(output).substring(0,500));
-          return {
-              explanationTitle: `Hata: ${enrichedInput.topicName} için anlatım üretilemedi.`,
-              explanation: `AI YKS Süper Öğretmeniniz, belirtilen konu için bir anlatım oluşturamadı. Model: ${modelToUse}. Lütfen konuyu ve ayarları kontrol edin veya farklı bir model deneyin.`,
-              keyConcepts: [], commonMistakes: [], yksTips: [], activeRecallQuestions: []
-          };
+          // Throw an error that will be caught by the outer explainTopic function's catch block
+          // This allows the outer catch to handle creating a user-friendly error object.
+          throw new Error(`AI YKS Süper Öğretmeniniz, belirtilen konu için bir anlatım oluşturamadı. Model: ${modelToUse}. Lütfen konuyu ve ayarları kontrol edin veya farklı bir model deneyin.`);
         }
         return output;
     } catch (error: any) {
-        console.error(`[Topic Explainer Flow] CRITICAL error during generation with model ${modelToUse}:`, error);
-        let errorMessage = `AI modeli (${modelToUse}) ile konu anlatımı oluşturulurken bir hata oluştu.`;
-        if (error.message) {
-            errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
-             if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
-              errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
-            } else if (error.message.includes('400 Bad Request') && (error.message.includes('generationConfig') || error.message.includes('generation_config'))) {
-               errorMessage = `Seçilen model (${modelToUse}) bazı yapılandırma ayarlarını desteklemiyor olabilir. Model: ${modelToUse}. Detay: ${error.message.substring(0,150)}`;
-            } else if (error.message.includes('Handlebars')) {
-               errorMessage = `AI şablonunda bir hata oluştu. Geliştiriciye bildirin. Model: ${modelToUse}. Detay: ${error.message.substring(0,150)}`;
+        console.error(`[Topic Explainer Flow] INNER CRITICAL error during generation with model ${modelToUse}:`, error);
+        // Re-throw the error to be caught by the outer explainTopic's catch block
+        // which will then formulate the final error response for the client.
+        // This helps centralize client-facing error formatting.
+        if (error instanceof Error) {
+           let errorMessage = `AI modeli (${modelToUse}) ile konu anlatımı oluşturulurken bir Genkit/AI hatası oluştu.`;
+           if (error.message) {
+                errorMessage += ` Detay: ${error.message.substring(0, 250)}`;
+                if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
+                  errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
+                } else if (error.message.includes('400 Bad Request') && (error.message.includes('generationConfig') || error.message.includes('generation_config'))) {
+                   errorMessage = `Seçilen model (${modelToUse}) bazı yapılandırma ayarlarını desteklemiyor olabilir. Model: ${modelToUse}. Detay: ${error.message.substring(0,150)}`;
+                } else if (error.message.includes('Handlebars')) {
+                   errorMessage = `AI şablonunda bir hata oluştu. Geliştiriciye bildirin. Model: ${modelToUse}. Detay: ${error.message.substring(0,150)}`;
+                }
             }
+            throw new Error(errorMessage);
+        } else {
+            throw new Error(`AI modeli (${modelToUse}) ile konu anlatımı oluşturulurken bilinmeyen bir Genkit/AI hatası oluştu.`);
         }
-
-        return {
-            explanationTitle: `Hata: ${errorMessage}`,
-            explanation: "Bir hata nedeniyle konu anlatımı oluşturulamadı.",
-            keyConcepts: [], commonMistakes: [], yksTips: [], activeRecallQuestions: []
-        };
     }
   }
 );
