@@ -146,15 +146,22 @@ Matematiksel sembolleri (örn: x^2, H_2O, √, π, ±, ≤, ≥) metin içinde a
 Cevapların her zaman Türkçe olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
-
 {{#if isProUser}}
-(Pro Kullanıcı Notu: Çözümlerini üst düzeyde akademik titizlikle sun. Varsa birden fazla çözüm yolunu kısaca belirt. Sorunun çözümünde kullanılan anahtar kavramları derinlemesine açıkla. Sorunun YKS'deki stratejik önemine değin.)
+(Pro Kullanıcı Notu: Çözümlerini üst düzeyde akademik titizlikle sun. Varsa birden fazla çözüm yolunu kısaca belirt. Sorunun çözümünde kullanılan anahtar kavramları derinlemesine açıkla. Bu tür sorularla ilgili YKS'de karşılaşılabilecek farklı varyasyonlara ve genel sınav stratejilerine (örn: zaman yönetimi, eleme teknikleri) değin. Sorunun YKS'deki stratejik önemine vurgu yap.)
 {{else if isPremiumUser}}
-(Premium Kullanıcı Notu: Daha derinlemesine açıklamalar yapmaya çalış, varsa alternatif çözüm yollarına kısaca değin.)
+(Premium Kullanıcı Notu: Daha derinlemesine açıklamalar yapmaya çalış. Varsa alternatif çözüm yollarına kısaca değin. Sorunun çözümünde kullanılan temel prensipleri ve 1-2 önemli YKS ipucunu belirt.)
+{{else}}
+(Ücretsiz Kullanıcı Notu: Soruyu adım adım ve anlaşılır bir şekilde çöz. Temel kavramlara değin. Çözümde 1 genel YKS ipucu ver.)
 {{/if}}
 
 {{#if isCustomModelSelected}}
 (Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
+{{/if}}
+
+{{#if isGemini25PreviewSelected}}
+(Gemini 2.5 Flash Preview 05-20 Modeli Notu: Çözümü ana adımları ve kilit mantıksal çıkarımları vurgulayarak, olabildiğince ÖZ ama ANLAŞILIR olmalıdır. {{#if isProUser}}Pro kullanıcı için gereken derinliği ve stratejik bilgileri koruyarak{{else if isPremiumUser}}Premium kullanıcı için gereken detayları ve pratik ipuçlarını sağlayarak{{/if}} aşırı detaydan kaçın, doğrudan ve net bir çözüm sun. HIZLI YANIT VERMESİ ÖNEMLİDİR.)
+{{else}}
+(Diğer Model Notu: Çözümü ayrıntılı ve SATIR SATIR açıkla.)
 {{/if}}
 
 Kullanıcının girdileri aşağıdadır:
@@ -177,20 +184,15 @@ Soru Analizi:
 Çözüm Yolu (Adım Adım):
 *   Soruyu ana adımları mantığıyla birlikte, AÇIKLAYARAK çöz.
 *   Her bir önemli matematiksel işlemi veya mantıksal çıkarımı net bir şekilde belirt.
-*   {{#if isGemini25PreviewSelected}}
-    (Gemini 2.5 Flash Preview 05-20 Modeli Notu: Çözümü ana adımları ve kilit mantıksal çıkarımları vurgulayarak, olabildiğince ÖZ ama ANLAŞILIR olmalıdır. Aşırı detaydan kaçın, doğrudan ve net bir çözüm sun. HIZLI YANIT VERMESİ ÖNEMLİDİR.)
-    {{else}}
-    Ayrıntılı ve SATIR SATIR açıkla.
-    {{/if}}
 
 Sonuç:
 *   Elde edilen sonucu net bir şekilde belirt (örn: Cevap B).
 
-Kavramlar (İsteğe Bağlı, 1-2 adet):
-*   Çözümde kullanılan veya soruyla yakından ilişkili, YKS'de bilinmesi gereken 1-2 temel kavramı listele.
+İlgili Kavramlar (isteğe bağlı, planına göre 1-3 adet):
+*   Çözümde kullanılan veya soruyla yakından ilişkili, YKS'de bilinmesi gereken temel kavramları listele.
 
-YKS Strateji İpucu (İsteğe Bağlı, 1 adet):
-*   Bu tür sorularla ilgili 1 adet pratik YKS stratejisi veya ipucu ver.
+YKS Strateji İpuçları (isteğe bağlı, planına göre 1-3 adet):
+*   Bu tür sorularla ilgili pratik YKS stratejileri veya ipuçları ver.
 
 Davranış Kuralları:
 *   Eğer hem görsel hem de metin girdisi varsa, bunları birbiriyle ilişkili kabul et.
@@ -220,7 +222,7 @@ const questionSolverFlow = ai.defineFlow(
     
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
-    if (modelToUse === 'googleai/gemini-2.5-flash-preview-05-20') { // Note: corrected model name based on previous context if it was a typo
+    if (modelToUse === 'googleai/gemini-2.5-flash-preview-05-20') { 
       callOptions.config = {}; 
       console.log(`[QuestionSolver Flow] NOT using generationConfig for preview model ${modelToUse}.`);
     } else {

@@ -99,9 +99,11 @@ const prompt = ai.definePrompt({
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
-(Pro Kullanıcı Notu: Açıklamanı en üst düzeyde akademik zenginlikle, konunun felsefi temellerine ve karmaşık detaylarına değinerek yap. Çok kapsamlı bir anlatım oluştur.)
+(Pro Kullanıcı Notu: Açıklamanı en üst düzeyde akademik zenginlikle, konunun felsefi temellerine ve karmaşık detaylarına değinerek yap. Metindeki örtük bağlantıları ve çıkarımları vurgula. Sınav ipuçları ve örnek sorular bölümünde YKS'de çıkabilecek zorlayıcı ve birden fazla kazanımı ölçen sorulara odaklan. Çok kapsamlı bir anlatım oluştur.)
 {{else if isPremiumUser}}
-(Premium Kullanıcı Notu: Açıklamalarını daha fazla örnekle ve önemli bağlantıları vurgulayarak zenginleştir.)
+(Premium Kullanıcı Notu: Açıklamalarını daha fazla örnekle ve önemli bağlantıları vurgulayarak zenginleştir. Sınav ipuçları bölümünde konunun YKS'deki önemli noktalarını, örnek sorular bölümünde ise orta düzeyde, konuyu pekiştirici sorular sun.)
+{{else}}
+(Ücretsiz Kullanıcı Notu: Konunun ana hatlarını ve temel tanımlarını içeren, anlaşılır bir açıklama yap. Sınav ipuçları ve örnek sorular bölümünde temel düzeyde, hatırlamaya yönelik içerikler sun.)
 {{/if}}
 
 {{#if isCustomModelSelected}}
@@ -109,7 +111,7 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 {{/if}}
 
 {{#if isGemini25PreviewSelected}}
-(Gemini 2.5 Flash Preview 05-20 Modeli Notu: Yanıtların ÖZ ama ANLAŞILIR ve YKS öğrencisine doğrudan fayda sağlayacak şekilde olsun. HIZLI yanıt vermeye odaklan. Gereksiz uzun açıklamalardan ve detaylardan kaçın, doğrudan konuya girerek en kritik bilgileri vurgula.)
+(Gemini 2.5 Flash Preview 05-20 Modeli Notu: Yanıtların ÖZ ama ANLAŞILIR ve YKS öğrencisine doğrudan fayda sağlayacak şekilde olsun. HIZLI yanıt vermeye odaklan. {{#if isProUser}}Pro kullanıcı için gereken derinliği ve stratejik bilgileri koruyarak{{else if isPremiumUser}}Premium kullanıcı için gereken detayları ve pratik ipuçlarını sağlayarak{{/if}} gereksiz uzun açıklamalardan ve süslemelerden kaçın, doğrudan konuya girerek en kritik bilgileri vurgula.)
 {{/if}}
 
 PDF'den çıkarılan metin verildiğinde, {{{summaryLength}}} uzunluk tercihine, {{{outputDetail}}} çıktı detayı isteğine ve varsa {{{keywords}}} veya {{{pageRange}}} bilgilerine göre, öğrenci dostu bir tonda aşağıdaki görevleri yerine getir. Çıktını, belirtilen şemaya harfiyen uyacak şekilde yapılandır.

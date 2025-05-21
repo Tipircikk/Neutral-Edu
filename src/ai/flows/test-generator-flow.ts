@@ -98,9 +98,11 @@ Sorular ASLA belirsiz olmamalı, KESİNLİKLE TEK BİR DOĞRU CEVABA sahip olmal
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
-(Pro Kullanıcı Notu: En düşündürücü ve kapsamlı YKS sorularını oluştur. Sorular, birden fazla konuyu birleştiren, derin analitik beceriler gerektiren nitelikte olsun. Açıklamaların çok detaylı olmalı.)
+(Pro Kullanıcı Notu: En düşündürücü ve kapsamlı YKS sorularını oluştur. Sorular, birden fazla konuyu birleştiren, derin analitik beceriler gerektiren nitelikte olsun. Açıklamaların çok detaylı olmalı; doğru cevabın yanı sıra her bir yanlış seçeneğin neden hatalı olduğunu da ayrıntılı bir şekilde açıkla. Soru köklerinde YKS'de sıkça kullanılan çeldirici ifadelere ve püf noktalarına yer ver.)
 {{else if isPremiumUser}}
-(Premium Kullanıcı Notu: Soruların çeşitliliğini ve açıklamaların derinliğini artır. Yanlış seçeneklerin nedenlerini de açıkla.)
+(Premium Kullanıcı Notu: Soruların çeşitliliğini ve açıklamaların derinliğini artır. Yanlış seçeneklerin nedenlerini de açıkla. Sorular, konunun temel ve orta düzeydeki önemli noktalarını kapsasın.)
+{{else}}
+(Ücretsiz Kullanıcı Notu: Konunun temel bilgilerini ölçen, anlaşılır ve net sorular oluştur. Açıklamalar doğru cevabı net bir şekilde açıklamalıdır.)
 {{/if}}
 
 {{#if isCustomModelSelected}}
@@ -108,7 +110,7 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 {{/if}}
 
 {{#if isGemini25PreviewSelected}}
-(Gemini 2.5 Flash Preview 05-20 Modeli Notu: Yanıtların ÖZ ama ANLAŞILIR ve YKS öğrencisine doğrudan fayda sağlayacak şekilde olsun. HIZLI yanıt vermeye odaklan. Gereksiz uzun açıklamalardan ve detaylardan kaçın, doğrudan konuya girerek en kritik bilgileri vurgula. Sorular YKS formatına uygun, net ve tek doğru cevaplı olsun.)
+(Gemini 2.5 Flash Preview 05-20 Modeli Notu: Yanıtların ÖZ ama ANLAŞILIR ve YKS öğrencisine doğrudan fayda sağlayacak şekilde olsun. HIZLI yanıt vermeye odaklan. {{#if isProUser}}Pro kullanıcı için gereken analitik derinliği ve kapsamlı açıklamaları koruyarak{{else if isPremiumUser}}Premium kullanıcı için gereken detaylı açıklamaları ve çeşitliliği sağlayarak{{/if}} gereksiz uzun açıklamalardan ve süslemelerden kaçın, doğrudan konuya girerek en kritik bilgileri vurgula. Sorular YKS formatına uygun, net ve tek doğru cevaplı olsun.)
 {{/if}}
 
 Kullanıcının İstekleri:

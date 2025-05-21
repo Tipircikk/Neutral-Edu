@@ -93,9 +93,11 @@ const prompt = ai.definePrompt({
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
-(Pro Kullanıcı Notu: Analizini en üst düzeyde akademik titizlikle yap. Öğrencinin farkında olmadığı örtük bilgi eksikliklerini tespit etmeye çalış. En kapsamlı stratejik yol haritasını sun.)
+(Pro Kullanıcı Notu: Analizini en üst düzeyde akademik titizlikle yap. Öğrencinin farkında olmadığı örtük bilgi eksikliklerini tespit etmeye çalış. En kapsamlı stratejik yol haritasını, YKS'de sık yapılan hatalardan kaçınma yollarını, zaman yönetimi ve stresle başa çıkma tekniklerini detaylıca sun.)
 {{else if isPremiumUser}}
-(Premium Kullanıcı Notu: Daha detaylı konu analizi ve alternatif çalışma yöntemleri öner.)
+(Premium Kullanıcı Notu: Daha detaylı konu analizi yap. Belirlenen zayıflıklar için 1-2 etkili çalışma tekniği (örn: Feynman Tekniği, Pomodoro) ve genel motivasyonunu artıracak pratik ipuçları öner.)
+{{else}}
+(Ücretsiz Kullanıcı Notu: Analizini temel düzeyde yap. Genel çalışma alışkanlıkları ve düzenli tekrarın önemi gibi 1-2 genel YKS tavsiyesi sun.)
 {{/if}}
 
 {{#if isCustomModelSelected}}
@@ -103,7 +105,7 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 {{/if}}
 
 {{#if isGemini25PreviewSelected}}
-(Gemini 2.5 Flash Preview 05-20 Modeli Notu: Yanıtların ÖZ ama ANLAŞILIR ve YKS öğrencisine doğrudan fayda sağlayacak şekilde olsun. HIZLI yanıt vermeye odaklan. Gereksiz uzun açıklamalardan ve detaylardan kaçın, doğrudan konuya girerek en kritik bilgileri vurgula.)
+(Gemini 2.5 Flash Preview 05-20 Modeli Notu: Yanıtların ÖZ ama ANLAŞILIR ve YKS öğrencisine doğrudan fayda sağlayacak şekilde olsun. HIZLI yanıt vermeye odaklan. {{#if isProUser}}Pro kullanıcı için gereken derinliği ve stratejik bilgileri koruyarak{{else if isPremiumUser}}Premium kullanıcı için gereken detayları ve pratik ipuçlarını sağlayarak{{/if}} gereksiz uzun açıklamalardan ve süslemelerden kaçın, doğrudan konuya girerek en kritik bilgileri vurgula.)
 {{/if}}
 
 Öğrencinin Sınav Raporu Metni:

@@ -403,11 +403,11 @@ const studyPlanGeneratorPrompt = ai.definePrompt({
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
-(Pro Kullanıcı Notu: En kapsamlı YKS stratejileri, öğrenme teknikleri (Feynman, Pomodoro vb.), kaynak önerileri, deneme sınavı taktikleri, stres yönetimi gibi uzman seviyesinde bilgiler sun. Mümkünse, sık yapılan hatalara ve bunlardan kaçınma yollarına değin.)
+(Pro Kullanıcı Notu: Giriş bölümünde, en kapsamlı YKS stratejilerini, etkili öğrenme tekniklerini (örn: Feynman Tekniği, aralıklı tekrar, Pomodoro), güvenilir kaynak önerilerini, deneme sınavı çözme ve analiz taktiklerini, stres yönetimi ve motivasyon koruma gibi uzman seviyesinde detaylı bilgiler sun. Planın geneline yayılmış olarak, sık yapılan YKS hatalarına ve bunlardan kaçınma yollarına değin.)
 {{else if isPremiumUser}}
-(Premium Kullanıcı Notu: Etkili konu tekrarı yöntemleri, çalışma verimliliği ipuçları, genel motivasyon teknikleri ve zaman yönetimi hakkında bilgiler sun.)
+(Premium Kullanıcı Notu: Giriş bölümünde, 1-2 etkili konu tekrarı yöntemi (örn: aktif hatırlama), çalışma verimliliği için pratik ipuçları, genel motivasyon teknikleri ve zaman yönetimi hakkında bilgiler sun. Planın bazı günlerine küçük motivasyon notları ekle.)
 {{else}}
-(Ücretsiz Kullanıcı Notu: Temel çalışma alışkanlıkları, mola vermenin önemi, düzenli çalışmanın faydaları gibi birkaç genel YKS tavsiyesi sun.)
+(Ücretsiz Kullanıcı Notu: Giriş bölümünde, temel çalışma alışkanlıkları, mola vermenin önemi, düzenli çalışmanın faydaları gibi 1-2 genel YKS tavsiyesi sun.)
 {{/if}}
 
 {{#if isCustomModelSelected}}
@@ -415,7 +415,7 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 {{/if}}
 
 {{#if isGemini25PreviewSelected}}
-(Gemini 2.5 Flash Preview 05-20 Modeli Notu: Yanıtların ÖZ ama ANLAŞILIR ve YKS öğrencisine doğrudan fayda sağlayacak şekilde olsun. HIZLI yanıt vermeye odaklan. Gereksiz uzun açıklamalardan ve detaylardan kaçın, doğrudan konuya girerek en kritik bilgileri vurgula. JSON formatına HARFİYEN uy! Özellikle 'week' alanı her haftalık planda bir SAYI olarak bulunmalıdır. 'dailyTasks' içindeki her bir görevde 'focusTopics' MUTLAKA en az bir eleman içeren bir dizi olmalıdır.)
+(Gemini 2.5 Flash Preview 05-20 Modeli Notu: Yanıtların ÖZ ama ANLAŞILIR ve YKS öğrencisine doğrudan fayda sağlayacak şekilde olsun. HIZLI yanıt vermeye odaklan. {{#if isProUser}}Pro kullanıcı için gereken derinliği ve stratejik bilgileri koruyarak{{else if isPremiumUser}}Premium kullanıcı için gereken detayları ve pratik ipuçlarını sağlayarak{{/if}} gereksiz uzun açıklamalardan ve süslemelerden kaçın, doğrudan konuya girerek en kritik bilgileri vurgula. JSON formatına HARFİYEN uy! Özellikle 'week' alanı her haftalık planda bir SAYI olarak bulunmalıdır. 'dailyTasks' içindeki her bir görevde 'focusTopics' MUTLAKA en az bir eleman içeren bir dizi olmalıdır.)
 {{/if}}
 
 Öğrencinin Girdileri:
@@ -434,7 +434,7 @@ Lütfen bu bilgilere göre, aşağıdaki JSON formatına HARFİYEN uyan bir çal
 
 İstenen Çıktı Bölümleri:
 1.  **Plan Başlığı (planTitle)**: Örneğin, "Kişiye Özel {{#if userField}}{{{userField}}}{{else}}YKS{{/if}} Hazırlık Planı ({{{studyDuration}}})". ZORUNLUDUR.
-2.  **Giriş ve Genel Stratejiler (introduction)**: Plana genel bir giriş ve motivasyon mesajı. Ayrıca, kullanıcının planına göre farklılaşan GENEL STRATEJİLER ve YKS TAKTİKLERİ de BU BÖLÜMDE yer almalıdır.
+2.  **Giriş ve Genel Stratejiler (introduction)**: Plana genel bir giriş ve motivasyon mesajı. Ayrıca, kullanıcının planına göre farklılaşan GENEL STRATEJİLER ve YKS TAKTİKLERİ de BU BÖLÜMDE yer almalıdır (Yukarıdaki plan bazlı notlara göre detaylandır).
 3.  **Haftalık Planlar (weeklyPlans)**: ÇOK ÖNEMLİ: Bu dizideki HER BİR obje, MUTLAKA 'week' adında bir SAYI (number) tipinde alana sahip olmalıdır. Her bir 'week' objesi, 'dailyTasks' adlı bir dizi içermelidir. Her bir 'dailyTask' objesi de 'day' (string) ve 'focusTopics' (string dizisi, en az bir eleman) alanlarını MUTLAKA içermelidir.
     *   **Hafta Numarası (week)**: Örn: 1, 2... BU ALAN HER HAFTALIK PLAN OBJESİNDE ZORUNLUDUR VE SAYI OLMALIDIR. AI, BU KURALA KESİNLİKLE UYMALIDIR.
     *   **Haftalık Hedef (weeklyGoal) (isteğe bağlı)**: Haftanın ana hedefi.
