@@ -118,7 +118,7 @@ const testGeneratorFlow = ai.defineFlow(
     outputSchema: GenerateTestOutputSchema,
   },
   async (enrichedInput: z.infer<typeof GenerateTestInputSchema> & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean; questionTypes: Array<"multiple_choice" | "true_false" | "short_answer">} ): Promise<GenerateTestOutput> => {
-    let modelToUse = 'googleai/gemini-1.5-flash-latest';
+    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Base default, will be overridden
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
     if (enrichedInput.customModelIdentifier) {
@@ -133,7 +133,13 @@ const testGeneratorFlow = ai.defineFlow(
           modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
           break;
         default:
-          console.warn(`[Test Generator Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
+          console.warn(`[Test Generator Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting based on plan.`);
+          if (enrichedInput.isProUser) {
+            modelToUse = 'googleai/gemini-1.5-flash-latest';
+          } else {
+            modelToUse = 'googleai/gemini-2.0-flash';
+          }
+          break;
       }
     } else if (enrichedInput.isProUser) {
       modelToUse = 'googleai/gemini-1.5-flash-latest';
@@ -189,4 +195,6 @@ const testGeneratorFlow = ai.defineFlow(
     }
   }
 );
+    
+
     

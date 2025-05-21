@@ -120,7 +120,7 @@ const summarizePdfForStudentFlow = ai.defineFlow(
     outputSchema: SummarizePdfForStudentOutputSchema,
   },
   async (enrichedInput: z.infer<typeof SummarizePdfForStudentInputSchema> & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<SummarizePdfForStudentOutput> => {
-    let modelToUse = 'googleai/gemini-1.5-flash-latest';
+    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Base default, will be overridden
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
     if (enrichedInput.customModelIdentifier) {
@@ -135,7 +135,13 @@ const summarizePdfForStudentFlow = ai.defineFlow(
           modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
           break;
         default:
-          console.warn(`[Summarize PDF Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
+          console.warn(`[Summarize PDF Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting based on plan.`);
+          if (enrichedInput.isProUser) {
+            modelToUse = 'googleai/gemini-1.5-flash-latest';
+          } else {
+            modelToUse = 'googleai/gemini-2.0-flash';
+          }
+          break;
       }
     } else if (enrichedInput.isProUser) {
       modelToUse = 'googleai/gemini-1.5-flash-latest';
@@ -216,4 +222,6 @@ const summarizePdfForStudentFlow = ai.defineFlow(
     }
   }
 );
+    
+
     

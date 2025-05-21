@@ -94,7 +94,7 @@ const topicSummarizerFlow = ai.defineFlow(
     outputSchema: SummarizeTopicOutputSchema,
   },
   async (enrichedInput: z.infer<typeof SummarizeTopicInputSchema> & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<SummarizeTopicOutput> => {
-    let modelToUse = 'googleai/gemini-1.5-flash-latest';
+    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Base default, will be overridden
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
     if (enrichedInput.customModelIdentifier) {
@@ -109,7 +109,13 @@ const topicSummarizerFlow = ai.defineFlow(
           modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
           break;
         default:
-          console.warn(`[Topic Summarizer Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
+          console.warn(`[Topic Summarizer Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting based on plan.`);
+          if (enrichedInput.isProUser) {
+            modelToUse = 'googleai/gemini-1.5-flash-latest';
+          } else {
+            modelToUse = 'googleai/gemini-2.0-flash';
+          }
+          break;
       }
     } else if (enrichedInput.isProUser) {
       modelToUse = 'googleai/gemini-1.5-flash-latest';
@@ -161,4 +167,6 @@ const topicSummarizerFlow = ai.defineFlow(
     }
   }
 );
+    
+
     

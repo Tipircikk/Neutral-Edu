@@ -166,7 +166,7 @@ const questionSolverFlow = ai.defineFlow(
       customModelIdentifier: input.customModelIdentifier
     });
 
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Varsayılan
+    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Base default, will be overridden
     const isProUser = input.userPlan === 'pro';
     const isPremiumUser = input.userPlan === 'premium';
     const isCustomModelSelected = !!input.customModelIdentifier;
@@ -180,9 +180,9 @@ const questionSolverFlow = ai.defineFlow(
       isGemini25PreviewSelected,
     };
 
-    if (isCustomModelSelected) {
-      console.log(`[QuestionSolver Flow] Admin attempting to use custom model: ${input.customModelIdentifier}`);
-      switch (input.customModelIdentifier) {
+    if (enrichedInput.customModelIdentifier) {
+      console.log(`[QuestionSolver Flow] Admin attempting to use custom model: ${enrichedInput.customModelIdentifier}`);
+      switch (enrichedInput.customModelIdentifier) {
         case 'default_gemini_flash':
           modelToUse = 'googleai/gemini-2.0-flash';
           break;
@@ -193,14 +193,20 @@ const questionSolverFlow = ai.defineFlow(
           modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
           break;
         default:
-          console.warn(`[QuestionSolver Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting to ${modelToUse}`);
+          console.warn(`[QuestionSolver Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting based on plan.`);
+           if (enrichedInput.isProUser) {
+            modelToUse = 'googleai/gemini-1.5-flash-latest';
+          } else {
+            modelToUse = 'googleai/gemini-2.0-flash';
+          }
+          break;
       }
       console.log(`[QuestionSolver Flow] Admin selected model: ${modelToUse}`);
     } else if (isProUser) {
       modelToUse = 'googleai/gemini-1.5-flash-latest';
       console.log(`[QuestionSolver Flow] Pro user using model: ${modelToUse}`);
     } else {
-      modelToUse = 'googleai/gemini-2.0-flash'; // Varsayılan (ücretsiz/premium)
+      modelToUse = 'googleai/gemini-2.0-flash'; 
       console.log(`[QuestionSolver Flow] Free/Premium user using model: ${modelToUse}`);
     }
 
@@ -264,4 +270,6 @@ const questionSolverFlow = ai.defineFlow(
     }
   }
 );
+    
+
     
