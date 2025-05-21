@@ -54,17 +54,28 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
         console.warn(`[Topic Explainer Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting based on plan.`);
         if (isProUser || isPremiumUser) {
           modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-        } else { 
+        } else {
           modelToUse = 'googleai/gemini-2.0-flash';
         }
+        break;
     }
-  } else { 
+  } else {
     if (isProUser || isPremiumUser) {
       modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-    } else { 
+    } else {
       modelToUse = 'googleai/gemini-2.0-flash';
     }
   }
+
+  if (!modelToUse) { 
+    console.error("[Topic Explainer Flow] modelToUse was unexpectedly empty after selection logic. Defaulting based on plan.");
+    if (isProUser || isPremiumUser) {
+      modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+    } else {
+      modelToUse = 'googleai/gemini-2.0-flash';
+    }
+  }
+
   const isGemini25PreviewSelected = modelToUse === 'googleai/gemini-2.5-flash-preview-05-20';
 
   const enrichedInput = {
@@ -81,7 +92,6 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
   return topicExplainerFlow(enrichedInput, modelToUse);
 }
 
-// Extend the input schema for the prompt to include the new boolean flags
 const TopicExplainerPromptInputSchema = ExplainTopicInputSchema.extend({
     isProUser: z.boolean().optional(),
     isPremiumUser: z.boolean().optional(),
@@ -168,11 +178,11 @@ const topicExplainerFlow = ai.defineFlow(
     outputSchema: ExplainTopicOutputSchema,
   },
   async (enrichedInput: z.infer<typeof TopicExplainerPromptInputSchema>, modelToUse: string ): Promise<ExplainTopicOutput> => {
-    
+
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
     if (modelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
-        callOptions.config = {}; 
+        callOptions.config = { temperature: 0.7 }; 
     } else {
       callOptions.config = {
         generationConfig: {
@@ -181,7 +191,7 @@ const topicExplainerFlow = ai.defineFlow(
       };
     }
 
-    console.log(`[Topic Explainer Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}, level: ${enrichedInput.explanationLevel}, persona: ${enrichedInput.teacherPersona}`);
+    console.log(`[Topic Explainer Flow] Using model: ${modelToUse} with config: ${JSON.stringify(callOptions.config)} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}, level: ${enrichedInput.explanationLevel}, persona: ${enrichedInput.teacherPersona}`);
 
     try {
         const {output} = await topicExplainerPrompt(enrichedInput, callOptions);
@@ -216,7 +226,3 @@ const topicExplainerFlow = ai.defineFlow(
     }
   }
 );
-    
-
-
-    
