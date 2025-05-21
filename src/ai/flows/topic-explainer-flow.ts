@@ -12,7 +12,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { GoogleGenerativeAI as GoogleGenAI, type Content } from '@google/generative-ai'; // Updated import
+import { GoogleGenerativeAI as GoogleGenAI, type Content, HarmCategory, HarmBlockThreshold } from '@google/genai';
 import { Buffer } from 'buffer'; // Node.js Buffer
 
 // Helper types for WAV conversion
@@ -160,17 +160,17 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
   }
 
   try {
-    const genAI = new GoogleGenAI(apiKey); // Use the new package name
+    const genAI = new GoogleGenAI(apiKey);
     const ttsModel = genAI.getGenerativeModel({ model: "gemini-2.5-pro-preview-tts" });
 
-    const ttsRequestConfig: any = { // Use 'any' to allow custom fields not in standard GenerationConfig
-      responseModalities: ['TEXT', 'audio'], // Try with TEXT and lowercase 'audio'
+    const ttsRequestConfig: any = { 
+      responseModalities: ['TEXT', 'audio'], 
       speechConfig: {
         voiceConfig: {
-          prebuiltVoiceConfig: { voiceName: 'Puck' } // Using Puck as a valid voice
+          prebuiltVoiceConfig: { voiceName: 'Puck' } 
         }
       },
-      temperature: 0.7, // Adding temperature as it's often in generation configs
+      temperature: 0.7,
     };
     
     const contents: Content[] = [{ role: 'user', parts: [{ text }] }];
@@ -178,7 +178,6 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
     console.log(`[TTS Generation] Sending request to Gemini TTS model (gemini-2.5-pro-preview-tts). Voice: Puck. Text length: ${text.length}. First 50 chars: "${text.substring(0,50)}..."`);
     console.log("[TTS Generation] Request Config (passed to generationConfig):", JSON.stringify(ttsRequestConfig));
     
-    // Pass ttsRequestConfig as generationConfig
     const result = await ttsModel.generateContentStream({ contents, generationConfig: ttsRequestConfig });
 
     let audioBase64: string | null = null;
@@ -196,10 +195,10 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
             // @ts-ignore
             audioBase64 = part.inlineData.data;
             console.log(`[TTS Generation] SUCCESS: Found inlineData in chunk ${chunkIndex}. MimeType: "${audioMimeType}", Base64 Data Length: ${audioBase64?.length}`);
-            break; // Found audio data
+            break; 
           }
         }
-        if (audioBase64) break; // Exit outer loop if audio found
+        if (audioBase64) break; 
       } else {
          console.log(`[TTS Generation] Chunk ${chunkIndex} does not have expected structure (candidates/content/parts).`);
       }
@@ -212,8 +211,8 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
       if (lowerMimeType === 'audio/mpeg' || lowerMimeType === 'audio/mp3') {
         console.log("[TTS Generation] Audio is MP3/MPEG. Returning as data URI.");
         return `data:${audioMimeType};base64,${audioBase64}`;
-      } else if (lowerMimeType.includes('audio/l16') || lowerMimeType.includes('audio/raw')) {
-        console.log("[TTS Generation] Raw audio format detected (e.g., L16), attempting WAV conversion.");
+      } else if (lowerMimeType.includes('audio/l16') || lowerMimeType.includes('audio/raw') || lowerMimeType.startsWith('audio/l')) {
+        console.log("[TTS Generation] Raw audio format detected (e.g., L16, L-something), attempting WAV conversion.");
         return convertToWavDataUri(audioBase64, audioMimeType);
       } else {
          console.warn(`[TTS Generation] Received audio with unhandled playable mimeType: "${audioMimeType}". Returning as is. This might not be playable directly in browser.`);
@@ -228,7 +227,7 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
     console.error("[TTS Generation] CRITICAL Error during speech synthesis with GoogleGenAI:", error);
     if (error.message) console.error("[TTS Generation] Error message:", error.message);
     if (error.stack) console.error("[TTS Generation] Error stack:", error.stack);
-    if (error.details) console.error("[TTS Generation] Error details:", JSON.stringify(error.details)); // Gemini specific error details
+    if (error.details) console.error("[TTS Generation] Error details:", JSON.stringify(error.details)); 
     return null;
   }
 }
@@ -285,7 +284,6 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
       modelToUseForText = input.customModelIdentifier;
       console.log(`[ExplainTopic Action] Admin explicitly selected Genkit model: ${modelToUseForText}`);
   } else if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.trim() !== "") {
-      // Handle non-prefixed but specific custom model IDs
       switch (input.customModelIdentifier.toLowerCase().trim()) {
           case 'default_gemini_flash': modelToUseForText = 'googleai/gemini-2.0-flash'; break;
           case 'experimental_gemini_1_5_flash': modelToUseForText = 'googleai/gemini-1.5-flash-latest'; break;
@@ -327,22 +325,19 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
     let flowOutput = await topicExplainerFlow(enrichedInput, modelToUseForText);
 
     let audioDataUri: string | null = null;
-    // TTS for Admin only, and if text explanation was successful and not trivial
-    if (input.generateTts && userProfile?.isAdmin && flowOutput.explanation && flowOutput.explanation.trim().length > 10) {
-      console.log("[ExplainTopic Action] TTS generation requested by admin. Synthesizing speech for explanation...");
+    // TTS generation logic: input.generateTts already incorporates admin check from client
+    if (input.generateTts && flowOutput.explanation && flowOutput.explanation.trim().length > 10) {
+      console.log("[ExplainTopic Action] TTS generation requested. Synthesizing speech for explanation...");
       audioDataUri = await synthesizeSpeechWithGoogleGenAI(flowOutput.explanation);
       if (audioDataUri) {
         console.log("[ExplainTopic Action] TTS audio URI generated and will be added to output.");
       } else {
         console.warn("[ExplainTopic Action] TTS audio URI generation failed or returned null. Proceeding without audio.");
       }
-    } else {
-        if (input.generateTts && userProfile?.isAdmin) {
-            console.log(`[ExplainTopic Action] TTS generation skipped. Reason: generateTts flag is true for admin, but explanation might be too short or missing. Explanation length: ${flowOutput.explanation?.trim().length || 0}`);
-        } else if (input.generateTts && !userProfile?.isAdmin) {
-            console.log("[ExplainTopic Action] TTS generation skipped. Reason: Requested by non-admin user.");
-        }
+    } else if (input.generateTts) { // This means admin requested TTS but explanation was too short or missing
+        console.log(`[ExplainTopic Action] TTS generation requested by admin but skipped. Reason: Explanation might be too short or missing. Explanation length: ${flowOutput.explanation?.trim().length || 0}`);
     }
+
 
     return { ...flowOutput, audioDataUri: audioDataUri ?? undefined };
 
@@ -351,6 +346,14 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
     let errorMessage = 'Konu anlatımı oluşturulurken sunucuda beklenmedik bir hata oluştu.';
     if (error instanceof Error && error.message) {
         errorMessage = error.message;
+    } else if (typeof error === 'string') {
+        errorMessage = error;
+    } else {
+        try {
+            errorMessage = JSON.stringify(error).substring(0, 200);
+        } catch (stringifyError) {
+            errorMessage = 'Serileştirilemeyen sunucu hata nesnesi.';
+        }
     }
     return {
         ...defaultErrorOutput,
@@ -453,9 +456,8 @@ const topicExplainerFlow = ai.defineFlow(
   async (enrichedInput: z.infer<typeof TopicExplainerPromptInputSchema>, modelToUseForTextParam: string ): Promise<Omit<ExplainTopicOutput, 'audioDataUri'>> => {
     
     let finalModelToUse = modelToUseForTextParam; 
-    console.log(`[Topic Explainer Flow - Initial Check] Received modelToUseForTextParam: '${finalModelToUse}' from explainTopic action. Enriched Input Plan: ${enrichedInput.userPlan}, Custom Model ID: ${enrichedInput.customModelIdentifier}`);
+    console.log(`[Topic Explainer Flow - Initial Check] Received modelToUseForTextParam: '${finalModelToUse}' from explainTopic action. Enriched Input - Plan: ${enrichedInput.userPlan}, Custom Model ID: ${enrichedInput.customModelIdentifier}, Generate TTS: ${enrichedInput.generateTts}`);
 
-    // Defensive check for modelToUseForTextParam inside the flow
     if (!finalModelToUse || typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
         console.warn(`[Topic Explainer Flow] CRITICAL FALLBACK: modelToUseForTextParam ('${finalModelToUse}') was invalid or not prefixed with 'googleai/' INSIDE the flow. Determining default based on plan from enrichedInput.`);
         if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
@@ -530,5 +532,3 @@ const topicExplainerFlow = ai.defineFlow(
     }
   }
 );
-
-    
