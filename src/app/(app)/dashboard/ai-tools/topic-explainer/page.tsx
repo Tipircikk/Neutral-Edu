@@ -5,11 +5,12 @@ import React, { useState, useEffect, useCallback, Fragment } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Presentation, Wand2, Loader2, AlertTriangle, Download, Settings } from "lucide-react";
+import { Presentation, Wand2, Loader2, AlertTriangle, Download, Settings, Speaker } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input as ShadInput } from "@/components/ui/input"; 
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { explainTopic, type ExplainTopicOutput, type ExplainTopicInput } from "@/ai/flows/topic-explainer-flow";
@@ -24,6 +25,7 @@ export default function TopicExplainerPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [adminSelectedModel, setAdminSelectedModel] = useState<string | undefined>(undefined);
+  const [generateTts, setGenerateTts] = useState(false);
 
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
@@ -151,6 +153,7 @@ export default function TopicExplainerPage() {
         customPersonaDescription: teacherPersona === "ozel" ? customPersonaDescription : undefined,
         userPlan: currentProfile.plan,
         customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
+        generateTts: userProfile?.isAdmin && generateTts, // Only admins can request TTS for now
       };
       const result = await explainTopic(input);
 
@@ -208,7 +211,7 @@ export default function TopicExplainerPage() {
         doc.setFont('Helvetica', fontStyle); 
         doc.setTextColor(color);
         
-        const cleanedText = text.replace(/(\S+?)\^(\S+)/g, '$1^$2').replace(/(\S+?)_(\S+)/g, '$1_$2').replace(/\*\*(.*?)\*\*/g, '$1');
+        const cleanedText = text.replace(/(\\S+?)\\^(\\S+)/g, '$1^$2').replace(/(\\S+?)_(\\S+)/g, '$1_$2').replace(/\\*\\*(.*?)\\*\\*/g, '$1');
 
         const lines = doc.splitTextToSize(cleanedText, maxWidth); 
         
@@ -275,7 +278,7 @@ export default function TopicExplainerPage() {
     (!userProfileLoading && userProfile && !canProcess) ||
     (!userProfileLoading && !userProfile);
 
-  const isModelSelectDisabled = 
+  const isModelOrTtsSelectDisabled = 
     isGenerating || 
     !userProfile?.isAdmin ||
     (!userProfileLoading && userProfile && !canProcess) ||
@@ -304,17 +307,18 @@ export default function TopicExplainerPage() {
             <CardTitle className="text-2xl">AI YKS Konu Anlatımı Oluşturucu</CardTitle>
           </div>
           <CardDescription>
-            Öğrenmek istediğiniz YKS konusunu, anlatım detay seviyesini ve hoca tarzını girin. Yapay zeka sizin için konuyu detaylıca anlatsın, anahtar kavramları, YKS ipuçlarını ve aktif hatırlama sorularını versin.
+            Öğrenmek istediğiniz YKS konusunu, anlatım detay seviyesini ve hoca tarzını girin. Yapay zeka sizin için konuyu detaylıca anlatsın, anahtar kavramları, YKS ipuçlarını ve aktif hatırlama sorularını versin. Adminler, sesli anlatım (TTS) seçeneğini de kullanabilir.
           </CardDescription>
         </CardHeader>
          <CardContent>
          {userProfile?.isAdmin && (
-              <div className="space-y-2 p-4 mb-4 border rounded-md bg-muted/50">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 mb-4 border rounded-md bg-muted/50">
+              <div className="space-y-2">
                 <Label htmlFor="adminModelSelectTopicExp" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
                 <Select 
                   value={adminSelectedModel} 
                   onValueChange={setAdminSelectedModel} 
-                  disabled={isModelSelectDisabled}
+                  disabled={isModelOrTtsSelectDisabled}
                 >
                   <SelectTrigger id="adminModelSelectTopicExp">
                     <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
@@ -327,6 +331,20 @@ export default function TopicExplainerPage() {
                 </Select>
                  <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz.</p>
               </div>
+              <div className="space-y-2">
+                 <Label htmlFor="generateTts" className="font-semibold text-primary flex items-center gap-2"><Speaker size={16}/> Sesli Anlatım (Admin Özel)</Label>
+                 <div className="flex items-center space-x-2 mt-1">
+                    <Switch
+                        id="generateTts"
+                        checked={generateTts}
+                        onCheckedChange={setGenerateTts}
+                        disabled={isModelOrTtsSelectDisabled}
+                    />
+                    <Label htmlFor="generateTts" className="text-sm text-muted-foreground">Oluşturulsun mu?</Label>
+                 </div>
+                 <p className="text-xs text-muted-foreground">Konu anlatımının seslendirilmiş halini (MP3) de oluşturur. (Ekstra işlem süresi ve maliyet)</p>
+              </div>
+            </div>
             )}
         </CardContent>
       </Card>
@@ -434,7 +452,7 @@ export default function TopicExplainerPage() {
               <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
               <p className="text-lg font-medium text-foreground">Konu Anlatımı Oluşturuluyor...</p>
               <p className="text-sm text-muted-foreground">
-                AI YKS Süper Öğretmeniniz konuyu hazırlıyor... Bu işlem biraz zaman alabilir.
+                AI YKS Süper Öğretmeniniz konuyu hazırlıyor... Bu işlem biraz zaman alabilir. {userProfile?.isAdmin && generateTts && "Sesli anlatım da oluşturuluyor..."}
               </p>
             </div>
           </CardContent>
@@ -443,14 +461,27 @@ export default function TopicExplainerPage() {
 
       {explanationOutput && (
         <Card className="mt-6">
-          <CardHeader className="flex flex-row justify-between items-center">
-            <CardTitle>{explanationOutput.explanationTitle}</CardTitle>
+          <CardHeader className="flex flex-row justify-between items-start">
+            <div>
+                <CardTitle>{explanationOutput.explanationTitle}</CardTitle>
+                {explanationOutput.audioDataUri && (
+                    <CardDescription className="mt-2">Konu anlatımını dinleyebilirsiniz.</CardDescription>
+                )}
+            </div>
             <Button onClick={handleExportToPdf} variant="outline" size="sm" disabled={isExportingPdf || isGenerating}>
               {isExportingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
               PDF Olarak İndir
             </Button>
           </CardHeader>
           <CardContent className="space-y-6">
+            {explanationOutput.audioDataUri && (
+              <div className="my-4 p-4 border rounded-md bg-muted/50">
+                <Label className="font-semibold text-primary flex items-center gap-2 mb-2"><Speaker size={16}/> Sesli Anlatım</Label>
+                <audio controls src={explanationOutput.audioDataUri} className="w-full">
+                  Tarayıcınız ses elementini desteklemiyor.
+                </audio>
+              </div>
+            )}
             <ScrollArea className="h-[600px] w-full rounded-md border p-4 bg-muted/30">
               <div className="prose prose-sm dark:prose-invert max-w-none leading-relaxed">
                 <h3 className="text-lg font-semibold mt-3 mb-1 text-foreground">Detaylı Konu Anlatımı:</h3>

@@ -3,6 +3,7 @@
 /**
  * @fileOverview Kullanıcının girdiği bir YKS konusunu derinlemesine açıklayan,
  * anahtar kavramları, YKS için stratejik bilgileri ve aktif hatırlama soruları sunan uzman bir AI YKS öğretmeni.
+ * İsteğe bağlı olarak, adminler için metni seslendirme (TTS) özelliği de içerir.
  *
  * - explainTopic - Konu açıklama işlemini yöneten fonksiyon.
  * - ExplainTopicInput - explainTopic fonksiyonu için giriş tipi.
@@ -12,6 +13,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import type { UserProfile } from '@/types';
+import { TextToSpeechClient } from '@google-cloud/text-to-speech';
 
 const ExplainTopicInputSchema = z.object({
   topicName: z.string().min(3).describe('Açıklanması istenen YKS konu başlığı (örn: "Matematik - Türev ve Uygulamaları", "Edebiyat - Milli Edebiyat Dönemi").'),
@@ -20,6 +22,7 @@ const ExplainTopicInputSchema = z.object({
   customPersonaDescription: z.string().optional().describe("Eğer 'teacherPersona' olarak 'ozel' seçildiyse, kullanıcının istediği hoca kişiliğinin detaylı açıklaması."),
   userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
   customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi."),
+  generateTts: z.boolean().optional().describe("Adminler için sesli anlatım oluşturulup oluşturulmayacağı."),
 });
 export type ExplainTopicInput = z.infer<typeof ExplainTopicInputSchema>;
 
@@ -29,7 +32,8 @@ const ExplainTopicOutputSchema = z.object({
   keyConcepts: z.array(z.string()).optional().describe('Anlatımda vurgulanan ve YKS için hayati öneme sahip 3-5 anahtar kavram veya terim.'),
   commonMistakes: z.array(z.string()).optional().describe("Öğrencilerin bu konuda sık yaptığı hatalar veya karıştırdığı noktalar."),
   yksTips: z.array(z.string()).optional().describe("Bu konunun YKS'deki önemi, hangi soru tiplerinde çıktığı ve çalışırken nelere dikkat edilmesi gerektiği hakkında 2-3 stratejik ipucu."),
-  activeRecallQuestions: z.array(z.string()).optional().describe("Konuyu pekiştirmek ve öğrencinin aktif katılımını sağlamak için AI tarafından sorulan 2-3 çeşitli (kısa cevaplı, boşluk doldurma, doğru/yanlış vb.) ve doğrudan konuyla ilgili soru.")
+  activeRecallQuestions: z.array(z.string()).optional().describe("Konuyu pekiştirmek ve öğrencinin aktif katılımını sağlamak için AI tarafından sorulan 2-3 çeşitli (kısa cevaplı, boşluk doldurma, doğru/yanlış vb.) ve doğrudan konuyla ilgili soru."),
+  audioDataUri: z.string().optional().describe("Konu anlatımının seslendirilmiş halinin data URI'si (Base64, MP3).")
 });
 export type ExplainTopicOutput = z.infer<typeof ExplainTopicOutputSchema>;
 
@@ -41,6 +45,33 @@ const defaultErrorOutput: ExplainTopicOutput = {
   yksTips: [],
   activeRecallQuestions: []
 };
+
+async function synthesizeSpeech(text: string): Promise<string | null> {
+  // TTS istemcisini oluştur. GOOGLE_APPLICATION_CREDENTIALS çevre değişkeninin ayarlı olduğundan emin ol.
+  const ttsClient = new TextToSpeechClient();
+
+  const request = {
+    input: { text: text },
+    voice: { languageCode: 'tr-TR', name: 'tr-TR-Wavenet-A' }, // Diğer sesleri deneyebilirsin: tr-TR-Wavenet-B, C, D, E
+    audioConfig: { audioEncoding: 'MP3' as const }, // MP3 formatında çıktı
+  };
+
+  try {
+    console.log("[Synthesize Speech] Sending TTS request...");
+    const [response] = await ttsClient.synthesizeSpeech(request);
+    console.log("[Synthesize Speech] TTS response received.");
+    if (response.audioContent) {
+      const audioBase64 = Buffer.from(response.audioContent as Uint8Array).toString('base64');
+      return `data:audio/mpeg;base64,${audioBase64}`;
+    }
+    console.warn("[Synthesize Speech] TTS response did not contain audio content.");
+    return null;
+  } catch (error) {
+    console.error("[Synthesize Speech] ERROR:", error);
+    return null;
+  }
+}
+
 
 export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTopicOutput> {
   try {
@@ -76,7 +107,7 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
         modelToUse = 'googleai/gemini-2.0-flash';
       }
     }
-
+    
     if (!modelToUse) { 
       console.error("[Topic Explainer Flow] modelToUse was unexpectedly empty after selection logic. Defaulting based on plan.");
       if (isProUser || isPremiumUser) {
@@ -99,7 +130,22 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
       isPersonaCiddi: input.teacherPersona === 'ciddi',
       isPersonaOzel: input.teacherPersona === 'ozel',
     };
-    return topicExplainerFlow(enrichedInput, modelToUse);
+    
+    let flowOutput = await topicExplainerFlow(enrichedInput, modelToUse);
+
+    if (input.generateTts && userProfile?.isAdmin && flowOutput.explanation) {
+      console.log("[Topic Explainer Flow] Admin requested TTS. Synthesizing speech for explanation...");
+      const audioDataUri = await synthesizeSpeech(flowOutput.explanation);
+      if (audioDataUri) {
+        flowOutput = { ...flowOutput, audioDataUri };
+        console.log("[Topic Explainer Flow] TTS audio URI generated and added to output.");
+      } else {
+        console.warn("[Topic Explainer Flow] TTS audio URI generation failed. Proceeding without audio.");
+      }
+    }
+
+    return flowOutput;
+
   } catch (error: any) {
     console.error("[ExplainTopic Action] CRITICAL error during server action execution (outer try-catch):", error);
     let errorMessage = 'Bilinmeyen bir sunucu hatası oluştu.';
@@ -137,7 +183,7 @@ const TopicExplainerPromptInputSchema = ExplainTopicInputSchema.extend({
 const topicExplainerPrompt = ai.definePrompt({
   name: 'topicExplainerPrompt',
   input: {schema: TopicExplainerPromptInputSchema},
-  output: {schema: ExplainTopicOutputSchema},
+  output: {schema: ExplainTopicOutputSchema.omit({ audioDataUri: true })}, // TTS akış dışında halledilecek
   prompt: `Sen, YKS konularını öğrencilere en iyi şekilde öğreten, en karmaşık konuları bile en anlaşılır, en akılda kalıcı ve en kapsamlı şekilde öğreten, pedagojik dehası ve alan hakimiyeti tartışılmaz, son derece deneyimli bir AI YKS Süper Öğretmenisin.
 Görevin, öğrencinin belirttiği "{{{topicName}}}" konusunu, seçtiği "{{{explanationLevel}}}" detay seviyesine ve "{{{teacherPersona}}}" hoca tarzına uygun olarak, adım adım ve YKS stratejileriyle açıklamaktır.
 Anlatımın sonunda, konuyu pekiştirmek için 2-3 çeşitli ve konuyla ilgili aktif hatırlama sorusu sor.
@@ -205,9 +251,9 @@ const topicExplainerFlow = ai.defineFlow(
   {
     name: 'topicExplainerFlow',
     inputSchema: TopicExplainerPromptInputSchema,
-    outputSchema: ExplainTopicOutputSchema,
+    outputSchema: ExplainTopicOutputSchema.omit({ audioDataUri: true }), // TTS akış dışında halledilecek
   },
-  async (enrichedInput: z.infer<typeof TopicExplainerPromptInputSchema>, modelToUse: string ): Promise<ExplainTopicOutput> => {
+  async (enrichedInput: z.infer<typeof TopicExplainerPromptInputSchema>, modelToUse: string ): Promise<Omit<ExplainTopicOutput, 'audioDataUri'>> => {
 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
@@ -227,16 +273,19 @@ const topicExplainerFlow = ai.defineFlow(
         const {output} = await topicExplainerPrompt(enrichedInput, callOptions);
         if (!output || !output.explanation) {
           console.error("[Topic Explainer Flow] AI did not produce a valid explanation. Output:", JSON.stringify(output).substring(0,500));
-          // Throw an error that will be caught by the outer explainTopic function's catch block
-          // This allows the outer catch to handle creating a user-friendly error object.
           throw new Error(`AI YKS Süper Öğretmeniniz, belirtilen konu için bir anlatım oluşturamadı. Model: ${modelToUse}. Lütfen konuyu ve ayarları kontrol edin veya farklı bir model deneyin.`);
         }
-        return output;
+        // Ensure all optional fields are at least empty arrays if not provided by LLM, to match schema
+        return {
+            explanationTitle: output.explanationTitle,
+            explanation: output.explanation,
+            keyConcepts: output.keyConcepts || [],
+            commonMistakes: output.commonMistakes || [],
+            yksTips: output.yksTips || [],
+            activeRecallQuestions: output.activeRecallQuestions || [],
+        };
     } catch (error: any) {
         console.error(`[Topic Explainer Flow] INNER CRITICAL error during generation with model ${modelToUse}:`, error);
-        // Re-throw the error to be caught by the outer explainTopic's catch block
-        // which will then formulate the final error response for the client.
-        // This helps centralize client-facing error formatting.
         if (error instanceof Error) {
            let errorMessage = `AI modeli (${modelToUse}) ile konu anlatımı oluşturulurken bir Genkit/AI hatası oluştu.`;
            if (error.message) {
@@ -249,7 +298,7 @@ const topicExplainerFlow = ai.defineFlow(
                    errorMessage = `AI şablonunda bir hata oluştu. Geliştiriciye bildirin. Model: ${modelToUse}. Detay: ${error.message.substring(0,150)}`;
                 }
             }
-            throw new Error(errorMessage);
+            throw new Error(errorMessage); // Re-throw to be caught by the outer explainTopic's catch block
         } else {
             throw new Error(`AI modeli (${modelToUse}) ile konu anlatımı oluşturulurken bilinmeyen bir Genkit/AI hatası oluştu.`);
         }
