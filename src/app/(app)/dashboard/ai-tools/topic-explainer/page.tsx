@@ -153,7 +153,7 @@ export default function TopicExplainerPage() {
         customPersonaDescription: teacherPersona === "ozel" ? customPersonaDescription : undefined,
         userPlan: currentProfile.plan,
         customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
-        generateTts: userProfile?.isAdmin && generateTts, // Only admins can request TTS for now
+        generateTts: userProfile?.isAdmin && generateTts, 
       };
       const result = await explainTopic(input);
 
@@ -459,14 +459,11 @@ export default function TopicExplainerPage() {
         </Card>
       )}
 
-      {explanationOutput && (
+      {explanationOutput && explanationOutput.explanation && (
         <Card className="mt-6">
           <CardHeader className="flex flex-row justify-between items-start">
             <div>
                 <CardTitle>{explanationOutput.explanationTitle}</CardTitle>
-                {explanationOutput.audioDataUri && (
-                    <CardDescription className="mt-2">Konu anlatımını dinleyebilirsiniz.</CardDescription>
-                )}
             </div>
             <Button onClick={handleExportToPdf} variant="outline" size="sm" disabled={isExportingPdf || isGenerating}>
               {isExportingPdf ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
@@ -474,14 +471,6 @@ export default function TopicExplainerPage() {
             </Button>
           </CardHeader>
           <CardContent className="space-y-6">
-            {explanationOutput.audioDataUri && (
-              <div className="my-4 p-4 border rounded-md bg-muted/50">
-                <Label className="font-semibold text-primary flex items-center gap-2 mb-2"><Speaker size={16}/> Sesli Anlatım</Label>
-                <audio controls src={explanationOutput.audioDataUri} className="w-full">
-                  Tarayıcınız ses elementini desteklemiyor.
-                </audio>
-              </div>
-            )}
             <ScrollArea className="h-[600px] w-full rounded-md border p-4 bg-muted/30">
               <div className="prose prose-sm dark:prose-invert max-w-none leading-relaxed">
                 <h3 className="text-lg font-semibold mt-3 mb-1 text-foreground">Detaylı Konu Anlatımı:</h3>
@@ -540,6 +529,24 @@ export default function TopicExplainerPage() {
           </CardContent>
         </Card>
       )}
+
+      {explanationOutput && explanationOutput.audioDataUri && (
+        <Card className="mt-6">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Speaker size={20} className="text-primary"/>Sesli Anlatım</CardTitle>
+                <CardDescription>Oluşturulan konu anlatımını dinleyebilirsiniz.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <audio controls src={explanationOutput.audioDataUri} className="w-full">
+                  Tarayıcınız ses elementini desteklemiyor.
+                </audio>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Not: Seslendirme kalitesi ve hızı, kullanılan AI modeline ve metnin karmaşıklığına göre değişiklik gösterebilir.
+                </p>
+            </CardContent>
+        </Card>
+      )}
+
       {!isGenerating && !explanationOutput && !userProfileLoading && (userProfile || !userProfile) && (
          <Alert className="mt-6">
           <Presentation className="h-4 w-4" />
@@ -552,5 +559,4 @@ export default function TopicExplainerPage() {
     </div>
   );
 }
-
     
