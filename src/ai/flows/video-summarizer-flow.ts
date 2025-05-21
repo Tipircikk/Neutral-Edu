@@ -91,8 +91,8 @@ const videoSummarizerFlow = ai.defineFlow(
     outputSchema: VideoSummarizerOutputSchema,
   },
   async (enrichedInput: z.infer<typeof EnrichedVideoSummarizerInputSchema>): Promise<VideoSummarizerOutput> => {
-    let modelToUse = 'googleai/gemini-1.5-flash-latest';
-    let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
+    let modelToUse: string; // Declare without initial assignment
+    let callOptions: { model: string; config?: Record<string, any> } = { model: '' }; // Initialize model in callOptions later
 
     if (enrichedInput.customModelIdentifier) {
       switch (enrichedInput.customModelIdentifier) {
@@ -106,7 +106,14 @@ const videoSummarizerFlow = ai.defineFlow(
           modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
           break;
         default:
-          console.warn(`[Video Summarizer Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting to ${modelToUse}`);
+          console.warn(`[Video Summarizer Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting based on plan.`);
+          // Fallback to plan-based logic
+          if (enrichedInput.isProUser) {
+            modelToUse = 'googleai/gemini-1.5-flash-latest';
+          } else {
+            modelToUse = 'googleai/gemini-2.0-flash';
+          }
+          break; 
       }
     } else if (enrichedInput.isProUser) {
       modelToUse = 'googleai/gemini-1.5-flash-latest';
