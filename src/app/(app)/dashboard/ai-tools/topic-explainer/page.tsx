@@ -25,7 +25,8 @@ export default function TopicExplainerPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [adminSelectedModel, setAdminSelectedModel] = useState<string | undefined>(undefined);
-  const [generateTts, setGenerateTts] = useState(false);
+  const [generateTtsSwitch, setGenerateTtsSwitch] = useState(false); // For admin switch state
+  const [submittedGenerateTtsRequest, setSubmittedGenerateTtsRequest] = useState(false); // To track if TTS was requested for the current output
 
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
@@ -132,6 +133,9 @@ export default function TopicExplainerPage() {
 
     setIsGenerating(true);
     setExplanationOutput(null);
+    const ttsRequestedThisTime = userProfile?.isAdmin && generateTtsSwitch;
+    setSubmittedGenerateTtsRequest(ttsRequestedThisTime);
+
 
     const currentProfile = await memoizedCheckAndResetQuota();
     if (!currentProfile || (currentProfile.dailyRemainingQuota ?? 0) <= 0) {
@@ -153,7 +157,7 @@ export default function TopicExplainerPage() {
         customPersonaDescription: teacherPersona === "ozel" ? customPersonaDescription : undefined,
         userPlan: currentProfile.plan,
         customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
-        generateTts: userProfile?.isAdmin && generateTts, 
+        generateTts: ttsRequestedThisTime, 
       };
       const result = await explainTopic(input);
 
@@ -170,12 +174,22 @@ export default function TopicExplainerPage() {
       } else {
         const errorMessage = result?.explanationTitle || "Yapay zeka bir konu anlatımı üretemedi.";
         toast({ title: "Anlatım Sonucu Yetersiz", description: errorMessage, variant: "destructive"});
-        setExplanationOutput({ explanationTitle: errorMessage, explanation: "Hata oluştu.", keyConcepts:[], commonMistakes: [], yksTips:[], activeRecallQuestions: [] });
+        setExplanationOutput({ 
+            explanationTitle: errorMessage, 
+            explanation: "Hata oluştu.", 
+            keyConcepts:[], commonMistakes: [], yksTips:[], activeRecallQuestions: [],
+            ttsError: ttsRequestedThisTime ? "Sesli anlatım oluşturulamadı (ana anlatım hatası)." : undefined
+        });
       }
     } catch (error: any) {
       console.error("Konu anlatımı oluşturma hatası:", error);
       toast({ title: "Anlatım Oluşturma Hatası", description: error.message || "Konu anlatımı oluşturulurken beklenmedik bir hata oluştu.", variant: "destructive" });
-      setExplanationOutput({ explanationTitle: error.message || "Beklenmedik bir hata oluştu.", explanation: "Hata oluştu.", keyConcepts:[], commonMistakes: [], yksTips:[], activeRecallQuestions: [] });
+      setExplanationOutput({ 
+          explanationTitle: error.message || "Beklenmedik bir hata oluştu.", 
+          explanation: "Hata oluştu.", 
+          keyConcepts:[], commonMistakes: [], yksTips:[], activeRecallQuestions: [],
+          ttsError: ttsRequestedThisTime ? "Sesli anlatım oluşturulamadı (istemci hatası)." : undefined
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -332,17 +346,17 @@ export default function TopicExplainerPage() {
                  <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz.</p>
               </div>
               <div className="space-y-2">
-                 <Label htmlFor="generateTts" className="font-semibold text-primary flex items-center gap-2"><Speaker size={16}/> Sesli Anlatım (Admin Özel)</Label>
+                 <Label htmlFor="generateTtsSwitch" className="font-semibold text-primary flex items-center gap-2"><Speaker size={16}/> Sesli Anlatım (Admin Özel)</Label>
                  <div className="flex items-center space-x-2 mt-1">
                     <Switch
-                        id="generateTts"
-                        checked={generateTts}
-                        onCheckedChange={setGenerateTts}
+                        id="generateTtsSwitch"
+                        checked={generateTtsSwitch}
+                        onCheckedChange={setGenerateTtsSwitch}
                         disabled={isModelOrTtsSelectDisabled}
                     />
-                    <Label htmlFor="generateTts" className="text-sm text-muted-foreground">Oluşturulsun mu?</Label>
+                    <Label htmlFor="generateTtsSwitch" className="text-sm text-muted-foreground">Oluşturulsun mu?</Label>
                  </div>
-                 <p className="text-xs text-muted-foreground">Konu anlatımının seslendirilmiş halini (MP3) de oluşturur. (Ekstra işlem süresi ve maliyet)</p>
+                 <p className="text-xs text-muted-foreground">Konu anlatımının seslendirilmiş halini de oluşturur.</p>
               </div>
             </div>
             )}
@@ -445,14 +459,15 @@ export default function TopicExplainerPage() {
         </Card>
       </form>
 
-      {isGenerating && !explanationOutput && (
+      {isGenerating && (
         <Card className="mt-6 shadow-lg">
           <CardContent className="p-6">
             <div className="flex flex-col items-center justify-center text-center">
               <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
               <p className="text-lg font-medium text-foreground">Konu Anlatımı Oluşturuluyor...</p>
               <p className="text-sm text-muted-foreground">
-                AI YKS Süper Öğretmeniniz konuyu hazırlıyor... Bu işlem biraz zaman alabilir. {userProfile?.isAdmin && generateTts && "Sesli anlatım da oluşturuluyor..."}
+                AI YKS Süper Öğretmeniniz konuyu hazırlıyor... Bu işlem biraz zaman alabilir.
+                {submittedGenerateTtsRequest && " Sesli anlatım da oluşturuluyor, bu işlem biraz daha uzun sürebilir."}
               </p>
             </div>
           </CardContent>
@@ -530,22 +545,39 @@ export default function TopicExplainerPage() {
         </Card>
       )}
 
-      {explanationOutput && explanationOutput.audioDataUri && (
+      {submittedGenerateTtsRequest && !isGenerating && explanationOutput && (
         <Card className="mt-6">
             <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Speaker size={20} className="text-primary"/>Sesli Anlatım</CardTitle>
                 <CardDescription>Oluşturulan konu anlatımını dinleyebilirsiniz.</CardDescription>
             </CardHeader>
             <CardContent>
-                <audio controls src={explanationOutput.audioDataUri} className="w-full">
-                  Tarayıcınız ses elementini desteklemiyor.
-                </audio>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Not: Seslendirme kalitesi ve hızı, kullanılan AI modeline ve metnin karmaşıklığına göre değişiklik gösterebilir.
-                </p>
+                {explanationOutput.audioDataUri ? (
+                    <>
+                        <audio controls src={explanationOutput.audioDataUri} className="w-full">
+                            Tarayıcınız ses elementini desteklemiyor.
+                        </audio>
+                        <p className="text-xs text-muted-foreground mt-2">
+                            Not: Seslendirme kalitesi ve hızı, kullanılan AI modeline ve metnin karmaşıklığına göre değişiklik gösterebilir.
+                        </p>
+                    </>
+                ) : explanationOutput.ttsError ? (
+                    <Alert variant="destructive">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertTitle>Sesli Anlatım Hatası</AlertTitle>
+                        <AlertDescription>{explanationOutput.ttsError}</AlertDescription>
+                    </Alert>
+                ) : (
+                     <Alert>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        <AlertTitle>Bekleniyor...</AlertTitle>
+                        <AlertDescription>Sesli anlatım durumu bekleniyor veya bir sorun oluştu.</AlertDescription>
+                    </Alert>
+                )}
             </CardContent>
         </Card>
       )}
+
 
       {!isGenerating && !explanationOutput && !userProfileLoading && (userProfile || !userProfile) && (
          <Alert className="mt-6">
