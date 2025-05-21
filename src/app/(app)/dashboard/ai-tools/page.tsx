@@ -4,7 +4,7 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { FileScan, HelpCircle, FileTextIcon, Lightbulb, ArrowRight, LayoutGrid, ClipboardCheck, CalendarDays, Presentation, Youtube } from "lucide-react";
+import { FileScan, HelpCircle, FileTextIcon, Lightbulb, ArrowRight, LayoutGrid, ClipboardCheck, CalendarDays, Presentation } from "lucide-react"; // Removed Youtube
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const allAiTools = [
@@ -72,14 +72,14 @@ const allAiTools = [
     status: "active",
     category: "ozetleme",
   },
-  {
-    name: "AI Video Özetleyici",
-    description: "YouTube ders videolarının linkini vererek eğitimsel içeriklerini özetleyin. (Deneysel)",
-    icon: <Youtube className="h-10 w-10 text-primary mb-4" />,
-    link: "/dashboard/ai-tools/video-summarizer",
-    status: "active", // Changed to active for testing
-    category: "ozetleme",
-  },
+  // { // AI Video Özetleyici kaldırıldı
+  //   name: "AI Video Özetleyici",
+  //   description: "YouTube ders videolarının linkini vererek eğitimsel içeriklerini özetleyin. (Deneysel)",
+  //   icon: <Youtube className="h-10 w-10 text-primary mb-4" />,
+  //   link: "/dashboard/ai-tools/video-summarizer",
+  //   status: "active", 
+  //   category: "ozetleme",
+  // },
 ];
 
 const ToolCard = ({ tool }: { tool: typeof allAiTools[0] }) => (

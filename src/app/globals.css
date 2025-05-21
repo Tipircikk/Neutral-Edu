@@ -12,19 +12,19 @@
     --card-foreground: 0 0% 3.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 3.9%;
-    --primary: 181 100% 74.3%; /* Electric Blue #7DF9FF */
-    --primary-foreground: 181 100% 10%; /* Dark Blue/Black for text on primary */
+    --primary: 270 70% 60%; /* Vibrant Purple */
+    --primary-foreground: 270 80% 98%; /* Light color for text on primary */
     --secondary: 0 0% 96.1%;
     --secondary-foreground: 0 0% 9%;
     --muted: 0 0% 96.1%;
     --muted-foreground: 0 0% 45.1%;
-    --accent: 181 100% 74.3%; /* Electric Blue for accents */
-    --accent-foreground: 181 100% 10%; /* Dark text on accent */
+    --accent: 270 70% 60%; /* Vibrant Purple for accents */
+    --accent-foreground: 270 80% 98%; /* Light text on accent */
     --destructive: 39 100% 50%; /* Soft Orange #FFA500 */
     --destructive-foreground: 0 0% 10%; /* Dark text for destructive elements */
     --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
-    --ring: 181 100% 65%; /* Ring color related to primary */
+    --ring: 270 70% 65%; /* Ring color related to primary */
     --radius: 0.5rem;
 
     --chart-1: 12 76% 61%;
@@ -36,12 +36,12 @@
     /* Sidebar specific vars - Light theme */
     --sidebar-background: 0 0% 98%; 
     --sidebar-foreground: 0 0% 26.1%; 
-    --sidebar-primary: 181 100% 74.3%; 
-    --sidebar-primary-foreground: 181 100% 10%; 
-    --sidebar-accent: 181 100% 90%; 
-    --sidebar-accent-foreground: 181 100% 25%; 
+    --sidebar-primary: 270 70% 60%; 
+    --sidebar-primary-foreground: 270 80% 98%; 
+    --sidebar-accent: 270 70% 90%; 
+    --sidebar-accent-foreground: 270 70% 25%; 
     --sidebar-border: 0 0% 91%;
-    --sidebar-ring: 181 100% 65%;
+    --sidebar-ring: 270 70% 65%;
   }
 
   .dark {
@@ -54,8 +54,8 @@
     --popover: 0 0% 10%; 
     --popover-foreground: 0 0% 95%;
     
-    --primary: 181 100% 74.3%; /* Electric Blue #7DF9FF */
-    --primary-foreground: 181 100% 10%; /* Dark Blue/Black for text on primary */
+    --primary: 270 70% 60%; /* Vibrant Purple */
+    --primary-foreground: 270 80% 98%; /* Light color for text on primary */
     
     --secondary: 0 0% 18%; /* Darker gray for secondary elements */
     --secondary-foreground: 0 0% 95%;
@@ -63,31 +63,31 @@
     --muted: 0 0% 18%;
     --muted-foreground: 0 0% 60%; /* Lighter muted text */
     
-    --accent: 181 100% 74.3%; /* Electric Blue for accents, same as primary */
-    --accent-foreground: 181 100% 10%; /* Dark text on accent */
+    --accent: 270 70% 60%; /* Vibrant Purple for accents, same as primary */
+    --accent-foreground: 270 80% 98%; /* Light text on accent */
     
     --destructive: 39 100% 50%; /* Soft Orange #FFA500 */
     --destructive-foreground: 0 0% 10%; /* Dark text for destructive elements */
     
     --border: 0 0% 20%; 
     --input: 0 0% 20%; 
-    --ring: 181 100% 65%; /* Ring color related to primary */
+    --ring: 270 70% 65%; /* Ring color related to primary */
     
-    --chart-1: 181 70% 50%; /* Shades of blue/cyan */
-    --chart-2: 190 60% 45%;
-    --chart-3: 200 80% 55%;
-    --chart-4: 210 65% 60%;
-    --chart-5: 220 75% 55%;
+    --chart-1: 270 70% 50%; /* Shades of purple */
+    --chart-2: 270 60% 45%;
+    --chart-3: 270 80% 55%;
+    --chart-4: 270 65% 60%;
+    --chart-5: 270 75% 55%;
 
     /* Sidebar specific vars - Dark theme */
     --sidebar-background: 0 0% 9%; /* Even darker than main bg */
     --sidebar-foreground: 0 0% 85%; /* Light gray text */
-    --sidebar-primary: 181 100% 74.3%; /* Electric Blue for icons/active text */
-    --sidebar-primary-foreground: 181 100% 10%; /* Dark Blue/Black for text on primary in sidebar */
+    --sidebar-primary: 270 70% 60%; /* Purple for icons/active text */
+    --sidebar-primary-foreground: 270 80% 98%; /* Light text on primary in sidebar */
     --sidebar-accent: 0 0% 15%; /* Darker gray for active/hovered items */
-    --sidebar-accent-foreground: 181 100% 74.3%; /* Electric Blue text on accent */
+    --sidebar-accent-foreground: 270 70% 75%; /* Lighter purple text on accent */
     --sidebar-border: 0 0% 15%; 
-    --sidebar-ring: 181 100% 65%;
+    --sidebar-ring: 270 70% 65%;
   }
 }
 

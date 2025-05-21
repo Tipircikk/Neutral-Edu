@@ -32,7 +32,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Brain, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation, Timer, CalendarClock, ListChecks, Palette, Youtube } from "lucide-react";
+import { Brain, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation, Timer, CalendarClock, ListChecks, Palette } from "lucide-react"; // Removed Youtube
 import Link from "next/link";
 import QuotaDisplay from "@/components/dashboard/QuotaDisplay";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
@@ -55,7 +55,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     "/dashboard/ai-tools/topic-summarizer",
     "/dashboard/ai-tools/topic-explainer",
     "/dashboard/ai-tools/flashcard-generator",
-    "/dashboard/ai-tools/video-summarizer",
+    // "/dashboard/ai-tools/video-summarizer", // Kaldırıldı
     "/dashboard/ai-tools/question-solver",
     "/dashboard/ai-tools/test-generator",
     "/dashboard/ai-tools/exam-report-analyzer",
@@ -67,7 +67,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     "/dashboard/tools/pomodoro",
     "/dashboard/tools/countdown",
     "/dashboard/tools/goal-tracker",
-    // "/dashboard/tools/whiteboard", // Karalama tahtası kaldırılmıştı
   ];
 
   useEffect(() => {
@@ -119,7 +118,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <SidebarProvider defaultOpen>
-      <div className="flex min-h-screen"> {/* Removed flex-col to allow sidebar and inset to be side-by-side */}
+      <div className="flex min-h-screen"> 
         <Sidebar collapsible="icon" className="border-r bg-sidebar text-sidebar-foreground">
           <SidebarHeader className="p-4 mb-2">
             <Link href="/dashboard" className="flex items-center gap-2.5 group">
@@ -170,11 +169,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                         <Link href="/dashboard/ai-tools/flashcard-generator"><LayoutGrid /><span>AI Bilgi Kartları</span></Link>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
-                     <SidebarMenuSubItem>
+                    {/* <SidebarMenuSubItem> // AI Video Özetleyici kaldırıldı
                       <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/video-summarizer"} className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
                         <Link href="/dashboard/ai-tools/video-summarizer"><Youtube /><span>AI Video Özetleyici</span></Link>
                       </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
+                    </SidebarMenuSubItem> */}
                     <SidebarMenuSubItem>
                       <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/question-solver"} className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
                         <Link href="/dashboard/ai-tools/question-solver"><HelpCircle /><span>AI Soru Çözücü</span></Link>
@@ -227,13 +226,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                         <Link href="/dashboard/tools/goal-tracker"><ListChecks /><span>Hedef Takipçisi</span></Link>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
-                    {/* Karalama Tahtası kaldırılmıştı.
-                    <SidebarMenuSubItem>
-                      <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/tools/whiteboard"}>
-                        <Link href="/dashboard/tools/whiteboard"><Palette /><span>Dijital Karalama Tahtası</span></Link>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                    */}
                   </SidebarMenuSub>
                 )}
               </SidebarMenuItem>
