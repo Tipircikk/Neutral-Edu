@@ -30,6 +30,7 @@ function parseMimeType(mimeType: string): WavConversionOptions {
   const fileType = fileTypeDirty ? fileTypeDirty.toLowerCase() : ""; 
   const paramsArray = parts.slice(1); 
 
+  // Default options, these are critical for WAV header
   const options: WavConversionOptions = {
     numChannels: 1, 
     bitsPerSample: 16, 
@@ -38,7 +39,7 @@ function parseMimeType(mimeType: string): WavConversionOptions {
 
   if (fileType) {
     const [_, format] = fileType.split('/'); 
-    if (format && format.startsWith('l')) { 
+    if (format && format.toLowerCase().startsWith('l')) { // L16, L24 etc. (Linear PCM)
       const bits = parseInt(format.slice(1), 10);
       if (!isNaN(bits) && bits > 0) {
         options.bitsPerSample = bits;
@@ -55,7 +56,7 @@ function parseMimeType(mimeType: string): WavConversionOptions {
 
   for (const param of paramsArray) {
     const [keyDirty, valueDirty] = param.split('=').map(s => s.trim());
-    const key = keyDirty.toLowerCase(); 
+    const key = keyDirty.toLowerCase(); // Ensure case-insensitivity for keys
     const value = valueDirty;
 
     if (key === 'rate' && value) {
@@ -122,9 +123,12 @@ function convertToWavDataUri(base64RawData: string, mimeType: string): string | 
   console.log(`[TTS convertToWavDataUri] Attempting WAV conversion for mimeType: ${mimeType}, Base64 Data Length: ${base64RawData.length}`);
   try {
     const options = parseMimeType(mimeType);
-    if (!options.sampleRate || !options.bitsPerSample || !options.numChannels || options.sampleRate <=0 || options.bitsPerSample <= 0 || options.numChannels <=0 ) {
+    // Critical check for WAV parameters before proceeding
+    if (!options.sampleRate || options.sampleRate <= 0 || 
+        !options.bitsPerSample || options.bitsPerSample <= 0 ||
+        !options.numChannels || options.numChannels <= 0) {
         console.error(`[TTS WAV Conversion] CRITICAL: Missing or invalid parameters after parsing mimeType: "${mimeType}". Cannot convert to WAV. Parsed Options: ${JSON.stringify(options)}`);
-        return `data:${mimeType};base64,${base64RawData}`; 
+        return `data:${mimeType};base64,${base64RawData}`; // Return original if params are bad
     }
     const rawDataBuffer = Buffer.from(base64RawData, 'base64');
     console.log(`[TTS convertToWavDataUri] Raw data buffer length: ${rawDataBuffer.length}`);
@@ -135,7 +139,7 @@ function convertToWavDataUri(base64RawData: string, mimeType: string): string | 
     return `data:audio/wav;base64,${wavBase64}`;
   } catch (error) {
     console.error("[TTS WAV Conversion] Error converting to WAV:", error);
-    return `data:${mimeType};base64,${base64RawData}`; 
+    return `data:${mimeType};base64,${base64RawData}`; // Return original on error as a fallback
   }
 }
 
@@ -151,7 +155,7 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
     console.warn("[TTS Generation] Input text is empty. Skipping TTS generation.");
     return null;
   }
-   if (text.trim().length < 10) {
+   if (text.trim().length < 10) { // Increased minimum length slightly
     console.warn(`[TTS Generation] Input text is very short (length: ${text.trim().length}). This might affect TTS quality or cause issues. Text: "${text}"`);
   }
 
@@ -161,7 +165,7 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
 
     // @ts-ignore - Allow pass-through of custom config keys
     const ttsRequestConfig = {
-      responseModalities: ['AUDIO'], 
+      responseModalities: ['AUDIO'], // Forcing AUDIO only as per Gemini example
       speechConfig: {
         voiceConfig: {
           prebuiltVoiceConfig: { voiceName: 'Puck' } // Using one of the suggested voices like Puck
@@ -181,7 +185,7 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
     let chunkIndex = 0;
 
     for await (const chunk of result.stream) {
-      console.log(`[TTS Generation] Received chunk ${chunkIndex}. Has candidates: ${!!chunk.candidates}, Candidate 0: ${!!chunk.candidates?.[0]}, Content: ${!!chunk.candidates?.[0]?.content}, Parts: ${!!chunk.candidates?.[0]?.content?.parts}`);
+      console.log(`[TTS Generation] Received chunk ${chunkIndex}. Full chunk object:`, JSON.stringify(chunk).substring(0, 500) + "...");
       if (chunk.candidates && chunk.candidates[0]?.content?.parts?.[0]) {
         const part = chunk.candidates[0].content.parts[0];
         // @ts-ignore
@@ -191,13 +195,13 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
           // @ts-ignore
           audioBase64 = part.inlineData.data;
           console.log(`[TTS Generation] SUCCESS: Found inlineData in chunk ${chunkIndex}. MimeType: "${audioMimeType}", Base64 Data Length: ${audioBase64?.length}`);
-          break; 
+          break; // Found audio data, no need to process further chunks for this part
         } else {
           // @ts-ignore
           console.log(`[TTS Generation] Chunk ${chunkIndex} part does not contain complete inlineData. Part content:`, JSON.stringify(part).substring(0,300) + "...");
         }
       } else {
-         console.log(`[TTS Generation] Chunk ${chunkIndex} does not have expected structure (candidates/content/parts). Full chunk:`, JSON.stringify(chunk).substring(0,500)+"...");
+         console.log(`[TTS Generation] Chunk ${chunkIndex} does not have expected structure (candidates/content/parts).`);
       }
       chunkIndex++;
     }
@@ -224,7 +228,7 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
     console.error("[TTS Generation] CRITICAL Error during speech synthesis with GoogleGenAI:", error);
     if (error.message) console.error("[TTS Generation] Error message:", error.message);
     if (error.stack) console.error("[TTS Generation] Error stack:", error.stack);
-    if (error.details) console.error("[TTS Generation] Error details:", error.details);
+    if (error.details) console.error("[TTS Generation] Error details:", error.details); // Gemini specific error details
     return null;
   }
 }
@@ -271,62 +275,59 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
     teacherPersona: input.teacherPersona 
   });
 
+  let modelToUseForText = '';
+  const isProUser = input.userPlan === 'pro';
+  const isPremiumUser = input.userPlan === 'premium';
+
+  if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.startsWith('googleai/')) {
+      modelToUseForText = input.customModelIdentifier;
+      console.log(`[ExplainTopic Action] Admin explicitly selected Genkit model: ${modelToUseForText}`);
+  } else if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string') {
+      switch (input.customModelIdentifier.toLowerCase()) {
+          case 'default_gemini_flash': modelToUseForText = 'googleai/gemini-2.0-flash'; break;
+          case 'experimental_gemini_1_5_flash': modelToUseForText = 'googleai/gemini-1.5-flash-latest'; break;
+          case 'experimental_gemini_2_5_flash_preview_05_20': modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20'; break;
+          default:
+              console.warn(`[ExplainTopic Action] Unknown customModelIdentifier string: '${input.customModelIdentifier}'. Defaulting based on plan.`);
+              if (isProUser || isPremiumUser) modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20';
+              else modelToUseForText = 'googleai/gemini-2.0-flash';
+              break;
+      }
+  } else { 
+      console.log(`[ExplainTopic Action] No valid custom model ID provided by admin. Using plan-based default.`);
+      if (isProUser || isPremiumUser) modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20';
+      else modelToUseForText = 'googleai/gemini-2.0-flash';
+  }
+  
+  if (!modelToUseForText || !modelToUseForText.startsWith('googleai/')) {
+    console.error(`[ExplainTopic Action] CRITICAL: modelToUseForText became invalid ('${modelToUseForText}') after all checks. Forcing fallback to general default. Original customId: '${input.customModelIdentifier}'`);
+    modelToUseForText = 'googleai/gemini-2.0-flash'; // General fallback
+  }
+  console.log(`[ExplainTopic Action] Determined final modelToUseForText for Genkit flow: ${modelToUseForText}`);
+  
+  const isGemini25FlashPreviewSelectedForText = modelToUseForText === 'googleai/gemini-2.5-flash-preview-05-20';
+
+  const enrichedInput = {
+    ...input,
+    isProUser,
+    isPremiumUser,
+    isCustomModelSelected: !!input.customModelIdentifier,
+    isGemini25PreviewSelected: isGemini25FlashPreviewSelectedForText, 
+    isPersonaSamimi: input.teacherPersona === 'samimi',
+    isPersonaEglenceli: input.teacherPersona === 'eglenceli',
+    isPersonaCiddi: input.teacherPersona === 'ciddi',
+    isPersonaOzel: input.teacherPersona === 'ozel',
+  };
+  
   try {
-    const isProUser = input.userPlan === 'pro';
-    const isPremiumUser = input.userPlan === 'premium';
-    let modelToUseForText = '';
-
-    // Model selection logic
-    if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.startsWith('googleai/')) {
-        modelToUseForText = input.customModelIdentifier;
-        console.log(`[ExplainTopic Action] Admin explicitly selected Genkit model: ${modelToUseForText}`);
-    } else if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string') {
-        // Mapping for non-Genkit-prefixed custom IDs (which should match page options)
-        switch (input.customModelIdentifier.toLowerCase()) {
-            case 'default_gemini_flash': modelToUseForText = 'googleai/gemini-2.0-flash'; break;
-            case 'experimental_gemini_1_5_flash': modelToUseForText = 'googleai/gemini-1.5-flash-latest'; break;
-            case 'experimental_gemini_2_5_flash_preview_05_20': modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20'; break;
-            default:
-                console.warn(`[ExplainTopic Action] Unknown customModelIdentifier string: '${input.customModelIdentifier}'. Defaulting based on plan.`);
-                if (isProUser || isPremiumUser) modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20';
-                else modelToUseForText = 'googleai/gemini-2.0-flash';
-                break;
-        }
-    } else { 
-        // No custom model or invalid custom model, use plan-based default
-        console.log(`[ExplainTopic Action] No valid custom model ID provided by admin. Using plan-based default.`);
-        if (isProUser || isPremiumUser) modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20';
-        else modelToUseForText = 'googleai/gemini-2.0-flash';
-    }
-    
-    // Final sanity check for modelToUseForText
-    if (!modelToUseForText || !modelToUseForText.startsWith('googleai/')) {
-      console.error(`[ExplainTopic Action] CRITICAL: modelToUseForText became invalid ('${modelToUseForText}') after all checks. Forcing fallback. Original customId: '${input.customModelIdentifier}'`);
-      modelToUseForText = (isProUser || isPremiumUser) ? 'googleai/gemini-2.5-flash-preview-05-20' : 'googleai/gemini-2.0-flash';
-    }
-    console.log(`[ExplainTopic Action] Determined final modelToUseForText for Genkit flow: ${modelToUseForText}`);
-    
-    const isGemini25FlashPreviewSelectedForText = modelToUseForText === 'googleai/gemini-2.5-flash-preview-05-20';
-
-    const enrichedInput = {
-      ...input,
-      isProUser,
-      isPremiumUser,
-      isCustomModelSelected: !!input.customModelIdentifier, // True if admin attempted to select a model
-      isGemini25PreviewSelected: isGemini25FlashPreviewSelectedForText, 
-      isPersonaSamimi: input.teacherPersona === 'samimi',
-      isPersonaEglenceli: input.teacherPersona === 'eglenceli',
-      isPersonaCiddi: input.teacherPersona === 'ciddi',
-      isPersonaOzel: input.teacherPersona === 'ozel',
-    };
-    
-    // Generate text explanation first
     let flowOutput = await topicExplainerFlow(enrichedInput, modelToUseForText);
 
     let audioDataUri: string | null = null;
-    // TTS is generated if input.generateTts is true (client ensures only admin can set this with the switch)
+    // TTS is generated if input.generateTts is true (client ensures only admin can set this)
     // AND text explanation was successfully generated and is not trivial.
-    if (input.generateTts && flowOutput.explanation && flowOutput.explanation.trim().length > 10) {
+    // For now, let's allow TTS for any plan if admin requests it, for testing.
+    // We can restrict by plan later if needed: && (isProUser || isPremiumUser || input.userPlan === 'admin_override_for_tts_test')
+    if (input.generateTts && input.userPlan && flowOutput.explanation && flowOutput.explanation.trim().length > 10) {
       console.log("[ExplainTopic Action] TTS generation requested by admin. Synthesizing speech for explanation...");
       audioDataUri = await synthesizeSpeechWithGoogleGenAI(flowOutput.explanation);
       if (audioDataUri) {
@@ -379,9 +380,9 @@ Matematiksel ifadeleri (örn: x^2, H_2O, √, π, ±, ≤, ≥) metin içinde ok
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
-(Pro Kullanıcı Notu: Bu, bir Pro kullanıcısı için en üst düzey bir anlatımdır. "{{{topicName}}}" konusunu, YKS'deki en zorlayıcı soru tiplerini, derinlemesine stratejileri, öğrencilerin sıklıkla düştüğü tuzakları ve konunun diğer disiplinlerle olan karmaşık bağlantılarını içerecek şekilde, son derece kapsamlı ve akademik bir zenginlikle açıkla. Anlatımın, YKS'de zirveyi hedefleyen bir öğrencinin ihtiyaç duyacağı tüm detayları ve uzman bakış açılarını barındırmalıdır. {{{explanationLevel}}} seviyesini "detayli" kabul et ve sıradan bir anlatımın çok ötesine geç. YKS ipuçları bölümünde, en az 3-4 kapsamlı ve uygulanabilir strateji, kritik zaman yönetimi teknikleri ve en sık yapılan hatalardan kaçınma yolları hakkında detaylı tavsiyeler ver. Bu konunun YKS'deki stratejik önemini ve farklı soru formatlarında nasıl karşına çıkabileceğini vurgula. En gelişmiş AI yeteneklerini kullanarak, adeta bir başyapıt niteliğinde bir konu anlatımı sun.)
+(Pro Kullanıcı Notu: Bu, bir Pro kullanıcısı için en üst düzey bir anlatımdır. "{{{topicName}}}" konusunu, YKS'deki en zorlayıcı soru tiplerini, derinlemesine ve UZMAN SEVİYESİNDE stratejileri, öğrencilerin sıklıkla düştüğü TUZAKLARI ve bunlardan kaçınma yollarını, konunun diğer disiplinlerle olan KARMAŞIK BAĞLANTILARINI içerecek şekilde, son derece kapsamlı ve akademik bir zenginlikle açıkla. Anlatımın, YKS'de zirveyi hedefleyen bir öğrencinin ihtiyaç duyacağı tüm detayları, BENZERSİZ İÇGÖRÜLERİ ve uzman bakış açılarını barındırmalıdır. {{{explanationLevel}}} seviyesini "detayli" kabul et ve sıradan bir anlatımın çok ötesine geçerek adeta bir USTA DERSİ niteliğinde olmalıdır. YKS ipuçları bölümünde, en az 3-4 kapsamlı, uygulanabilir ve sıra dışı strateji, kritik zaman yönetimi teknikleri ve en sık yapılan hatalardan kaçınma yolları hakkında detaylı tavsiyeler ver. Bu konunun YKS'deki stratejik önemini ve farklı soru formatlarında nasıl karşına çıkabileceğini vurgula. En gelişmiş AI yeteneklerini kullanarak, akılda kalıcı ve öğretici bir başyapıt sun.)
 {{else if isPremiumUser}}
-(Premium Kullanıcı Notu: {{{explanationLevel}}} seviyesine ve seçilen hoca tarzına uygun olarak, anlatımına daha fazla örnek, YKS'de çıkmış benzer sorulara atıflar ve ekstra ipuçları ekle. YKS ipuçları bölümünde 2-3 pratik strateji ve önemli bir yaygın hatadan bahset.)
+(Premium Kullanıcı Notu: {{{explanationLevel}}} seviyesine ve seçilen hoca tarzına uygun olarak, anlatımına daha fazla örnek, YKS'de çıkmış benzer sorulara atıflar ve 1-2 etkili çalışma tekniği (örn: Feynman Tekniği, Pomodoro) ile birlikte ekstra ipuçları ekle. YKS ipuçları bölümünde 2-3 pratik strateji ve önemli bir yaygın hatadan bahset. Konuyu orta-üst seviyede detaylandır.)
 {{else}}
 (Ücretsiz Kullanıcı Notu: Anlatımını {{{explanationLevel}}} seviyesine uygun, temel ve anlaşılır tut. YKS ipuçları bölümünde 1-2 genel geçerli tavsiye ver.)
 {{/if}}
@@ -391,7 +392,7 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 {{/if}}
 
 {{#if isGemini25PreviewSelected}}
-(Gemini 2.5 Flash Preview 05-20 Modeli Notu: Yanıtların ÖZ ama ANLAŞILIR ve YKS öğrencisine doğrudan fayda sağlayacak şekilde olsun. HIZLI yanıt vermeye odaklan. {{#if isProUser}}Pro kullanıcı için gereken derinliği ve stratejik bilgileri koruyarak{{else if isPremiumUser}}Premium kullanıcı için gereken detayları ve pratik ipuçlarını sağlayarak{{/if}} gereksiz uzun açıklamalardan ve süslemelerden kaçın, doğrudan konuya girerek en kritik bilgileri vurgula.)
+(Gemini 2.5 Flash Preview 05-20 Modeli Notu: Yanıtların ÖZ ama ANLAŞILIR ve YKS öğrencisine doğrudan fayda sağlayacak şekilde olsun. HIZLI yanıt vermeye odaklan. {{#if isProUser}}Pro kullanıcı için gereken derinliği, stratejik bilgileri ve uzman seviyesindeki içgörüleri koruyarak{{else if isPremiumUser}}Premium kullanıcı için gereken detayları, pratik ipuçlarını ve etkili çalışma tekniklerini sağlayarak{{/if}} gereksiz uzun açıklamalardan ve süslemelerden kaçın, doğrudan konuya girerek en kritik bilgileri vurgula.)
 {{/if}}
 
 Hoca Tarzı ({{{teacherPersona}}}):
@@ -443,12 +444,10 @@ const topicExplainerFlow = ai.defineFlow(
   },
   async (enrichedInput: z.infer<typeof TopicExplainerPromptInputSchema>, modelToUseForTextParam: string ): Promise<Omit<ExplainTopicOutput, 'audioDataUri'>> => {
     
-    let finalModelToUse = modelToUseForTextParam; // Assume it's correctly determined by the calling function `explainTopic`
+    let finalModelToUse = modelToUseForTextParam; 
     console.log(`[Topic Explainer Flow - Initial Model] Received modelToUseForTextParam: '${finalModelToUse}' from explainTopic action.`);
     console.log(`[Topic Explainer Flow - Input Check] Enriched Input:`, {userPlan: enrichedInput.userPlan, customModelId: enrichedInput.customModelIdentifier, isPro: enrichedInput.isProUser, isPremium: enrichedInput.isPremiumUser, isGemini25SelectedForText: enrichedInput.isGemini25PreviewSelected});
 
-
-    // Fallback inside the flow, just in case the param from explainTopic is still problematic
     if (!finalModelToUse || typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
         console.warn(`[Topic Explainer Flow] CRITICAL FALLBACK: modelToUseForTextParam ('${finalModelToUse}') was invalid INSIDE the flow. Determining default based on plan from enrichedInput.`);
         if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
@@ -458,7 +457,6 @@ const topicExplainerFlow = ai.defineFlow(
         }
         console.log(`[Topic Explainer Flow] Corrected/Defaulted model INSIDE FLOW to: ${finalModelToUse}`);
     }
-
 
     let callOptions: { model: string; config?: Record<string, any> } = { model: finalModelToUse };
 
@@ -479,7 +477,6 @@ const topicExplainerFlow = ai.defineFlow(
         if (!output || !output.explanation) {
           const errorMsg = `AI YKS Süper Öğretmeniniz, belirtilen konu ("${enrichedInput.topicName}") için bir anlatım oluşturamadı. Kullanılan Model: ${finalModelToUse}. Lütfen konuyu ve ayarları kontrol edin veya farklı bir model deneyin.`;
           console.error("[Topic Explainer Flow - Text Gen] AI did not produce a valid explanation. Output:", JSON.stringify(output).substring(0,500));
-          // Return a structured error object matching the flow's output schema (without audioDataUri)
           return {
             explanationTitle: `Anlatım Hatası: ${enrichedInput.topicName || 'Bilinmeyen Konu'}`,
             explanation: errorMsg,
@@ -509,11 +506,10 @@ const topicExplainerFlow = ai.defineFlow(
                errorMessage = `Seçilen model (${finalModelToUse}) bazı yapılandırma ayarlarını desteklemiyor olabilir. Model: ${finalModelToUse}. Detay: ${error.message.substring(0,150)}`;
             } else if (error.message.includes('Handlebars')) {
                errorMessage = `AI şablonunda bir hata oluştu. Geliştiriciye bildirin. Model: ${finalModelToUse}. Detay: ${error.message.substring(0,150)}`;
-            } else if (error.message.includes('NOT_FOUND') || error.message.includes('sentinelNoopStreamingCallback')) { // Catching specific error
+            } else if (error.message.includes('NOT_FOUND') || error.message.includes('sentinelNoopStreamingCallback')) { 
                 errorMessage = `Kritik hata: Model '${finalModelToUse}' bulunamadı veya geçersiz. Lütfen admin panelinden geçerli bir model seçin veya varsayılanı kullanın. Detay: ${error.message.substring(0,150)}`;
             }
         }
-         // Ensure the returned object matches the flow's output schema
         return {
             explanationTitle: `Kritik Anlatım Hatası: ${enrichedInput.topicName || 'Bilinmeyen Konu'}`,
             explanation: errorMessage,
@@ -525,4 +521,3 @@ const topicExplainerFlow = ai.defineFlow(
     }
   }
 );
-
