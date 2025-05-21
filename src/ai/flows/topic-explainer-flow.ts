@@ -75,7 +75,7 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
       modelToUse = 'googleai/gemini-2.0-flash';
     }
   }
-
+  
   const isGemini25PreviewSelected = modelToUse === 'googleai/gemini-2.5-flash-preview-05-20';
 
   const enrichedInput = {
@@ -83,7 +83,7 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
     isProUser,
     isPremiumUser,
     isCustomModelSelected,
-    isGemini25PreviewSelected,
+    isGemini25PreviewSelected, // Correctly set based on the final modelToUse
     isPersonaSamimi: input.teacherPersona === 'samimi',
     isPersonaEglenceli: input.teacherPersona === 'eglenceli',
     isPersonaCiddi: input.teacherPersona === 'ciddi',
@@ -199,7 +199,7 @@ const topicExplainerFlow = ai.defineFlow(
           console.error("[Topic Explainer Flow] AI did not produce a valid explanation. Output:", JSON.stringify(output).substring(0,500));
           return {
               explanationTitle: `Hata: ${enrichedInput.topicName} için anlatım üretilemedi.`,
-              explanation: `AI YKS Süper Öğretmeni, belirtilen konu için bir anlatım oluşturamadı. Model: ${modelToUse}. Lütfen konuyu ve ayarları kontrol edin veya farklı bir model deneyin.`,
+              explanation: `AI YKS Süper Öğretmeniniz, belirtilen konu için bir anlatım oluşturamadı. Model: ${modelToUse}. Lütfen konuyu ve ayarları kontrol edin veya farklı bir model deneyin.`,
               keyConcepts: [], commonMistakes: [], yksTips: [], activeRecallQuestions: []
           };
         }
