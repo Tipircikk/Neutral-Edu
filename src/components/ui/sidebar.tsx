@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -5,7 +6,7 @@ import { Slot } from "@radix-ui/react-slot"
 import { VariantProps, cva } from "class-variance-authority"
 import { PanelLeft } from "lucide-react"
 
-import { useIsMobile } from "@/hooks/use-mobile" // Assuming this hook exists
+import { useIsMobile } from "@/hooks/use-mobile" 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,9 +22,9 @@ import {
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
-const SIDEBAR_WIDTH = "16rem" // Tailwind: w-64
-const SIDEBAR_WIDTH_MOBILE = "18rem" // Tailwind: w-72
-const SIDEBAR_WIDTH_ICON = "3.5rem" // Tailwind: w-14 (assuming p-2 on button + icon size)
+const SIDEBAR_WIDTH = "16rem" 
+const SIDEBAR_WIDTH_MOBILE = "18rem" 
+const SIDEBAR_WIDTH_ICON = "3.5rem" 
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 
 type SidebarContextType = {
@@ -135,7 +136,7 @@ const SidebarProvider = React.forwardRef<
               } as React.CSSProperties
             }
             className={cn(
-              "group/sidebar-wrapper", // Removed flex and w-full, let the children define flex behavior
+              "group/sidebar-wrapper",
               className
             )}
             ref={ref}
@@ -175,8 +176,8 @@ const Sidebar = React.forwardRef<
       return (
         <aside
           className={cn(
-            "fixed top-0 h-screen z-30 flex flex-col bg-sidebar text-sidebar-foreground border-r",
-            side === "left" ? "left-0" : "right-0",
+            "fixed top-0 h-screen z-30 flex flex-col bg-sidebar text-sidebar-foreground border-sidebar-border",
+            side === "left" ? "left-0 border-r" : "right-0 border-l",
             "w-[var(--sidebar-width)]",
             className
           )}
@@ -193,11 +194,11 @@ const Sidebar = React.forwardRef<
         <Sheet open={openMobile} onOpenChange={setOpenMobile}>
           <SheetContent
             side={side}
-            className="w-[var(--sidebar-width-mobile)] bg-sidebar p-0 text-sidebar-foreground flex flex-col"
+            className="w-[var(--sidebar-width-mobile)] bg-sidebar p-0 text-sidebar-foreground flex flex-col border-sidebar-border"
             style={{ "--sidebar-width-mobile": SIDEBAR_WIDTH_MOBILE } as React.CSSProperties}
           >
              <SheetHeader className="p-4 border-b border-sidebar-border">
-              <SheetTitle>Menu</SheetTitle>
+              <SheetTitle className="text-sidebar-foreground">Menu</SheetTitle>
             </SheetHeader>
             <div className="flex-1 overflow-y-auto">
              {children}
@@ -213,7 +214,8 @@ const Sidebar = React.forwardRef<
         data-state={open ? "expanded" : "collapsed"}
         data-collapsible={collapsible === "icon" ? "icon" : "none"}
         className={cn(
-          "fixed top-0 h-screen z-30 hidden md:flex flex-col bg-sidebar text-sidebar-foreground border-r",
+          "fixed top-0 h-screen z-30 hidden md:flex flex-col bg-sidebar text-sidebar-foreground border-sidebar-border",
+          side === "left" ? "left-0 border-r" : "right-0 border-l",
           "transition-all duration-300 ease-in-out",
           open ? "w-[var(--sidebar-width)]" : "w-[var(--sidebar-width-icon)]",
           className
@@ -238,7 +240,7 @@ const SidebarTrigger = React.forwardRef<
       ref={ref}
       variant="ghost"
       size="icon"
-      className={cn("h-7 w-7", className)}
+      className={cn("h-7 w-7 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground", className)}
       onClick={(event) => {
         onClick?.(event)
         toggleSidebar()
@@ -283,7 +285,7 @@ const SidebarInput = React.forwardRef<
       ref={ref}
       data-sidebar="input"
       className={cn(
-        "h-8 w-full bg-background shadow-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+        "h-8 w-full bg-background text-foreground shadow-none focus-visible:ring-2 focus-visible:ring-sidebar-ring border-sidebar-border placeholder:text-sidebar-foreground/50",
         className
       )}
       {...props}
@@ -462,9 +464,10 @@ const sidebarMenuButtonVariants = cva(
   {
     variants: {
       variant: {
-        default: "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+        default: "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-sidebar-foreground",
         outline:
-          "bg-background shadow-[0_0_0_1px_hsl(var(--sidebar-border))] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-[0_0_0_1px_hsl(var(--sidebar-accent))]",
+          "bg-sidebar text-sidebar-foreground border border-sidebar-border shadow-[0_0_0_1px_hsl(var(--sidebar-border))] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-[0_0_0_1px_hsl(var(--sidebar-accent))]",
+        ghost: "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-sidebar-foreground",
       },
       size: {
         default: "h-8 text-sm",
@@ -494,7 +497,7 @@ const SidebarMenuButton = React.forwardRef<
     {
       asChild = false,
       isActive = false,
-      variant = "default",
+      variant = "ghost", // Changed default variant to ghost to match typical sidebar behavior
       size = "default",
       tooltip,
       className,
@@ -514,21 +517,21 @@ const SidebarMenuButton = React.forwardRef<
         data-active={isActive}
         className={cn(
           sidebarMenuButtonVariants({ variant, size }),
-          !sidebarOpen && "justify-center h-10 w-10 p-0", // Icon only when collapsed
+          (!sidebarOpen && !isMobile) && "justify-center h-10 w-10 p-0", // Icon only when collapsed on desktop
           className
         )}
         {...props}
       >
         {/* Conditionally render children or just the icon */}
-        {sidebarOpen || isMobile ? (
+        {(sidebarOpen || isMobile) ? (
           children
         ) : (
-          React.Children.toArray(children).find(child => React.isValidElement(child) && typeof child.type !== 'string') || children
+          React.Children.toArray(children).find(child => React.isValidElement(child) && typeof child.type !== 'string' && (child.type as React.FunctionComponent).displayName !== 'span') || React.Children.toArray(children)[0] || children
         )}
       </Comp>
     )
 
-    if (!tooltip || (sidebarOpen && !isMobile)) { // Don't show tooltip if sidebar is open on desktop
+    if (!tooltip || (sidebarOpen && !isMobile)) { 
       return buttonContent
     }
     
@@ -547,7 +550,7 @@ const SidebarMenuButton = React.forwardRef<
         <TooltipContent
           side="right"
           align="center"
-          hidden={(sidebarOpen && !isMobile)} // Also hide if sidebar is open on desktop
+          hidden={(sidebarOpen && !isMobile)} 
           {...tooltipProps}
         />
       </Tooltip>
@@ -631,12 +634,12 @@ const SidebarMenuSkeleton = React.forwardRef<
     >
       {showIcon && (
         <Skeleton
-          className="size-4 rounded-md"
+          className="size-4 rounded-md bg-sidebar-accent" 
           data-sidebar="menu-skeleton-icon"
         />
       )}
       {open && <Skeleton
-        className="h-4 flex-1 max-w-[--skeleton-width]"
+        className="h-4 flex-1 max-w-[--skeleton-width] bg-sidebar-accent"
         data-sidebar="menu-skeleton-text"
         style={
           {
@@ -693,7 +696,7 @@ const SidebarMenuSubButton = React.forwardRef<
       data-size={size}
       data-active={isActive}
       className={cn(
-        "flex h-7 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-md px-2 text-sidebar-foreground outline-none ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-accent-foreground",
+        "flex h-7 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-md px-2 text-sidebar-foreground outline-none ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-primary", // Icon color set to sidebar-primary
         "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground",
         size === "sm" && "text-xs",
         size === "md" && "text-sm",
@@ -706,7 +709,6 @@ const SidebarMenuSubButton = React.forwardRef<
 })
 SidebarMenuSubButton.displayName = "SidebarMenuSubButton"
 
-// No SidebarRail export
 export {
   Sidebar,
   SidebarContent,
@@ -731,3 +733,4 @@ export {
   SidebarTrigger,
   SidebarSeparator,
 }
+

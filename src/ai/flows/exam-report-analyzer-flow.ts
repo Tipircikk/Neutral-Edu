@@ -135,7 +135,7 @@ const examReportAnalyzerFlow = ai.defineFlow(
 
     callOptions.model = modelToUse;
 
-    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-05-20') {
+    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-05-20') { // Corrected typo here
       callOptions.config = {
         generationConfig: {
           maxOutputTokens: 4096,

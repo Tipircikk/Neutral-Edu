@@ -1,22 +1,16 @@
-# **App Name**: NeutralEdu AI
+# **App Name**: AI Model Switcher
 
 ## Core Features:
 
-- PDF Upload: Allow users to upload PDF documents for summarization.
-- AI-Powered Summarization: Use the Gemini API to summarize the text extracted from the uploaded PDF, tailoring the summary for student comprehension. Summary should include simplified explanations, bullet points of key ideas, main concepts, potential exam questions and relevant examples if needed (only include when necessary, AI should decide).
-- Summary Display: Display the generated summary in a clean and readable UI format. Optionally allow download as PDF and save to Firebase Storage.
-- User Authentication: Use Firebase Authentication (email + password) to manage login/signup. On registration, store the following in Firestore: uid, plan, dailyRemainingQuota, lastSummaryDate.
-- Quota Control & Display: Show user's daily remaining summarization quota on dashboard. Before summarization, check plan type & remaining quota. If quota exceeded, display an error message. After each summary, decrease quota by 1 and update lastSummaryDate in Firestore.
+- Model Listing: List available AI models, with name and description
+- Model Selection: Allow the user to choose a model to use for all AI functionality.
+- Error Management: Issue warnings, and report errors and error codes to the user
 
 ## Style Guidelines:
 
-- Dark Theme
-- Primary Color: #8A2BE2 or #9b59b6
-- Background: #000000 (black)
-- Cards: #1e1e1e (dark gray)
-- Accent Color: #E6E6FA (lavender)
-- Modern & clean fonts (e.g., Inter, Roboto, Poppins)
-- Tailwind CSS or Material UI
-- Grid-based layout for responsiveness
-- Subtle transitions & hover effects
-- Minimalist icons (e.g., HeroIcons, Lucide)
+- Background color: Dark gray (#212121) to provide a professional and modern feel, reminiscent of developer tools.
+- Primary color: Electric blue (#7DF9FF) for interactive elements, indicating the app's tech focus. The hue relates to data, code, screens, and 'the matrix'.
+- Accent color: Soft orange (#FFA500) for warnings, drawing the user's attention.  It's different in both brightness and saturation to ensure visibility against the primary color.
+- Clear, monospaced font for displaying configurations, errors and code-like content.
+- Split-screen layout to compare configurations, with models on the left and the relevant documentation/settings on the right.
+- Subtle transitions when switching between AI models.
