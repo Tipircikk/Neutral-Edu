@@ -257,15 +257,15 @@ const studyPlanGeneratorFlow = ai.defineFlow(
     outputSchema: GenerateStudyPlanOutputSchema,
   },
   async (input: z.infer<typeof GenerateStudyPlanInputSchema> & {subjects?: string; isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<GenerateStudyPlanOutput> => {
-    let modelToUse = 'googleai/gemini-1.5-flash-latest';
+    let modelToUse = ''; // Default will be set based on plan
     try {
       console.log(`[Study Plan Generator Flow (Genkit)] Starting flow with input:`, { userPlan: input.userPlan, customModel: input.customModelIdentifier, studyDuration: input.studyDuration, hoursPerDay: input.hoursPerDay, subjects: input.subjects?.substring(0,100) + "...", pdfContextProvided: !!input.pdfContextText });
 
       const effectivePlan = input.userPlan || 'free';
 
-      if (input.isCustomModelSelected) {
+      if (input.isCustomModelSelected && input.customModelIdentifier) {
         switch (input.customModelIdentifier) {
-          case 'default_gemini_flash':
+          case 'default_gemini_flash': // This refers to Gemini 2.0 Flash
             modelToUse = 'googleai/gemini-2.0-flash';
             break;
           case 'experimental_gemini_1_5_flash':
@@ -276,29 +276,30 @@ const studyPlanGeneratorFlow = ai.defineFlow(
             break;
           default:
             console.warn(`[Study Plan Generator Flow (Genkit)] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting based on plan ${effectivePlan}`);
-            if (effectivePlan === 'pro') {
-               modelToUse = 'googleai/gemini-1.5-flash-latest';
-            } else {
+            if (input.isProUser || input.isPremiumUser) {
+               modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+            } else { // Free user
                modelToUse = 'googleai/gemini-2.0-flash';
             }
             break;
         }
-      } else if (effectivePlan === 'pro') {
-        modelToUse = 'googleai/gemini-1.5-flash-latest';
-      } else {
-        modelToUse = 'googleai/gemini-2.0-flash';
+      } else { // No customModelIdentifier, use plan-based defaults
+        if (input.isProUser || input.isPremiumUser) {
+           modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+        } else { // Free user
+           modelToUse = 'googleai/gemini-2.0-flash';
+        }
       }
 
-
       let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
-      if (modelToUse !== 'googleai/gemini-2.5-flash-preview-05-20') {
+      if (modelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
+          callOptions.config = {}; // Gemini 2.5 Flash Preview might not need maxOutputTokens
+      } else {
         callOptions.config = {
           generationConfig: {
-            maxOutputTokens: 8000,
+            maxOutputTokens: 8000, // Default for other models
           }
         };
-      } else {
-          callOptions.config = {};
       }
 
       console.log(`[Study Plan Generator Flow (Genkit)] Using model: ${modelToUse} with options:`, JSON.stringify(callOptions.config), `for plan: ${effectivePlan}`);
@@ -316,7 +317,6 @@ const studyPlanGeneratorFlow = ai.defineFlow(
       }
        if (output.weeklyPlans.length === 0 && input.studyDuration !== "0_gun") { // Allow empty for 0 days
          console.warn(`[Study Plan Generator Flow (Genkit)] AI returned an empty weeklyPlans array for duration ${input.studyDuration}. This might be an issue.`);
-         // Do not throw an error here, let client decide if it's an issue or handle it
        }
 
 

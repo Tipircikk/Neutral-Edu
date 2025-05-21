@@ -118,7 +118,7 @@ const testGeneratorFlow = ai.defineFlow(
     outputSchema: GenerateTestOutputSchema,
   },
   async (enrichedInput: z.infer<typeof GenerateTestInputSchema> & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean; questionTypes: Array<"multiple_choice" | "true_false" | "short_answer">} ): Promise<GenerateTestOutput> => {
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Base default, will be overridden
+    let modelToUse = ''; 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
     if (enrichedInput.customModelIdentifier) {
@@ -134,17 +134,19 @@ const testGeneratorFlow = ai.defineFlow(
           break;
         default:
           console.warn(`[Test Generator Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting based on plan.`);
-          if (enrichedInput.isProUser) {
-            modelToUse = 'googleai/gemini-1.5-flash-latest';
-          } else {
+          if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
+            modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+          } else { // Free user
             modelToUse = 'googleai/gemini-2.0-flash';
           }
           break;
       }
-    } else if (enrichedInput.isProUser) {
-      modelToUse = 'googleai/gemini-1.5-flash-latest';
-    } else {
-      modelToUse = 'googleai/gemini-2.0-flash'; // Default for free/premium
+    } else { // No customModelIdentifier, use plan-based defaults
+      if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
+        modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+      } else { // Free user
+        modelToUse = 'googleai/gemini-2.0-flash';
+      }
     }
 
     callOptions.model = modelToUse;
@@ -153,15 +155,15 @@ const testGeneratorFlow = ai.defineFlow(
     if (maxTokensForOutput > 8000) maxTokensForOutput = 8000;
     if (maxTokensForOutput < 2048) maxTokensForOutput = 2048;
 
-    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-05-20') {
+    if (modelToUse === 'googleai/gemini-2.5-flash-preview-05_20') {
+       callOptions.config = { temperature: 0.7 };
+    } else {
        callOptions.config = {
          temperature: 0.7,
          generationConfig: {
            maxOutputTokens: maxTokensForOutput
           }
         };
-    } else {
-      callOptions.config = { temperature: 0.7 };
     }
 
     console.log(`[Test Generator Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}`);

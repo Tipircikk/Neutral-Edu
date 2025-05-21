@@ -166,7 +166,7 @@ const questionSolverFlow = ai.defineFlow(
       customModelIdentifier: input.customModelIdentifier
     });
 
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Base default, will be overridden
+    let modelToUse = ''; // Default will be set based on plan
     const isProUser = input.userPlan === 'pro';
     const isPremiumUser = input.userPlan === 'premium';
     const isCustomModelSelected = !!input.customModelIdentifier;
@@ -183,7 +183,7 @@ const questionSolverFlow = ai.defineFlow(
     if (enrichedInput.customModelIdentifier) {
       console.log(`[QuestionSolver Flow] Admin attempting to use custom model: ${enrichedInput.customModelIdentifier}`);
       switch (enrichedInput.customModelIdentifier) {
-        case 'default_gemini_flash':
+        case 'default_gemini_flash': // This refers to Gemini 2.0 Flash
           modelToUse = 'googleai/gemini-2.0-flash';
           break;
         case 'experimental_gemini_1_5_flash':
@@ -194,36 +194,38 @@ const questionSolverFlow = ai.defineFlow(
           break;
         default:
           console.warn(`[QuestionSolver Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting based on plan.`);
-           if (enrichedInput.isProUser) {
-            modelToUse = 'googleai/gemini-1.5-flash-latest';
-          } else {
+           if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
+            modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+          } else { // Free user
             modelToUse = 'googleai/gemini-2.0-flash';
           }
           break;
       }
       console.log(`[QuestionSolver Flow] Admin selected model: ${modelToUse}`);
-    } else if (isProUser) {
-      modelToUse = 'googleai/gemini-1.5-flash-latest';
-      console.log(`[QuestionSolver Flow] Pro user using model: ${modelToUse}`);
-    } else {
-      modelToUse = 'googleai/gemini-2.0-flash'; 
-      console.log(`[QuestionSolver Flow] Free/Premium user using model: ${modelToUse}`);
+    } else { // No customModelIdentifier, use plan-based defaults
+      if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
+        modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+        console.log(`[QuestionSolver Flow] Pro/Premium user using model: ${modelToUse}`);
+      } else { // Free user
+        modelToUse = 'googleai/gemini-2.0-flash'; 
+        console.log(`[QuestionSolver Flow] Free user using model: ${modelToUse}`);
+      }
     }
 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
-    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-05-20') {
-      callOptions.config = {
+    if (modelToUse === 'googleai/gemini-2.5-flash-preview-05_20') {
+      callOptions.config = {}; // Gemini 2.5 Flash Preview might not need or support maxOutputTokens
+      console.log(`[QuestionSolver Flow] NOT using generationConfig for preview model ${modelToUse}.`);
+    } else {
+       callOptions.config = {
         generationConfig: {
-          maxOutputTokens: 4096,
+          maxOutputTokens: 4096, // Default for other models
         }
       };
       console.log(`[QuestionSolver Flow] Using generationConfig for model ${modelToUse}:`, callOptions.config);
-    } else {
-      callOptions.config = {};
-      console.log(`[QuestionSolver Flow] NOT using generationConfig for preview model ${modelToUse}.`);
     }
-
+    
     console.log(`[QuestionSolver Flow] Calling prompt with model: ${callOptions.model} and options:`, JSON.stringify(callOptions.config));
 
     try {

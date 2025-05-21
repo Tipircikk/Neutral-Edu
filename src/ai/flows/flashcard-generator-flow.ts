@@ -115,7 +115,7 @@ const flashcardGeneratorFlow = ai.defineFlow(
     outputSchema: GenerateFlashcardsOutputSchema,
   },
   async (enrichedInput: z.infer<typeof GenerateFlashcardsInputSchema> & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<GenerateFlashcardsOutput> => {
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Base default, will be overridden
+    let modelToUse = ''; 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
     if (enrichedInput.customModelIdentifier) {
@@ -131,17 +131,19 @@ const flashcardGeneratorFlow = ai.defineFlow(
           break;
         default:
           console.warn(`[Flashcard Generator Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting based on plan.`);
-          if (enrichedInput.isProUser) {
-            modelToUse = 'googleai/gemini-1.5-flash-latest';
-          } else {
+          if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
+            modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+          } else { // Free user
             modelToUse = 'googleai/gemini-2.0-flash';
           }
           break;
       }
-    } else if (enrichedInput.isProUser) {
-      modelToUse = 'googleai/gemini-1.5-flash-latest';
-    } else {
-      modelToUse = 'googleai/gemini-2.0-flash'; // Default for free/premium
+    } else { // No customModelIdentifier, use plan-based defaults
+      if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
+        modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+      } else { // Free user
+        modelToUse = 'googleai/gemini-2.0-flash';
+      }
     }
 
     callOptions.model = modelToUse;
@@ -150,14 +152,14 @@ const flashcardGeneratorFlow = ai.defineFlow(
     if (maxTokensForOutput > 8000) maxTokensForOutput = 8000;
     if (maxTokensForOutput < 1024) maxTokensForOutput = 1024;
 
-    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-05-20') {
+    if (modelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
+        callOptions.config = {};
+    } else {
       callOptions.config = {
         generationConfig: {
           maxOutputTokens: maxTokensForOutput,
         }
       };
-    } else {
-        callOptions.config = {};
     }
 
     console.log(`[Flashcard Generator Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}`);

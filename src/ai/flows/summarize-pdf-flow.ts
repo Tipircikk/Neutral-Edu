@@ -120,7 +120,7 @@ const summarizePdfForStudentFlow = ai.defineFlow(
     outputSchema: SummarizePdfForStudentOutputSchema,
   },
   async (enrichedInput: z.infer<typeof SummarizePdfForStudentInputSchema> & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<SummarizePdfForStudentOutput> => {
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Base default, will be overridden
+    let modelToUse = ''; 
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
     if (enrichedInput.customModelIdentifier) {
@@ -136,29 +136,31 @@ const summarizePdfForStudentFlow = ai.defineFlow(
           break;
         default:
           console.warn(`[Summarize PDF Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting based on plan.`);
-          if (enrichedInput.isProUser) {
-            modelToUse = 'googleai/gemini-1.5-flash-latest';
-          } else {
+          if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
+            modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+          } else { // Free user
             modelToUse = 'googleai/gemini-2.0-flash';
           }
           break;
       }
-    } else if (enrichedInput.isProUser) {
-      modelToUse = 'googleai/gemini-1.5-flash-latest';
-    } else {
-      modelToUse = 'googleai/gemini-2.0-flash'; // Default for free/premium
+    } else { // No customModelIdentifier, use plan-based defaults
+      if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
+        modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+      } else { // Free user
+        modelToUse = 'googleai/gemini-2.0-flash';
+      }
     }
 
     callOptions.model = modelToUse;
 
-    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-05-20') {
+    if (modelToUse === 'googleai/gemini-2.5-flash-preview-05_20') {
+       callOptions.config = {}; 
+    } else {
       callOptions.config = {
         generationConfig: {
           maxOutputTokens: enrichedInput.summaryLength === 'detailed' ? 8000 : enrichedInput.summaryLength === 'medium' ? 4096 : 2048,
         }
       };
-    } else {
-       callOptions.config = {};
     }
 
     console.log(`[Summarize PDF Flow] Using model: ${modelToUse} with input:`, { summaryLength: enrichedInput.summaryLength, outputDetail: enrichedInput.outputDetail, keywords: !!enrichedInput.keywords, pageRange: !!enrichedInput.pageRange, userPlan: enrichedInput.userPlan, customModel: enrichedInput.customModelIdentifier });

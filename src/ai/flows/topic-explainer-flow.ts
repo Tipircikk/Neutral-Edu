@@ -137,12 +137,12 @@ const topicExplainerFlow = ai.defineFlow(
     outputSchema: ExplainTopicOutputSchema,
   },
   async (enrichedInput: z.infer<typeof TopicExplainerPromptInputSchema> ): Promise<ExplainTopicOutput> => {
-    let modelToUse = 'googleai/gemini-1.5-flash-latest';
+    let modelToUse = '';
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
-    if (enrichedInput.isCustomModelSelected) {
+    if (enrichedInput.isCustomModelSelected && enrichedInput.customModelIdentifier) {
       switch (enrichedInput.customModelIdentifier) {
-        case 'default_gemini_flash':
+        case 'default_gemini_flash': // This refers to Gemini 2.0 Flash
           modelToUse = 'googleai/gemini-2.0-flash';
           break;
         case 'experimental_gemini_1_5_flash':
@@ -153,28 +153,30 @@ const topicExplainerFlow = ai.defineFlow(
           break;
         default:
           console.warn(`[Topic Explainer Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting based on plan.`);
-          if (enrichedInput.isProUser) {
-            modelToUse = 'googleai/gemini-1.5-flash-latest';
-          } else {
+          if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
+            modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+          } else { // Free user
             modelToUse = 'googleai/gemini-2.0-flash';
           }
       }
-    } else if (enrichedInput.isProUser) {
-      modelToUse = 'googleai/gemini-1.5-flash-latest';
-    } else {
-      modelToUse = 'googleai/gemini-2.0-flash'; // Default for free/premium
+    } else { // No customModelIdentifier, use plan-based defaults
+      if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
+        modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+      } else { // Free user
+        modelToUse = 'googleai/gemini-2.0-flash';
+      }
     }
 
     callOptions.model = modelToUse;
 
-    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-05-20') {
+    if (modelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
+        callOptions.config = {}; // No generationConfig for preview model
+    } else {
       callOptions.config = {
         generationConfig: {
           maxOutputTokens: enrichedInput.explanationLevel === 'detayli' ? 8192 : enrichedInput.explanationLevel === 'orta' ? 4096 : 2048,
         }
       };
-    } else {
-        callOptions.config = {}; // No generationConfig for preview model
     }
 
     console.log(`[Topic Explainer Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}, level: ${enrichedInput.explanationLevel}, persona: ${enrichedInput.teacherPersona}`);
@@ -213,3 +215,4 @@ const topicExplainerFlow = ai.defineFlow(
   }
 );
     
+

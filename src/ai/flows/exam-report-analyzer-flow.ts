@@ -110,12 +110,12 @@ const examReportAnalyzerFlow = ai.defineFlow(
     outputSchema: ExamReportAnalyzerOutputSchema,
   },
   async (enrichedInput: z.infer<typeof ExamReportAnalyzerInputSchema> & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean} ): Promise<ExamReportAnalyzerOutput> => {
-    let modelToUse = 'googleai/gemini-1.5-flash-latest'; // Base default, will be overridden
+    let modelToUse = ''; // Default will be set based on plan
     let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
 
     if (enrichedInput.customModelIdentifier) {
       switch (enrichedInput.customModelIdentifier) {
-        case 'default_gemini_flash':
+        case 'default_gemini_flash': // This refers to Gemini 2.0 Flash
           modelToUse = 'googleai/gemini-2.0-flash';
           break;
         case 'experimental_gemini_1_5_flash':
@@ -126,29 +126,32 @@ const examReportAnalyzerFlow = ai.defineFlow(
           break;
         default:
           console.warn(`[Exam Report Analyzer Flow] Unknown customModelIdentifier: ${enrichedInput.customModelIdentifier}. Defaulting based on plan.`);
-          if (enrichedInput.isProUser) {
-            modelToUse = 'googleai/gemini-1.5-flash-latest';
-          } else {
+          if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
+            modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+          } else { // Free user
             modelToUse = 'googleai/gemini-2.0-flash';
           }
           break;
       }
-    } else if (enrichedInput.isProUser) {
-      modelToUse = 'googleai/gemini-1.5-flash-latest';
-    } else {
-      modelToUse = 'googleai/gemini-2.0-flash'; // Default for free/premium
+    } else { // No customModelIdentifier, use plan-based defaults
+      if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
+        modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+      } else { // Free user
+        modelToUse = 'googleai/gemini-2.0-flash';
+      }
     }
 
     callOptions.model = modelToUse;
 
-    if (modelToUse !== 'googleai/gemini-2.5-flash-preview-05-20') {
-      callOptions.config = {
+    // Specific models might not need or support certain generation configs
+    if (modelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
+      callOptions.config = {}; // Gemini 2.5 Flash Preview might not need maxOutputTokens
+    } else {
+       callOptions.config = {
         generationConfig: {
-          maxOutputTokens: 4096,
+          maxOutputTokens: 4096, // Default for other models
         }
       };
-    } else {
-       callOptions.config = {};
     }
 
     console.log(`[Exam Report Analyzer Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}`);
