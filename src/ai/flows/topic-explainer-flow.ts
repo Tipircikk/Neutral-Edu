@@ -12,18 +12,17 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import type { UserProfile } from '@/types';
-import { GoogleGenAI } from '@google/genai'; // Changed import
+import { GoogleGenAI, type GenerationConfig, type Content } from '@google/genai';
 import { Buffer } from 'buffer'; // Node.js Buffer
 
-// Helper types for WAV conversion (from user's script)
+// Helper types for WAV conversion
 interface WavConversionOptions {
   numChannels: number;
   sampleRate: number;
   bitsPerSample: number;
 }
 
-// Helper function to parse mimeType for WAV conversion (from user's script)
+// Helper function to parse mimeType for WAV conversion
 function parseMimeType(mimeType: string): WavConversionOptions {
   const [fileType, ...params] = mimeType.split(';').map(s => s.trim());
   const [_, format] = fileType.split('/');
@@ -52,11 +51,10 @@ function parseMimeType(mimeType: string): WavConversionOptions {
   if (!options.sampleRate) options.sampleRate = 24000; // Common default for speech
   if (!options.numChannels) options.numChannels = 1;
 
-
   return options as WavConversionOptions;
 }
 
-// Helper function to create WAV header (from user's script)
+// Helper function to create WAV header
 function createWavHeader(dataLength: number, options: WavConversionOptions): Buffer {
   const {
     numChannels,
@@ -90,9 +88,8 @@ function convertToWavDataUri(base64RawData: string, mimeType: string): string | 
   try {
     const options = parseMimeType(mimeType);
     if (!options.sampleRate || !options.bitsPerSample || !options.numChannels) {
-        console.warn(`[TTS WAV Conversion] Missing critical parameters (sampleRate, bitsPerSample, or numChannels) from mimeType: ${mimeType}. Cannot convert to WAV. MimeType: ${mimeType}, Parsed Opts: ${JSON.stringify(options)}`);
-        // Fallback to returning the original data if critical info is missing
-        return `data:${mimeType};base64,${base64RawData}`;
+        console.warn(`[TTS WAV Conversion] Missing critical parameters from mimeType: ${mimeType}. Cannot convert to WAV. Options: ${JSON.stringify(options)}`);
+        return `data:${mimeType};base64,${base64RawData}`; // Fallback
     }
     const rawDataBuffer = Buffer.from(base64RawData, 'base64');
     const wavHeader = createWavHeader(rawDataBuffer.length, options);
@@ -101,11 +98,9 @@ function convertToWavDataUri(base64RawData: string, mimeType: string): string | 
     return `data:audio/wav;base64,${wavBase64}`;
   } catch (error) {
     console.error("[TTS WAV Conversion] Error converting to WAV:", error);
-    // Fallback to returning the original data URI on error
-    return `data:${mimeType};base64,${base64RawData}`;
+    return `data:${mimeType};base64,${base64RawData}`; // Fallback
   }
 }
-
 
 async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | null> {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -116,34 +111,23 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
 
   try {
     const genAI = new GoogleGenAI(apiKey);
-    const ttsModel = genAI.getGenerativeModel({ model: "gemini-2.5-pro-preview-tts" }); // Using the specific TTS model
+    const ttsModel = genAI.getGenerativeModel({ model: "gemini-2.5-pro-preview-tts" });
 
-    const config = {
-      temperature: 0.7, // Adjusted for speech
-      responseModalities: ['AUDIO'], // Corrected modality
+    const ttsRequestConfig = {
+      temperature: 0.7, 
+      responseModalities: ['AUDIO'], 
       speechConfig: {
         voiceConfig: {
-          // Note: prebuiltVoiceConfig and voiceName might not be standard for all gemini TTS models.
-          // 'Zephyr' is an example. If it causes errors, try removing voiceConfig or using standard voice params.
-          // For generic TTS, often languageCode is enough.
-          // Let's try a more standard approach if 'Zephyr' is specific to an older API.
-          // The new models might infer voice or use different config.
-          // If 'Zephyr' or 'prebuiltVoiceConfig' fails, we might need to remove it or use standard voice parameters.
-          // For now, keeping it as per user's example.
-          // voiceName: "Zephyr", // Example, may need adjustment based on available voices for this model
-        },
-        // audioEncoding: "MP3" // Requesting MP3 output directly if possible
+          // prebuiltVoiceConfig: { voiceName: 'Zephyr' } // Example voice, might cause issues if not supported. Let's try without for wider compatibility.
+        }
       },
     };
 
-    const contents = [{ role: 'user', parts: [{ text }] }];
-
-    console.log("[TTS Generation] Sending request to Gemini TTS model...");
-    const result = await ttsModel.generateContentStream({
-      contents,
-      // @ts-ignore // config structure might differ slightly, but this is based on user's example
-      generationConfig: config
-    });
+    const contents: Content[] = [{ role: 'user', parts: [{ text }] }];
+    
+    console.log("[TTS Generation] Sending request to Gemini TTS model (gemini-2.5-pro-preview-tts)...");
+    // @ts-ignore - Allow pass-through of custom config keys if the endpoint expects them
+    const result = await ttsModel.generateContentStream({ contents, generationConfig: ttsRequestConfig });
 
     let audioBase64: string | null = null;
     let audioMimeType: string | null = null;
@@ -151,13 +135,13 @@ async function synthesizeSpeechWithGoogleGenAI(text: string): Promise<string | n
     for await (const chunk of result.stream) {
       if (chunk.candidates && chunk.candidates[0].content && chunk.candidates[0].content.parts) {
         const part = chunk.candidates[0].content.parts[0];
-        // @ts-ignore // inlineData might not be on standard Part type, but it's in user's example
+        // @ts-ignore 
         if (part.inlineData) {
           // @ts-ignore
           audioMimeType = part.inlineData.mimeType;
           // @ts-ignore
           audioBase64 = part.inlineData.data;
-          break; // Assuming first audio chunk is the complete one for non-streaming audio synthesis
+          break; 
         }
       }
     }
@@ -217,43 +201,38 @@ const defaultErrorOutput: ExplainTopicOutput = {
 };
 
 export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTopicOutput> {
+  console.log("[ExplainTopic Action] Received input:", { topicName: input.topicName, userPlan: input.userPlan, customModel: input.customModelIdentifier, generateTts: input.generateTts });
+
   try {
     const isProUser = input.userPlan === 'pro';
     const isPremiumUser = input.userPlan === 'premium';
-
     let modelToUseForText = '';
-    if (input.customModelIdentifier) {
-      switch (input.customModelIdentifier) {
-        case 'default_gemini_flash':
-          modelToUseForText = 'googleai/gemini-2.0-flash';
-          break;
-        case 'experimental_gemini_1_5_flash':
-          modelToUseForText = 'googleai/gemini-1.5-flash-latest';
-          break;
-        case 'experimental_gemini_2_5_flash_preview_05_20':
-          modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20';
-          break;
-        default:
-          console.warn(`[Topic Explainer Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting based on plan.`);
-          if (isProUser || isPremiumUser) {
-            modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20';
-          } else {
-            modelToUseForText = 'googleai/gemini-2.0-flash';
-          }
-          break;
-      }
+
+    if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.startsWith('googleai/')) {
+        modelToUseForText = input.customModelIdentifier;
     } else {
-      if (isProUser || isPremiumUser) {
-        modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20';
-      } else {
-        modelToUseForText = 'googleai/gemini-2.0-flash';
-      }
+        switch (input.customModelIdentifier) {
+            case 'default_gemini_flash': modelToUseForText = 'googleai/gemini-2.0-flash'; break;
+            case 'experimental_gemini_1_5_flash': modelToUseForText = 'googleai/gemini-1.5-flash-latest'; break;
+            case 'experimental_gemini_2_5_flash_preview_05_20': modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20'; break;
+            default:
+                if (input.customModelIdentifier) { // Log if an unknown non-empty string was provided
+                    console.warn(`[Topic Explainer Flow] Unknown or invalid customModelIdentifier: '${input.customModelIdentifier}'. Defaulting based on plan.`);
+                }
+                if (isProUser || isPremiumUser) {
+                    modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20';
+                } else {
+                    modelToUseForText = 'googleai/gemini-2.0-flash';
+                }
+                break;
+        }
     }
     
-    if (!modelToUseForText) { 
-      console.error("[Topic Explainer Flow] modelToUseForText was unexpectedly empty. Defaulting to gemini-2.0-flash.");
-      modelToUseForText = 'googleai/gemini-2.0-flash';
+    if (!modelToUseForText || typeof modelToUseForText !== 'string' || !modelToUseForText.startsWith('googleai/')) {
+      console.error(`[Topic Explainer Flow] CRITICAL: modelToUseForText is invalid after logic: '${modelToUseForText}'. Original customId: '${input.customModelIdentifier}'. Forcing fallback.`);
+      modelToUseForText = 'googleai/gemini-2.0-flash'; // Absolute fallback to prevent Genkit errors
     }
+    console.log(`[ExplainTopic Action] Determined modelToUseForText: ${modelToUseForText}`);
     
     const isGemini25FlashPreviewSelectedForText = modelToUseForText === 'googleai/gemini-2.5-flash-preview-05-20';
 
@@ -272,8 +251,8 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
     let flowOutput = await topicExplainerFlow(enrichedInput, modelToUseForText);
 
     let audioDataUri: string | null = null;
-    if (input.generateTts && input.userPlan !== 'free' && flowOutput.explanation) { // Allow TTS for admin and pro/premium users
-      console.log("[Topic Explainer Flow] TTS requested by admin or premium/pro user. Synthesizing speech for explanation...");
+    if (input.generateTts && (isProUser || isPremiumUser || input.userPlan === 'admin_equivalent_for_testing') && flowOutput.explanation) { // Allow TTS for admin and pro/premium users
+      console.log("[Topic Explainer Flow] TTS requested. Synthesizing speech for explanation...");
       audioDataUri = await synthesizeSpeechWithGoogleGenAI(flowOutput.explanation);
       if (audioDataUri) {
         console.log("[Topic Explainer Flow] TTS audio URI generated and added to output.");
@@ -301,7 +280,7 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
     return {
         ...defaultErrorOutput,
         explanationTitle: `Sunucu Hatası: ${input.topicName}`,
-        explanation: `Konu anlatımı oluşturulurken sunucuda kritik bir hata oluştu: ${errorMessage}. Lütfen daha sonra tekrar deneyin veya bir sorun olduğunu düşünüyorsanız destek ile iletişime geçin.`
+        explanation: `Konu anlatımı oluşturulurken sunucuda kritik bir hata oluştu. Detay: ${errorMessage}. Lütfen daha sonra tekrar deneyin.`
     };
   }
 }
@@ -411,7 +390,7 @@ const topicExplainerFlow = ai.defineFlow(
         const {output} = await topicExplainerPrompt(enrichedInput, callOptions);
         if (!output || !output.explanation) {
           console.error("[Topic Explainer Flow - Text Gen] AI did not produce a valid explanation. Output:", JSON.stringify(output).substring(0,500));
-          throw new Error(`AI YKS Süper Öğretmeniniz, belirtilen konu için bir anlatım oluşturamadı. Model: ${modelToUseForText}. Lütfen konuyu ve ayarları kontrol edin veya farklı bir model deneyin.`);
+          throw new Error(`AI YKS Süper Öğretmeniniz, belirtilen konu için bir anlatım oluşturamadı. Kullanılan Model: ${modelToUseForText}. Lütfen konuyu ve ayarları kontrol edin veya farklı bir model deneyin.`);
         }
         return {
             explanationTitle: output.explanationTitle,
