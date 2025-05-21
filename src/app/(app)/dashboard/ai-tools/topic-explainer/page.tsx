@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Input as ShadInput } from "@/components/ui/input"; 
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-// import { Switch } from "@/components/ui/switch"; // TTS Temporarily Disabled
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { explainTopic, type ExplainTopicOutput, type ExplainTopicInput } from "@/ai/flows/topic-explainer-flow";
@@ -25,8 +25,8 @@ export default function TopicExplainerPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [adminSelectedModel, setAdminSelectedModel] = useState<string | undefined>(undefined);
-  // const [generateTtsSwitch, setGenerateTtsSwitch] = useState(false); // TTS Temporarily Disabled
-  // const [submittedGenerateTtsRequest, setSubmittedGenerateTtsRequest] = useState(false); // TTS Temporarily Disabled
+  const [generateTtsSwitch, setGenerateTtsSwitch] = useState(false);
+  const [submittedGenerateTtsRequest, setSubmittedGenerateTtsRequest] = useState(false);
   const [loadingSubMessage, setLoadingSubMessage] = useState("AI YKS Süper Öğretmeniniz konuyu hazırlıyor... Bu işlem biraz zaman alabilir.");
 
   const { toast } = useToast();
@@ -59,7 +59,7 @@ export default function TopicExplainerPage() {
     if (!line) return [<React.Fragment key={`empty-${Math.random()}`}></React.Fragment>];
     
     const elements: React.ReactNode[] = [];
-    const regex = /(\S+?)\^(\d+|\{[\d\w.-]+\})|(\S+?)_(\d+|\{[\d\w.-]+\})|\*\*(.*?)\*\*/g;
+    const regex = /(\\S+?)\\^(\\d+|\\{[\\d\\w.-]+\\})|(\\S+?)_(\\d+|\\{[\\d\\w.-]+\\})|\\*\\*(.*?)\\*\\*/g;
     let lastIndex = 0;
     let match;
     let keyIndex = 0;
@@ -89,7 +89,7 @@ export default function TopicExplainerPage() {
 
   const formatExplanationForDisplay = (text: string | undefined | null): JSX.Element[] => {
     if (!text) return [];
-    const lines = text.split('\n');
+    const lines = text.split('\\n');
     const elements: JSX.Element[] = [];
     let listItems: React.ReactNode[] = [];
     let keyCounter = 0;
@@ -140,8 +140,8 @@ export default function TopicExplainerPage() {
     setIsGenerating(true);
     setLoadingSubMessage("AI YKS Süper Öğretmeniniz metin anlatımını hazırlıyor... Bu işlem biraz zaman alabilir.");
     setExplanationOutput(null);
-    // const ttsRequestedThisTime = userProfile?.isAdmin && generateTtsSwitch; // TTS Temporarily Disabled
-    // setSubmittedGenerateTtsRequest(ttsRequestedThisTime); // TTS Temporarily Disabled
+    const ttsRequestedThisTime = !!(userProfile?.isAdmin && generateTtsSwitch);
+    setSubmittedGenerateTtsRequest(ttsRequestedThisTime);
 
 
     const currentProfile = await memoizedCheckAndResetQuota();
@@ -153,14 +153,13 @@ export default function TopicExplainerPage() {
     }
     setCanProcess(true);
 
-    // TTS Temporarily Disabled
-    // if (ttsRequestedThisTime) {
-    //   setTimeout(() => {
-    //     if (isGeneratingRef.current) { 
-    //       setLoadingSubMessage("Sesli anlatımınız oluşturuluyor... Bu işlem biraz daha uzun sürebilir.");
-    //     }
-    //   }, 7000); 
-    // }
+    if (ttsRequestedThisTime) {
+      setTimeout(() => {
+        if (isGeneratingRef.current) { 
+          setLoadingSubMessage("Sesli anlatımınız oluşturuluyor... Bu işlem biraz daha uzun sürebilir.");
+        }
+      }, 7000); 
+    }
 
     try {
       if (!currentProfile?.plan) {
@@ -173,7 +172,7 @@ export default function TopicExplainerPage() {
         customPersonaDescription: teacherPersona === "ozel" ? customPersonaDescription : undefined,
         userPlan: currentProfile.plan,
         customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
-        // generateTts: ttsRequestedThisTime, // TTS Temporarily Disabled
+        generateTts: ttsRequestedThisTime,
       };
       const result = await explainTopic(input);
 
@@ -194,7 +193,7 @@ export default function TopicExplainerPage() {
             explanationTitle: errorMessage, 
             explanation: "Hata oluştu.", 
             keyConcepts:[], commonMistakes: [], yksTips:[], activeRecallQuestions: [],
-            // ttsError: ttsRequestedThisTime ? "Sesli anlatım oluşturulamadı (ana anlatım hatası)." : undefined // TTS Temporarily Disabled
+            ttsError: ttsRequestedThisTime ? (result?.ttsError || "Sesli anlatım oluşturulamadı (ana anlatım hatası).") : undefined
         });
       }
     } catch (error: any) {
@@ -204,7 +203,7 @@ export default function TopicExplainerPage() {
           explanationTitle: error.message || "Beklenmedik bir hata oluştu.", 
           explanation: "Hata oluştu.", 
           keyConcepts:[], commonMistakes: [], yksTips:[], activeRecallQuestions: [],
-          // ttsError: ttsRequestedThisTime ? "Sesli anlatım oluşturulamadı (istemci hatası)." : undefined // TTS Temporarily Disabled
+          ttsError: ttsRequestedThisTime ? (error.message || "Sesli anlatım oluşturulamadı (istemci hatası).") : undefined
       });
     } finally {
       setIsGenerating(false);
@@ -342,7 +341,7 @@ export default function TopicExplainerPage() {
         </CardHeader>
          <CardContent>
          {userProfile?.isAdmin && (
-            <div className="grid grid-cols-1 md:grid-cols-1 gap-4 p-4 mb-4 border rounded-md bg-muted/50"> {/* TTS Switch kaldırıldığı için tek sütun */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 mb-4 border rounded-md bg-muted/50">
               <div className="space-y-2">
                 <Label htmlFor="adminModelSelectTopicExp" className="font-semibold text-primary flex items-center gap-2"><Settings size={16}/> Model Seç (Admin Özel)</Label>
                 <Select 
@@ -361,7 +360,6 @@ export default function TopicExplainerPage() {
                 </Select>
                  <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz.</p>
               </div>
-              {/* TTS Switch and related UI temporarily disabled
               <div className="space-y-2">
                  <Label htmlFor="generateTtsSwitch" className="font-semibold text-primary flex items-center gap-2"><Speaker size={16}/> Sesli Anlatım (Admin Özel)</Label>
                  <div className="flex items-center space-x-2 mt-1">
@@ -375,7 +373,6 @@ export default function TopicExplainerPage() {
                  </div>
                  <p className="text-xs text-muted-foreground">Konu anlatımının seslendirilmiş halini de oluşturur.</p>
               </div>
-              */}
             </div>
             )}
         </CardContent>
@@ -562,7 +559,6 @@ export default function TopicExplainerPage() {
         </Card>
       )}
 
-      {/* TTS UI Temporarily Disabled
       {submittedGenerateTtsRequest && !isGenerating && explanationOutput && (
         <Card className="mt-6">
             <CardHeader>
@@ -595,7 +591,6 @@ export default function TopicExplainerPage() {
             </CardContent>
         </Card>
       )}
-      */}
 
       {!isGenerating && !explanationOutput && !userProfileLoading && (userProfile || !userProfile) && (
          <Alert className="mt-6">
