@@ -1,3 +1,4 @@
+
 import type { Timestamp } from "firebase/firestore";
 import type { User as FirebaseUser } from "firebase/auth";
 
@@ -79,4 +80,19 @@ export interface Notification {
   createdAt: Timestamp;
   read: boolean;
   link?: string;
+}
+
+export interface CouponCode {
+  id: string; // The actual code string, e.g., "PRO30DAYS2024". This will be the document ID.
+  planApplied: "premium" | "pro"; // Which plan this coupon grants
+  durationDays: number; // For how many days the plan is granted (e.g., 30, 90)
+  usageLimit: number; // How many unique users can redeem this code
+  timesUsed: number; // How many times this code has been redeemed
+  isActive: boolean; // Whether the code can still be used (can be deactivated by admin)
+  createdByAdminId: string;
+  createdByAdminEmail?: string | null;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  // expiresAt?: Timestamp | null; // Optional: if the code itself has an expiry date for redemption
+  // redeemedBy?: { userId: string, redeemedAt: Timestamp }[]; // Optional: to track who redeemed and when
 }

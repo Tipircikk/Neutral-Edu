@@ -132,25 +132,25 @@ export default function PomodoroPage() {
             </Button>
           </div>
 
-          <div className="flex w-full justify-around border-t pt-6 space-x-2">
+          <div className="flex w-full justify-around border-t pt-6 space-x-2 sm:space-x-3">
             <Button
               variant={mode === "pomodoro" ? "default" : "outline"}
               onClick={() => handleModeChange("pomodoro")}
-              className="flex-1"
+              className="flex-1 text-xs sm:text-sm px-2 sm:px-3 whitespace-normal h-auto py-2 leading-tight"
             >
               Pomodoro (25dk)
             </Button>
             <Button
               variant={mode === "shortBreak" ? "default" : "outline"}
               onClick={() => handleModeChange("shortBreak")}
-              className="flex-1"
+              className="flex-1 text-xs sm:text-sm px-2 sm:px-3 whitespace-normal h-auto py-2 leading-tight"
             >
               Kısa Mola (5dk)
             </Button>
             <Button
               variant={mode === "longBreak" ? "default" : "outline"}
               onClick={() => handleModeChange("longBreak")}
-              className="flex-1"
+              className="flex-1 text-xs sm:text-sm px-2 sm:px-3 whitespace-normal h-auto py-2 leading-tight"
             >
               Uzun Mola (15dk)
             </Button>
