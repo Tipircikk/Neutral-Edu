@@ -59,7 +59,9 @@ export default function TopicExplainerPage() {
     if (!line) return [<React.Fragment key={`empty-${Math.random()}`}></React.Fragment>];
     
     const elements: React.ReactNode[] = [];
-    const regex = /(\\S+?)\\^(\\d+|\\{[\\d\\w.-]+\\})|(\\S+?)_(\\d+|\\{[\\d\\w.-]+\\})|\\*\\*(.*?)\\*\\*/g;
+    // Regex to find **bold**, `code`, text^exponent, text_{subscript}
+    // It specifically looks for numbers or {content} in sup/sub
+    const regex = /(\S+?)\^(\d+|\{[\d\w.-]+\})|(\S+?)_(\d+|\{[\d\w.-]+\})|\*\*(.*?)\*\*|`([^`]+)`/g;
     let lastIndex = 0;
     let match;
     let keyIndex = 0;
@@ -69,14 +71,16 @@ export default function TopicExplainerPage() {
         elements.push(<Fragment key={`text-${keyIndex++}`}>{line.substring(lastIndex, match.index)}</Fragment>);
       }
       
-      if (match[5]) { 
-        elements.push(<strong key={`bold-${keyIndex++}`}>{match[5]}</strong>);
-      } else if (match[1] && match[2]) { 
+      if (match[1] && match[2]) { // Superscript
         elements.push(<Fragment key={`base-sup-${keyIndex}`}>{match[1]}</Fragment>);
         elements.push(<sup key={`sup-${keyIndex++}`}>{match[2].replace(/[{}]/g, '')}</sup>);
-      } else if (match[3] && match[4]) { 
+      } else if (match[3] && match[4]) { // Subscript
         elements.push(<Fragment key={`base-sub-${keyIndex}`}>{match[3]}</Fragment>);
         elements.push(<sub key={`sub-${keyIndex++}`}>{match[4].replace(/[{}]/g, '')}</sub>);
+      } else if (match[5]) { // Bold
+        elements.push(<strong key={`bold-${keyIndex++}`}>{match[5]}</strong>);
+      } else if (match[6]) { // Inline code
+        elements.push(<code key={`code-${keyIndex++}`} className="bg-muted text-muted-foreground px-1 py-0.5 rounded text-sm">{match[6]}</code>);
       }
       lastIndex = regex.lastIndex;
     }
@@ -89,7 +93,8 @@ export default function TopicExplainerPage() {
 
   const formatExplanationForDisplay = (text: string | undefined | null): JSX.Element[] => {
     if (!text) return [];
-    const lines = text.split('\\n');
+    // Assuming text uses \n for newlines from the server
+    const lines = text.split('\n'); 
     const elements: JSX.Element[] = [];
     let listItems: React.ReactNode[] = [];
     let keyCounter = 0;
@@ -145,7 +150,14 @@ export default function TopicExplainerPage() {
 
 
     const currentProfile = await memoizedCheckAndResetQuota();
-    if (!currentProfile || (currentProfile.dailyRemainingQuota ?? 0) <= 0) {
+    if (!currentProfile) {
+        toast({ title: "Kullanıcı Bilgisi Yüklenemedi", description: "Lütfen sayfayı yenileyin veya tekrar giriş yapın.", variant: "destructive" });
+        setIsGenerating(false);
+        setCanProcess(false);
+        return;
+    }
+
+    if ((currentProfile.dailyRemainingQuota ?? 0) <= 0) {
       toast({ title: "Kota Aşıldı", description: "Bugünkü hakkınızı doldurdunuz.", variant: "destructive" });
       setIsGenerating(false);
       setCanProcess(false);
@@ -176,7 +188,8 @@ export default function TopicExplainerPage() {
       };
       const result = await explainTopic(input);
 
-      if (result && result.explanation) {
+      // Ensure result and its properties are defined before trying to access them
+      if (result && typeof result.explanation === 'string') {
         setExplanationOutput(result);
         toast({ title: "Konu Anlatımı Hazır!", description: "Belirttiğiniz konu için detaylı bir anlatım oluşturuldu." });
         if (decrementQuota) {
@@ -187,23 +200,29 @@ export default function TopicExplainerPage() {
           setCanProcess((updatedProfileAgain.dailyRemainingQuota ?? 0) > 0);
         }
       } else {
-        const errorMessage = result?.explanationTitle || "Yapay zeka bir konu anlatımı üretemedi.";
+        const errorMessage = result?.explanationTitle || "Yapay zeka bir konu anlatımı üretemedi veya sunucudan beklenmedik bir yanıt geldi.";
         toast({ title: "Anlatım Sonucu Yetersiz", description: errorMessage, variant: "destructive"});
         setExplanationOutput({ 
             explanationTitle: errorMessage, 
-            explanation: "Hata oluştu.", 
-            keyConcepts:[], commonMistakes: [], yksTips:[], activeRecallQuestions: [],
+            explanation: result?.explanation || "Hata oluştu, geçerli bir anlatım alınamadı.", 
+            keyConcepts: result?.keyConcepts || [], 
+            commonMistakes: result?.commonMistakes || [], 
+            yksTips: result?.yksTips || [], 
+            activeRecallQuestions: result?.activeRecallQuestions || [],
+            audioDataUri: result?.audioDataUri,
             ttsError: ttsRequestedThisTime ? (result?.ttsError || "Sesli anlatım oluşturulamadı (ana anlatım hatası).") : undefined
         });
       }
     } catch (error: any) {
-      console.error("Konu anlatımı oluşturma hatası:", error);
-      toast({ title: "Anlatım Oluşturma Hatası", description: error.message || "Konu anlatımı oluşturulurken beklenmedik bir hata oluştu.", variant: "destructive" });
+      console.error("Konu anlatımı oluşturma hatası (handleSubmit catch):", error);
+      const errorMsg = error.message || "Konu anlatımı oluşturulurken beklenmedik bir istemci hatası oluştu.";
+      toast({ title: "Anlatım Oluşturma Hatası", description: errorMsg, variant: "destructive" });
       setExplanationOutput({ 
-          explanationTitle: error.message || "Beklenmedik bir hata oluştu.", 
-          explanation: "Hata oluştu.", 
+          explanationTitle: "İstemci Hatası", 
+          explanation: errorMsg, 
           keyConcepts:[], commonMistakes: [], yksTips:[], activeRecallQuestions: [],
-          ttsError: ttsRequestedThisTime ? (error.message || "Sesli anlatım oluşturulamadı (istemci hatası).") : undefined
+          audioDataUri: undefined,
+          ttsError: ttsRequestedThisTime ? (errorMsg || "Sesli anlatım oluşturulamadı (istemci hatası).") : undefined
       });
     } finally {
       setIsGenerating(false);
@@ -266,7 +285,10 @@ export default function TopicExplainerPage() {
       if (explanationOutput.explanation) {
         currentY += lineHeight / 2;
         addWrappedText("Detaylı Konu Anlatımı:", { fontSize: headingFontSize, fontStyle: 'bold', y: currentY });
-        addWrappedText(explanationOutput.explanation, { fontSize: textFontSize });
+        // Split explanation by server-side newlines (\n) for PDF
+        explanationOutput.explanation.split('\n').forEach(paragraph => {
+            addWrappedText(paragraph, { fontSize: textFontSize });
+        });
       }
 
       const renderArraySection = (title: string, items: string[] | undefined) => {
@@ -510,7 +532,7 @@ export default function TopicExplainerPage() {
                     <h3 className="text-lg font-semibold mt-4 mb-1 text-foreground">Anahtar Kavramlar:</h3>
                     <ul className="list-disc pl-5 text-muted-foreground">
                       {explanationOutput.keyConcepts.map((concept, index) => (
-                        <li key={index}>{parseInlineFormatting(concept)}</li>
+                        <li key={`kc-${index}`}>{parseInlineFormatting(concept)}</li>
                       ))}
                     </ul>
                   </>
@@ -521,7 +543,7 @@ export default function TopicExplainerPage() {
                     <h3 className="text-lg font-semibold mt-4 mb-1 text-foreground">Sık Yapılan Hatalar:</h3>
                     <ul className="list-disc pl-5 text-muted-foreground">
                       {explanationOutput.commonMistakes.map((mistake, index) => (
-                        <li key={index}>{parseInlineFormatting(mistake)}</li>
+                        <li key={`cm-${index}`}>{parseInlineFormatting(mistake)}</li>
                       ))}
                     </ul>
                   </>
@@ -532,7 +554,7 @@ export default function TopicExplainerPage() {
                     <h3 className="text-lg font-semibold mt-4 mb-1 text-foreground">YKS İpuçları:</h3>
                     <ul className="list-disc pl-5 text-muted-foreground">
                       {explanationOutput.yksTips.map((tip, index) => (
-                        <li key={index}>{parseInlineFormatting(tip)}</li>
+                        <li key={`yt-${index}`}>{parseInlineFormatting(tip)}</li>
                       ))}
                     </ul>
                   </>
@@ -543,7 +565,7 @@ export default function TopicExplainerPage() {
                     <h3 className="text-lg font-semibold mt-4 mb-1 text-foreground">Hadi Pekiştirelim! (Aktif Hatırlama Soruları):</h3>
                     <ul className="list-decimal pl-5 text-muted-foreground space-y-1">
                       {explanationOutput.activeRecallQuestions.map((question, index) => (
-                        <li key={index}>{parseInlineFormatting(question)}</li>
+                        <li key={`ar-${index}`}>{parseInlineFormatting(question)}</li>
                       ))}
                     </ul>
                      <p className="text-xs italic text-muted-foreground mt-2">(Bu soruların cevaplarını anlatımda bulabilirsin.)</p>
@@ -604,3 +626,4 @@ export default function TopicExplainerPage() {
     </div>
   );
 }
+
