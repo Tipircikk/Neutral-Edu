@@ -32,6 +32,7 @@ const parseInlineFormatting = (line: string | undefined | null): React.ReactNode
   const regex = /(\S+?)\^(\S+?)|\*\*([^*]+)\*\*|`([^`]+)`|(\S+?)_(\S+?)/g; // Adjusted regex order
   let lastIndex = 0;
   let keyIndex = 0;
+  let match; // Declare match here
 
   while ((match = regex.exec(line)) !== null) {
     if (match.index > lastIndex) {
