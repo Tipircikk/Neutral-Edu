@@ -93,7 +93,7 @@ const prompt = ai.definePrompt({
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
-(Pro Kullanıcı Notu: Analizini en üst düzeyde akademik titizlikle yap. Öğrencinin farkında olmadığı örtük bilgi eksikliklerini tespit etmeye çalış. En kapsamlı stratejik yol haritasını, YKS'de sık yapılan hatalardan kaçınma yollarını, zaman yönetimi ve stresle başa çıkma tekniklerini detaylıca sun.)
+(Pro Kullanıcı Notu: Bu Pro seviyesindeki detaylı analiz, üyeliğinizin bir avantajıdır. Analizini en üst düzeyde akademik titizlikle yap. Öğrencinin farkında olmadığı örtük bilgi eksikliklerini tespit etmeye çalış. En kapsamlı stratejik yol haritasını, YKS'de sık yapılan hatalardan kaçınma yollarını, zaman yönetimi ve stresle başa çıkma tekniklerini detaylıca sun.)
 {{else if isPremiumUser}}
 (Premium Kullanıcı Notu: Daha detaylı konu analizi yap. Belirlenen zayıflıklar için 1-2 etkili çalışma tekniği (örn: Feynman Tekniği, Pomodoro) ve genel motivasyonunu artıracak pratik ipuçları öner.)
 {{else}}

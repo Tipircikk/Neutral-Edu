@@ -99,7 +99,7 @@ const prompt = ai.definePrompt({
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
-(Pro Kullanıcı Notu: Açıklamanı en üst düzeyde akademik zenginlikle, konunun felsefi temellerine ve karmaşık detaylarına değinerek yap. Metindeki örtük bağlantıları ve çıkarımları vurgula. Sınav ipuçları ve örnek sorular bölümünde YKS'de çıkabilecek zorlayıcı ve birden fazla kazanımı ölçen sorulara odaklan. Çok kapsamlı bir anlatım oluştur.)
+(Pro Kullanıcı Notu: Pro üyeliğinizin bir avantajı olarak, bu konu anlatımını en üst düzeyde akademik zenginlikle, konunun felsefi temellerine ve karmaşık detaylarına değinerek yap. Metindeki örtük bağlantıları ve çıkarımları vurgula. Sınav ipuçları ve örnek sorular bölümünde YKS'de çıkabilecek zorlayıcı ve birden fazla kazanımı ölçen sorulara odaklan. Çok kapsamlı bir anlatım oluştur.)
 {{else if isPremiumUser}}
 (Premium Kullanıcı Notu: Açıklamalarını daha fazla örnekle ve önemli bağlantıları vurgulayarak zenginleştir. Sınav ipuçları bölümünde konunun YKS'deki önemli noktalarını, örnek sorular bölümünde ise orta düzeyde, konuyu pekiştirici sorular sun.)
 {{else}}

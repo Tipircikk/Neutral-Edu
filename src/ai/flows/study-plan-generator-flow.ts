@@ -403,7 +403,7 @@ const studyPlanGeneratorPrompt = ai.definePrompt({
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
-(Pro Kullanıcı Notu: Giriş bölümünde, en kapsamlı YKS stratejilerini, etkili öğrenme tekniklerini (örn: Feynman Tekniği, aralıklı tekrar, Pomodoro), güvenilir kaynak önerilerini, deneme sınavı çözme ve analiz taktiklerini, stres yönetimi ve motivasyon koruma gibi uzman seviyesinde detaylı bilgiler sun. Planın geneline yayılmış olarak, sık yapılan YKS hatalarına ve bunlardan kaçınma yollarına değin.)
+(Pro Kullanıcı Notu: Pro üyeliğinizle gelen bu kapsamlı planlama aracında, giriş bölümünde en uzman YKS stratejilerini, etkili öğrenme tekniklerini (örn: Feynman Tekniği, aralıklı tekrar, Pomodoro), güvenilir kaynak önerilerini, deneme sınavı çözme ve analiz taktiklerini, stres yönetimi ve motivasyon koruma gibi detaylı bilgiler sun. Planın geneline yayılmış olarak, sık yapılan YKS hatalarına ve bunlardan kaçınma yollarına değin.)
 {{else if isPremiumUser}}
 (Premium Kullanıcı Notu: Giriş bölümünde, 1-2 etkili konu tekrarı yöntemi (örn: aktif hatırlama), çalışma verimliliği için pratik ipuçları, genel motivasyon teknikleri ve zaman yönetimi hakkında bilgiler sun. Planın bazı günlerine küçük motivasyon notları ekle.)
 {{else}}

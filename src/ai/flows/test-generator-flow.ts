@@ -98,7 +98,7 @@ Sorular ASLA belirsiz olmamalı, KESİNLİKLE TEK BİR DOĞRU CEVABA sahip olmal
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
-(Pro Kullanıcı Notu: En düşündürücü ve kapsamlı YKS sorularını oluştur. Sorular, birden fazla konuyu birleştiren, derin analitik beceriler gerektiren nitelikte olsun. Açıklamaların çok detaylı olmalı; doğru cevabın yanı sıra her bir yanlış seçeneğin neden hatalı olduğunu da ayrıntılı bir şekilde açıkla. Soru köklerinde YKS'de sıkça kullanılan çeldirici ifadelere ve püf noktalarına yer ver.)
+(Pro Kullanıcı Notu: Pro üyeliğinizin sunduğu bu üst düzey test oluşturma deneyiminde, en düşündürücü ve kapsamlı YKS sorularını oluştur. Sorular, birden fazla konuyu birleştiren, derin analitik beceriler gerektiren nitelikte olsun. Açıklamaların çok detaylı olmalı; doğru cevabın yanı sıra her bir yanlış seçeneğin neden hatalı olduğunu da ayrıntılı bir şekilde açıkla. Soru köklerinde YKS'de sıkça kullanılan çeldirici ifadelere ve püf noktalarına yer ver.)
 {{else if isPremiumUser}}
 (Premium Kullanıcı Notu: Soruların çeşitliliğini ve açıklamaların derinliğini artır. Yanlış seçeneklerin nedenlerini de açıkla. Sorular, konunun temel ve orta düzeydeki önemli noktalarını kapsasın.)
 {{else}}
