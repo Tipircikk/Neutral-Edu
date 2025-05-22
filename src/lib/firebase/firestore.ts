@@ -3,9 +3,9 @@ import { doc, setDoc, getDoc, updateDoc, serverTimestamp, Timestamp, collection,
 import { db } from "./config";
 import type { UserProfile, CouponCode } from "@/types";
 
-const FREE_PLAN_DAILY_QUOTA = 2;
-const PREMIUM_PLAN_DAILY_QUOTA = 10;
-const PRO_PLAN_DAILY_QUOTA = 25;
+export const FREE_PLAN_DAILY_QUOTA = 2;
+export const PREMIUM_PLAN_DAILY_QUOTA = 10;
+export const PRO_PLAN_DAILY_QUOTA = 25;
 
 export const createUserDocument = async (
   uid: string,
@@ -115,7 +115,7 @@ export const redeemCouponCodeInternal = async (uid: string, couponCodeId: string
 
     if (couponData.timesUsed >= couponData.usageLimit) {
       batch.update(couponRef, { isActive: false }); 
-      await batch.commit();
+      await batch.commit(); // Commit this change immediately if limit reached before user check
       return { success: false, message: "Bu kupon kullanım limitine ulaştı." };
     }
     
@@ -173,7 +173,7 @@ export const redeemCouponCodeInternal = async (uid: string, couponCodeId: string
 
 
 export const createCouponCodeInFirestore = async (
-  couponData: Omit<CouponCode, 'id' | 'timesUsed' | 'createdAt' | 'updatedAt' | 'isActive' | 'redeemedBy'>,
+  couponData: Omit<CouponCode, 'id' | 'timesUsed' | 'createdAt' | 'updatedAt' | 'isActive' | 'redeemedBy' | 'createdByAdminId' | 'createdByAdminEmail'>,
   couponCodeId: string, // This is the actual code string and will be the document ID
   adminUid: string,
   adminEmail: string | null
@@ -192,7 +192,7 @@ export const createCouponCodeInFirestore = async (
       timesUsed: 0,
       isActive: true,
       createdByAdminId: adminUid,
-      createdByAdminEmail: adminEmail,
+      createdByAdminEmail: adminEmail || null, // Ensure it's null if undefined
       redeemedBy: [],
       createdAt: serverTimestamp() as Timestamp,
       updatedAt: serverTimestamp() as Timestamp,
