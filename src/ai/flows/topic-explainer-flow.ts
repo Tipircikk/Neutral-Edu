@@ -12,6 +12,7 @@ import { Buffer } from 'buffer'; // Node.js Buffer
 import type { UserProfile } from '@/types';
 
 
+// Helper types for WAV conversion
 interface WavConversionOptions {
   numChannels : number;
   sampleRate: number;
@@ -53,10 +54,11 @@ const defaultErrorOutput: ExplainTopicOutput = {
   audioDataUri: undefined,
 };
 
+// Function to parse MimeType for WAV conversion
 function parseMimeType(mimeType : string): WavConversionOptions {
   console.log(`[TTS parseMimeType] Received mimeType: "${mimeType}"`);
   const [fileType, ...params] = mimeType.split(';').map(s => s.trim());
-  const [_, format] = fileType.split('/');
+  const [_discard, format] = fileType.split('/'); // _discard as first part of fileType (e.g. 'audio') is not used
 
   const options : Partial<WavConversionOptions> = {
     numChannels: 1, // Default to 1 channel
@@ -64,40 +66,38 @@ function parseMimeType(mimeType : string): WavConversionOptions {
     sampleRate: 24000, // Default to 24kHz
   };
 
-  if (format && format.toLowerCase().startsWith('l')) {
+  if (format && format.toLowerCase().startsWith('l')) { // Ensure case-insensitivity for L16/l16
     const bits = parseInt(format.slice(1), 10);
-    if (!isNaN(bits)) {
+    if (!isNaN(bits) && bits > 0) {
       options.bitsPerSample = bits;
+    } else {
+      console.warn(`[TTS parseMimeType] Could not parse bitsPerSample from format: ${format}. Defaulting to ${options.bitsPerSample}.`);
     }
   }
 
   for (const param of params) {
-    const [key, value] = param.split('=').map(s => s.trim().toLowerCase());
+    const [key, value] = param.split('=').map(s => s.trim().toLowerCase()); // Ensure key is also lowercased
     if (key === 'rate') {
       const rateValue = parseInt(value, 10);
-      if(!isNaN(rateValue)) options.sampleRate = rateValue;
+      if(!isNaN(rateValue) && rateValue > 0) {
+        options.sampleRate = rateValue;
+      } else {
+         console.warn(`[TTS parseMimeType] Invalid rate value: ${value}. Defaulting sampleRate to ${options.sampleRate}.`);
+      }
     } else if (key === 'channels') {
       const channelsValue = parseInt(value, 10);
-      if(!isNaN(channelsValue)) options.numChannels = channelsValue;
+      if(!isNaN(channelsValue) && channelsValue > 0) {
+        options.numChannels = channelsValue;
+      } else {
+        console.warn(`[TTS parseMimeType] Invalid channels value: ${value}. Defaulting numChannels to ${options.numChannels}.`);
+      }
     }
   }
-  if (!options.sampleRate || options.sampleRate <= 0) {
-    console.warn(`[TTS parseMimeType] Invalid or missing sampleRate, defaulting to 24000. Original mimeType: ${mimeType}`);
-    options.sampleRate = 24000;
-  }
-  if (!options.bitsPerSample || options.bitsPerSample <= 0) {
-    console.warn(`[TTS parseMimeType] Invalid or missing bitsPerSample, defaulting to 16. Original mimeType: ${mimeType}`);
-    options.bitsPerSample = 16;
-  }
-  if (!options.numChannels || options.numChannels <= 0) {
-    console.warn(`[TTS parseMimeType] Invalid or missing numChannels, defaulting to 1. Original mimeType: ${mimeType}`);
-    options.numChannels = 1;
-  }
-
-  console.log(`[TTS parseMimeType] Final determined options:`, options);
+  console.log(`[TTS parseMimeType] Final determined options:`, JSON.stringify(options));
   return options as WavConversionOptions;
 }
 
+// Function to create WAV header
 function createWavHeader(dataLength: number, options: WavConversionOptions): Buffer {
   console.log(`[TTS createWavHeader] Creating WAV header with DataLength: ${dataLength}, Options:`, JSON.stringify(options));
   const { numChannels, sampleRate, bitsPerSample } = options;
@@ -105,7 +105,7 @@ function createWavHeader(dataLength: number, options: WavConversionOptions): Buf
   if (!numChannels || !sampleRate || !bitsPerSample || numChannels <= 0 || sampleRate <= 0 || bitsPerSample <= 0) {
       const errorMsg = `[TTS createWavHeader] Invalid options for WAV header creation: numChannels=${numChannels}, sampleRate=${sampleRate}, bitsPerSample=${bitsPerSample}`;
       console.error(errorMsg);
-      throw new Error(errorMsg);
+      throw new Error(errorMsg); // Throw error to be caught by caller
   }
 
   const byteRate = sampleRate * numChannels * bitsPerSample / 8;
@@ -129,15 +129,15 @@ function createWavHeader(dataLength: number, options: WavConversionOptions): Buf
   return buffer;
 }
 
+// Function to convert raw audio data to WAV Data URI
 async function convertToWavDataUri(base64RawData: string, mimeType: string): Promise<string | null> {
   try {
     console.log(`[TTS convertToWavDataUri] Starting WAV conversion for mimeType: ${mimeType}`);
     const options = parseMimeType(mimeType);
-    
-    // Ensure critical options are valid before creating header
+
     if (!options.sampleRate || options.sampleRate <= 0 || !options.bitsPerSample || options.bitsPerSample <= 0 || !options.numChannels || options.numChannels <= 0) {
         console.error("[TTS convertToWavDataUri] CRITICAL: Missing or invalid parameters from parseMimeType for WAV conversion.", options);
-        return null; // Or return original base64 with a generic audio mime type if preferred
+        return null;
     }
 
     const rawDataBuffer = Buffer.from(base64RawData, 'base64');
@@ -152,11 +152,14 @@ async function convertToWavDataUri(base64RawData: string, mimeType: string): Pro
   }
 }
 
+
+// Function to synthesize speech using GoogleGenAI
 async function synthesizeSpeechWithGoogleGenAI(textToSynthesize: string, persona?: string): Promise<string | { error: string }> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    console.error("[TTS Generation] CRITICAL: Gemini API key not found in environment variables (GEMINI_API_KEY).");
-    return { error: "Gemini API anahtarı bulunamadı. Lütfen .env dosyasını kontrol edin." };
+    const errorMsg = "Gemini API anahtarı bulunamadı (GEMINI_API_KEY). Lütfen .env dosyasını kontrol edin.";
+    console.error("[TTS Generation] CRITICAL:", errorMsg);
+    return { error: errorMsg };
   }
   console.log(`[TTS Generation] Using API Key (last 5 chars): ...${apiKey.slice(-5)}`);
 
@@ -165,8 +168,8 @@ async function synthesizeSpeechWithGoogleGenAI(textToSynthesize: string, persona
     const ttsModel = genAI.getGenerativeModel({ model: "gemini-2.5-pro-preview-tts" });
 
     const ttsRequestConfig = {
-      temperature: 0.7, // Adjusted from 1 as 0.7 is often more stable
-      responseModalities: ['audio'], // As per user's latest example
+      temperature: 0.7,
+      responseModalities: ['audio'],
       speechConfig: {
         voiceConfig: {
           prebuiltVoiceConfig: {
@@ -179,7 +182,7 @@ async function synthesizeSpeechWithGoogleGenAI(textToSynthesize: string, persona
 
     const result = await ttsModel.generateContentStream({
       contents: [{ role: 'user', parts: [{ text: textToSynthesize }] }],
-      generationConfig: ttsRequestConfig as any, // Cast to any if types don't perfectly match
+      generationConfig: ttsRequestConfig as any,
     });
 
     let audioBase64: string | null = null;
@@ -188,7 +191,7 @@ async function synthesizeSpeechWithGoogleGenAI(textToSynthesize: string, persona
 
     for await (const chunk of result.stream) {
       console.log(`[TTS Generation] Received chunk ${chunkIndex}.`);
-      console.log(`[TTS Generation] Full chunk ${chunkIndex} content (raw):`, JSON.stringify(chunk, null, 2));
+      // console.log(`[TTS Generation] Full chunk ${chunkIndex} content (raw):`, JSON.stringify(chunk, null, 2)); // Very verbose
 
       if (chunk.candidates && chunk.candidates[0] && chunk.candidates[0].content && chunk.candidates[0].content.parts && chunk.candidates[0].content.parts[0]) {
         const part = chunk.candidates[0].content.parts[0];
@@ -201,7 +204,7 @@ async function synthesizeSpeechWithGoogleGenAI(textToSynthesize: string, persona
           console.warn(`[TTS Generation] Chunk ${chunkIndex}, Part 0 does NOT have expected inlineData with data and mimeType. Part content:`, JSON.stringify(part, null, 2));
         }
       } else {
-        console.warn(`[TTS Generation] Chunk ${chunkIndex} does not have expected structure (candidates[0].content.parts[0]).`);
+        console.warn(`[TTS Generation] Chunk ${chunkIndex} does not have expected structure (candidates[0].content.parts[0]). Full chunk:`, JSON.stringify(chunk).substring(0, 500) + "...");
       }
       chunkIndex++;
     }
@@ -210,8 +213,11 @@ async function synthesizeSpeechWithGoogleGenAI(textToSynthesize: string, persona
       if (audioMimeType.toLowerCase().startsWith('audio/l16')) {
         console.log("[TTS Generation] Raw L16 audio detected, attempting WAV conversion.");
         const wavDataUri = await convertToWavDataUri(audioBase64, audioMimeType);
-        return wavDataUri || { error: "Ham ses verisi WAV formatına dönüştürülemedi." };
-      } else if (audioMimeType.toLowerCase().startsWith('audio/')) { // e.g., audio/mpeg, audio/ogg
+        if (!wavDataUri) {
+            return { error: "Ham ses verisi WAV formatına dönüştürülemedi." };
+        }
+        return wavDataUri;
+      } else if (audioMimeType.toLowerCase().startsWith('audio/')) {
         console.log(`[TTS Generation] Received directly playable audio format: ${audioMimeType}.`);
         return `data:${audioMimeType};base64,${audioBase64}`;
       } else {
@@ -220,21 +226,21 @@ async function synthesizeSpeechWithGoogleGenAI(textToSynthesize: string, persona
       }
     } else {
       console.error("[TTS Generation] CRITICAL: No audio data (inlineData) found in any stream chunks from Gemini API.");
-      return { error: "Gemini API'sinden ses verisi (inlineData) alınamadı. Model veya yapılandırma sorunu olabilir." };
+      return { error: "Gemini API'sinden ses verisi (inlineData) alınamadı. Model, API anahtarı veya yapılandırma sorunu olabilir." };
     }
 
   } catch (error: any) {
     console.error("[TTS Generation] Error during speech synthesis with GoogleGenAI:", error);
-    return { error: `Google GenAI ile ses sentezlenirken bir hata oluştu. Detay: ${error.message}` };
+    let detail = error.message;
+    if (error.stack) detail += `\nStack: ${error.stack}`;
+    return { error: `Google GenAI ile ses sentezlenirken bir hata oluştu. Detay: ${detail.substring(0, 300)}` };
   }
 }
 
+
 export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTopicOutput> {
-  console.log("[ExplainTopic Action - Start] Received input. CustomModelIdentifier:", input.customModelIdentifier, "UserPlan:", input.userPlan, "TopicName:", input.topicName);
-  console.log("[ExplainTopic Action] Raw input.customModelIdentifier from client:", `'${input.customModelIdentifier}'`);
-  console.log("[ExplainTopic Action] Raw input.generateTts from client:", input.generateTts);
-
-
+  console.log("[ExplainTopic Action - Start] Received input. CustomModelIdentifier:", input.customModelIdentifier, "UserPlan:", input.userPlan, "TopicName:", input.topicName, "GenerateTTS:", input.generateTts);
+  
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
 
@@ -266,7 +272,7 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
   }
   console.log(`[ExplainTopic Action] Determined final modelToUseForText for Genkit flow: ${modelToUseForText}`);
   
-  const enrichedInput = {
+  const enrichedInputForTextPrompt = {
     ...input,
     isProUser,
     isPremiumUser,
@@ -282,29 +288,51 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
   let audioDataUri: string | undefined = undefined;
   let ttsErrorMessage: string | undefined = undefined;
 
+  const textGenStartTime = Date.now();
   try {
     console.log("[ExplainTopic Action] Calling topicExplainerFlow with model:", modelToUseForText);
-    flowOutput = await topicExplainerFlow(enrichedInput, modelToUseForText);
+    flowOutput = await topicExplainerFlow(enrichedInputForTextPrompt, modelToUseForText);
     console.log("[ExplainTopic Action] topicExplainerFlow returned. Output (partial):", flowOutput.explanationTitle, flowOutput.explanation?.substring(0,50));
 
-    if (input.generateTts && flowOutput.explanation && flowOutput.explanation.trim().length > 10) {
-      console.log("[ExplainTopic Action] TTS generation requested and conditions met. Synthesizing speech...");
-      const ttsResult = await synthesizeSpeechWithGoogleGenAI(flowOutput.explanation, input.teacherPersona);
-      if (typeof ttsResult === 'string') {
-          audioDataUri = ttsResult;
-          console.log("[ExplainTopic Action] TTS successfully generated. AudioDataUri (first 50 chars):", audioDataUri.substring(0,50) + "...");
-      } else if (ttsResult && typeof ttsResult.error === 'string') {
-          ttsErrorMessage = ttsResult.error;
-          console.error("[ExplainTopic Action] TTS generation failed with error:", ttsErrorMessage);
-      } else {
-          ttsErrorMessage = "Sesli anlatım oluşturulamadı (bilinmeyen TTS dönüş hatası).";
-          console.error("[ExplainTopic Action] TTS generation failed with unknown error structure:", ttsResult);
-      }
-    } else if (input.generateTts) {
-      ttsErrorMessage = "Sesli anlatım için yeterli metin yok veya istenmedi (metin çok kısa veya boş).";
-      console.warn("[ExplainTopic Action] TTS requested but explanation was too short or missing.");
-    }
+    if (input.generateTts && flowOutput.explanation && !flowOutput.explanation.startsWith("AI modeli") && !flowOutput.explanation.startsWith("Konu anlatımı oluşturulurken") && flowOutput.explanation.trim().length > 10) {
+      console.log("[ExplainTopic Action] TTS generation requested. Text length:", flowOutput.explanation.length);
+      const ttsStartTime = Date.now();
+      try {
+          const ttsResult = await Promise.race([
+              synthesizeSpeechWithGoogleGenAI(flowOutput.explanation, input.teacherPersona),
+              new Promise((_, reject) => setTimeout(() => reject(new Error("TTS_TIMEOUT")), 45000)) // 45-second timeout for TTS
+          ]);
 
+          if (ttsResult && typeof ttsResult === 'object' && 'error' in ttsResult) {
+              ttsErrorMessage = (ttsResult as { error: string }).error;
+              console.error("[ExplainTopic Action] TTS generation failed with specific error:", ttsErrorMessage);
+          } else if (typeof ttsResult === 'string') {
+              audioDataUri = ttsResult;
+              console.log("[ExplainTopic Action] TTS successfully generated.");
+          } else {
+              ttsErrorMessage = "Sesli anlatım oluşturulamadı (bilinmeyen TTS dönüş tipi veya zaman aşımı sonrası tanımsız sonuç).";
+              console.warn("[ExplainTopic Action] TTS generation returned unexpected type:", ttsResult);
+          }
+      } catch (error: any) {
+          if (error.message === "TTS_TIMEOUT") {
+              ttsErrorMessage = "Sesli anlatım oluşturma işlemi zaman aşımına uğradı (45 saniye). Lütfen daha kısa bir metinle veya daha sonra tekrar deneyin.";
+              console.error("[ExplainTopic Action] TTS generation timed out.");
+          } else {
+              ttsErrorMessage = `Sesli anlatım oluşturulurken bir hata oluştu: ${error.message}`;
+              console.error("[ExplainTopic Action] TTS generation failed:", error);
+          }
+      }
+      const ttsEndTime = Date.now();
+      console.log(`[ExplainTopic Action] TTS processing took ${ttsEndTime - ttsStartTime}ms`);
+    } else if (input.generateTts) {
+      if (!flowOutput.explanation || flowOutput.explanation.trim().length <= 10) {
+        ttsErrorMessage = "Sesli anlatım için yeterli metin yok (metin çok kısa veya boş).";
+        console.warn("[ExplainTopic Action] TTS requested but explanation was too short or missing.");
+      } else if (flowOutput.explanation.startsWith("AI modeli") || flowOutput.explanation.startsWith("Konu anlatımı oluşturulurken")){
+         ttsErrorMessage = "Metin anlatımı sırasında bir hata oluştuğu için sesli anlatım oluşturulmadı.";
+         console.warn("[ExplainTopic Action] TTS not attempted due to error in text generation.");
+      }
+    }
 
     if (!flowOutput || typeof flowOutput.explanation !== 'string' || flowOutput.explanation.trim().length === 0) {
        console.error("[ExplainTopic Action] Flow output is invalid or explanation is empty. FlowOutput:", flowOutput);
@@ -336,6 +364,9 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
         explanation: errorMessage,
         ttsError: input.generateTts ? "Sesli anlatım oluşturulamadı (ana işlemde kritik hata)." : undefined,
     };
+  } finally {
+    const textGenEndTime = Date.now();
+    console.log(`[ExplainTopic Action] Total text generation part (topicExplainerFlow call) took ${textGenEndTime - textGenStartTime}ms`);
   }
 }
 
@@ -429,6 +460,7 @@ const topicExplainerFlow = ai.defineFlow(
     let finalModelToUse = modelToUseForTextParam;
     console.log(`[Topic Explainer Flow - Initial Check] Received modelToUseForTextParam: '${finalModelToUse}' from explainTopic action. Enriched Input - Plan: ${enrichedInputFromAction.userPlan}, Custom Model ID (from input): ${enrichedInputFromAction.customModelIdentifier}`);
 
+    // Defensive check for modelToUseForTextParam right at the beginning of the flow
     if (!finalModelToUse || typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
         console.warn(`[Topic Explainer Flow] Invalid or unexpected modelToUseForTextParam ('${finalModelToUse}') received. Defaulting based on plan.`);
         if (enrichedInputFromAction.isProUser || enrichedInputFromAction.isPremiumUser) {
