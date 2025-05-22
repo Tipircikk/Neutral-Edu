@@ -1,7 +1,7 @@
 
-import { doc, setDoc, getDoc, updateDoc, serverTimestamp, Timestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, updateDoc, serverTimestamp, Timestamp, collection, where, query, writeBatch, getDocs } from "firebase/firestore";
 import { db } from "./config";
-import type { UserProfile } from "@/types";
+import type { UserProfile, CouponCode } from "@/types";
 
 const FREE_PLAN_DAILY_QUOTA = 2;
 const PREMIUM_PLAN_DAILY_QUOTA = 10;
@@ -33,22 +33,19 @@ export const getUserProfile = async (uid:string): Promise<UserProfile | null> =>
   if (docSnap.exists()) {
     const data = docSnap.data() as UserProfile;
     
-    // Ensure lastSummaryDate is a Firestore Timestamp or null
     if (data.lastSummaryDate && !(data.lastSummaryDate instanceof Timestamp) && typeof data.lastSummaryDate === 'object' && 'seconds' in data.lastSummaryDate && 'nanoseconds' in data.lastSummaryDate) {
         data.lastSummaryDate = new Timestamp((data.lastSummaryDate as any).seconds, (data.lastSummaryDate as any).nanoseconds);
     } else if (typeof data.lastSummaryDate === 'string') {
-        // Attempt to parse if it's a string (though ideally it should be Timestamp from Firestore)
         const parsedDate = new Date(data.lastSummaryDate);
         if (!isNaN(parsedDate.getTime())) {
             data.lastSummaryDate = Timestamp.fromDate(parsedDate);
         } else {
-            data.lastSummaryDate = null; // Invalid string date
+            data.lastSummaryDate = null; 
         }
     } else if (!(data.lastSummaryDate instanceof Timestamp) && data.lastSummaryDate !== null) {
-        data.lastSummaryDate = null; // Non-timestamp, non-null, non-object with seconds/nanos: treat as invalid
+        data.lastSummaryDate = null; 
     }
 
-    // Ensure planExpiryDate is a Firestore Timestamp or null
     if (data.planExpiryDate && !(data.planExpiryDate instanceof Timestamp) && typeof data.planExpiryDate === 'object' && 'seconds' in data.planExpiryDate && 'nanoseconds' in data.planExpiryDate) {
       data.planExpiryDate = new Timestamp((data.planExpiryDate as any).seconds, (data.planExpiryDate as any).nanoseconds);
     } else if (typeof data.planExpiryDate === 'string') {
@@ -62,10 +59,9 @@ export const getUserProfile = async (uid:string): Promise<UserProfile | null> =>
         data.planExpiryDate = null;
     }
     
-    // Validate plan type, default to 'free' if invalid
     if (!['free', 'premium', 'pro'].includes(data.plan)) {
       data.plan = 'free';
-      data.dailyRemainingQuota = getDefaultQuota('free'); // Reset quota for safety
+      data.dailyRemainingQuota = getDefaultQuota('free'); 
     }
     return data;
   }
@@ -76,7 +72,6 @@ export const getUserProfile = async (uid:string): Promise<UserProfile | null> =>
 export const updateUserProfile = async (uid: string, data: Partial<UserProfile>): Promise<void> => {
   const userRef = doc(db, "users", uid);
   const dataToUpdate = { ...data };
-  // Ensure dates are Timestamps before updating
   if (dataToUpdate.lastSummaryDate && dataToUpdate.lastSummaryDate instanceof Date) {
     dataToUpdate.lastSummaryDate = Timestamp.fromDate(dataToUpdate.lastSummaryDate);
   }
@@ -97,5 +92,125 @@ export const getDefaultQuota = (plan: UserProfile["plan"]): number => {
     default:
       console.warn(`Unknown plan type: ${plan}, defaulting to free quota.`);
       return FREE_PLAN_DAILY_QUOTA;
+  }
+};
+
+export const redeemCouponCodeInternal = async (uid: string, couponCodeId: string): Promise<{ success: boolean; message: string; newPlan?: UserProfile["plan"]}> => {
+  const couponRef = doc(db, "coupons", couponCodeId);
+  const userRef = doc(db, "users", uid);
+
+  const batch = writeBatch(db);
+
+  try {
+    const couponSnap = await getDoc(couponRef);
+    if (!couponSnap.exists()) {
+      return { success: false, message: "Geçersiz kupon kodu." };
+    }
+
+    const couponData = couponSnap.data() as CouponCode;
+
+    if (!couponData.isActive) {
+      return { success: false, message: "Bu kupon artık aktif değil." };
+    }
+
+    if (couponData.timesUsed >= couponData.usageLimit) {
+      // Double check, should be caught by isActive but good for race conditions if isActive is updated later
+      batch.update(couponRef, { isActive: false }); // Ensure it's deactivated
+      await batch.commit();
+      return { success: false, message: "Bu kupon kullanım limitine ulaştı." };
+    }
+    
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) {
+        return { success: false, message: "Kullanıcı bulunamadı." };
+    }
+    const userProfile = userSnap.data() as UserProfile;
+
+    // Plan hierarchy: pro > premium > free
+    const planHierarchy: Record<UserProfile["plan"], number> = { pro: 2, premium: 1, free: 0 };
+    if (planHierarchy[userProfile.plan] > planHierarchy[couponData.planApplied]) {
+        return { success: false, message: `Mevcut planınız (${userProfile.plan}) zaten bu kuponun verdiği plandan (${couponData.planApplied}) daha üstün.`};
+    }
+    if (userProfile.plan === couponData.planApplied && userProfile.plan === 'pro' && !userProfile.planExpiryDate) {
+        return { success: false, message: "Zaten süresiz Pro üyesisiniz. Bu kupon size ek bir avantaj sağlamaz." };
+    }
+     if (userProfile.plan === couponData.planApplied && userProfile.plan === 'premium' && !userProfile.planExpiryDate) {
+        return { success: false, message: "Zaten süresiz Premium üyesisiniz. Bu kupon size ek bir avantaj sağlamaz." };
+    }
+
+
+    let newExpiryDate: Timestamp;
+    const now = new Date();
+    let currentExpiry = userProfile.planExpiryDate instanceof Timestamp ? userProfile.planExpiryDate.toDate() : null;
+
+    if (userProfile.plan === couponData.planApplied && currentExpiry && currentExpiry > now) {
+      // Same plan, extend current expiry
+      newExpiryDate = Timestamp.fromDate(new Date(currentExpiry.getTime() + couponData.durationDays * 24 * 60 * 60 * 1000));
+    } else {
+      // New plan or expired/free plan, start from now
+      newExpiryDate = Timestamp.fromDate(new Date(now.getTime() + couponData.durationDays * 24 * 60 * 60 * 1000));
+    }
+    
+    const newQuota = getDefaultQuota(couponData.planApplied);
+
+    batch.update(userRef, {
+      plan: couponData.planApplied,
+      planExpiryDate: newExpiryDate,
+      dailyRemainingQuota: newQuota, // Reset quota to new plan's default
+      lastSummaryDate: serverTimestamp(), // Reset last summary date to start new quota cycle
+      updatedAt: serverTimestamp(),
+    });
+
+    const newTimesUsed = couponData.timesUsed + 1;
+    const newIsActive = newTimesUsed < couponData.usageLimit;
+    batch.update(couponRef, {
+      timesUsed: newTimesUsed,
+      isActive: newIsActive,
+      updatedAt: serverTimestamp(),
+      // Potentially add who redeemed it, if needed later:
+      // redeemedBy: arrayUnion({ userId: uid, redeemedAt: serverTimestamp() }) 
+    });
+
+    await batch.commit();
+    return { success: true, message: `${couponData.durationDays} günlük ${couponData.planApplied} planı başarıyla eklendi!`, newPlan: couponData.planApplied };
+
+  } catch (error: any) {
+    console.error("Error redeeming coupon code:", error);
+    return { success: false, message: error.message || "Kupon kullanılırken bir hata oluştu." };
+  }
+};
+
+
+export const createCouponCodeInFirestore = async (
+  couponData: Omit<CouponCode, 'id' | 'timesUsed' | 'createdAt' | 'updatedAt' | 'isActive'>,
+  couponCodeId: string,
+  adminUid: string,
+  adminEmail: string | null
+): Promise<{ success: boolean; message: string; couponId?: string }> => {
+  const couponRef = doc(db, "coupons", couponCodeId);
+
+  try {
+    const couponSnap = await getDoc(couponRef);
+    if (couponSnap.exists()) {
+      return { success: false, message: `"${couponCodeId}" kod adlı kupon zaten mevcut.` };
+    }
+
+    const newCoupon: CouponCode = {
+      id: couponCodeId,
+      ...couponData,
+      timesUsed: 0,
+      isActive: true,
+      createdByAdminId: adminUid,
+      createdByAdminEmail: adminEmail,
+      createdAt: serverTimestamp() as Timestamp,
+      updatedAt: serverTimestamp() as Timestamp,
+    };
+
+    await setDoc(couponRef, newCoupon);
+    return { success: true, message: `Kupon "${couponCodeId}" başarıyla oluşturuldu.`, couponId: couponCodeId };
+
+  } catch (error: any) {
+    console.error("Error creating coupon code in Firestore:", error);
+    return { success: false, message: error.message || "Kupon oluşturulurken bir Firestore hatası oluştu." };
   }
 };

@@ -5,7 +5,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/hooks/useUser";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ShieldAlert, Users, BarChart3, Settings, Inbox, Edit3, DollarSign, MessageSquareWarning, CalendarClock } from "lucide-react";
+import { Loader2, ShieldAlert, Users, BarChart3, Settings, Inbox, Edit3, DollarSign, MessageSquareWarning, CalendarClock, TicketPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import type { UserProfile, SupportTicket, PricingConfig, ExamDatesConfig } from "@/types";
+import type { UserProfile, SupportTicket, PricingConfig, ExamDatesConfig, CouponCode } from "@/types";
 import { db } from "@/lib/firebase/config";
 import { collection, getDocs, query, orderBy, Timestamp as FirestoreTimestamp, doc, updateDoc, setDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
@@ -27,6 +27,33 @@ import { tr } from 'date-fns/locale';
 import EditUserDialog from "@/components/admin/EditUserDialog";
 import ReplyTicketDialog from "@/components/admin/ReplyTicketDialog";
 import { useToast } from "@/hooks/use-toast";
+import { useForm, Controller, type SubmitHandler } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { createCouponAction, type CouponCreationFormData } from "@/app/actions/couponActions";
+
+
+const CreateCouponSchema = z.object({
+  couponCodeId: z.string()
+    .min(5, { message: "Kupon kodu en az 5 karakter olmalıdır." })
+    .max(50, { message: "Kupon kodu en fazla 50 karakter olabilir." })
+    .regex(/^[a-zA-Z0-9_-]+$/, { message: "Kupon kodu sadece harf, rakam, tire (-) ve alt çizgi (_) içerebilir." }),
+  planApplied: z.enum(["premium", "pro"], {
+    required_error: "Uygulanacak plan seçimi zorunludur.",
+    invalid_type_error: "Geçerli bir plan seçin."
+  }),
+  durationDays: z.coerce.number()
+    .int({ message: "Süre tam sayı olmalıdır." })
+    .positive({ message: "Süre pozitif olmalıdır." })
+    .min(1, { message: "Geçerlilik süresi en az 1 gün olmalıdır." }),
+  usageLimit: z.coerce.number()
+    .int({ message: "Kullanım limiti tam sayı olmalıdır." })
+    .positive({ message: "Kullanım limiti pozitif olmalıdır." })
+    .min(1, { message: "Kullanım limiti en az 1 olmalıdır." }),
+});
+type CreateCouponFormValues = z.infer<typeof CreateCouponSchema>;
+
 
 export default function AdminPage() {
   const { userProfile: adminUserProfile, loading: adminLoading } = useUser();
@@ -52,6 +79,22 @@ export default function AdminPage() {
   const [tytDate, setTytDate] = useState("");
   const [aytDate, setAytDate] = useState("");
   const [isSavingExamDates, setIsSavingExamDates] = useState(false);
+
+  const [isCreatingCoupon, setIsCreatingCoupon] = useState(false);
+  const {
+    register: registerCoupon,
+    handleSubmit: handleSubmitCoupon,
+    control: controlCoupon,
+    reset: resetCouponForm,
+    formState: { errors: couponErrors }
+  } = useForm<CreateCouponFormValues>({
+    resolver: zodResolver(CreateCouponSchema),
+    defaultValues: {
+      planApplied: "premium",
+      durationDays: 30,
+      usageLimit: 1,
+    }
+  });
 
   useEffect(() => {
     if (!adminLoading && !adminUserProfile?.isAdmin) {
@@ -96,7 +139,7 @@ export default function AdminPage() {
     setTicketsLoading(true);
     try {
       const ticketsCollectionRef = collection(db, "supportTickets");
-      const ticketsQuery = query(ticketsCollectionRef, orderBy("lastMessageAt", "desc")); // Will re-sort later
+      const ticketsQuery = query(ticketsCollectionRef, orderBy("lastMessageAt", "desc")); 
       const querySnapshot = await getDocs(ticketsQuery);
       
       const ticketsListPromises = querySnapshot.docs.map(async (docSnapshot) => {
@@ -193,11 +236,7 @@ export default function AdminPage() {
     }
   }, [adminUserProfile]);
 
-  const planOrder: Record<UserProfile['plan'], number> = {
-    pro: 0,
-    premium: 1,
-    free: 2,
-  };
+  const planOrder: Record<UserProfile['plan'], number> = { pro: 0, premium: 1, free: 2 };
 
   const sortedUsers = useMemo(() => {
     return [...allUsers].sort((a, b) => {
@@ -219,7 +258,7 @@ export default function AdminPage() {
         lastDate = user.lastSummaryDate.toDate();
     } else if (typeof user.lastSummaryDate === 'string') {
         lastDate = new Date(user.lastSummaryDate);
-        if (isNaN(lastDate.getTime())) return 0; // Invalid date string
+        if (isNaN(lastDate.getTime())) return 0; 
     } else {
         return 0;
     }
@@ -272,13 +311,12 @@ export default function AdminPage() {
      setSupportTickets(prevTickets =>
       prevTickets.map(t => (t.id === updatedTicketFromDialog.id ? { ...t, ...updatedTicketFromDialog } : t))
     );
-    // Re-fetch for full consistency and resorting, especially if status changed
     fetchSupportTickets(); 
   };
 
   const handleSavePrices = async () => {
     setIsSavingPrices(true);
-    const priceData: Partial<PricingConfig> = {}; // Use Partial for potentially sparse updates
+    const priceData: Partial<PricingConfig> = {}; 
     
     if (premiumPrice) priceData.premium = { ...(priceData.premium || {}), price: premiumPrice };
     if (premiumOriginalPrice) priceData.premium = { ...(priceData.premium || { price: premiumPrice }), originalPrice: premiumOriginalPrice };
@@ -339,6 +377,29 @@ export default function AdminPage() {
     }
   };
 
+  const handleCreateCoupon: SubmitHandler<CreateCouponFormValues> = async (data) => {
+    if (!adminUserProfile) {
+      toast({ title: "Yetkilendirme Hatası", description: "Kupon oluşturmak için admin olmalısınız.", variant: "destructive" });
+      return;
+    }
+    setIsCreatingCoupon(true);
+    try {
+      const result = await createCouponAction(data, adminUserProfile.uid, adminUserProfile.email);
+      if (result.success) {
+        toast({ title: "Kupon Oluşturuldu", description: result.message });
+        resetCouponForm({ couponCodeId: "", planApplied: "premium", durationDays: 30, usageLimit: 1 });
+        // Optionally, refresh a list of coupons here if displaying them
+      } else {
+        toast({ title: "Kupon Oluşturma Hatası", description: result.message, variant: "destructive" });
+      }
+    } catch (error: any) {
+      console.error("Error creating coupon (client):", error);
+      toast({ title: "Kupon Oluşturma Hatası", description: error.message || "Beklenmedik bir hata oluştu.", variant: "destructive" });
+    } finally {
+      setIsCreatingCoupon(false);
+    }
+  };
+
 
   if (adminLoading || (adminUserProfile?.isAdmin && (usersLoading || ticketsLoading))) {
     return (
@@ -368,6 +429,58 @@ export default function AdminPage() {
           Kullanıcıları, destek taleplerini ve uygulama ayarlarını yönetin.
         </p>
       </div>
+
+       <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><TicketPlus className="h-6 w-6" /> Kupon Kodu Yönetimi</CardTitle>
+          <CardDescription>Yeni kupon kodları oluşturun.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmitCoupon(handleCreateCoupon)} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="couponCodeId">Kupon Kodu</Label>
+                <Input id="couponCodeId" {...registerCoupon("couponCodeId")} placeholder="örn: PRO30GUN" disabled={isCreatingCoupon} />
+                {couponErrors.couponCodeId && <p className="text-sm text-destructive mt-1">{couponErrors.couponCodeId.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="planApplied">Uygulanacak Plan</Label>
+                <Controller
+                  name="planApplied"
+                  control={controlCoupon}
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value} disabled={isCreatingCoupon}>
+                      <SelectTrigger id="planApplied">
+                        <SelectValue placeholder="Plan seçin" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="premium">Premium</SelectItem>
+                        <SelectItem value="pro">Pro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {couponErrors.planApplied && <p className="text-sm text-destructive mt-1">{couponErrors.planApplied.message}</p>}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="durationDays">Geçerlilik Süresi (Gün)</Label>
+                <Input id="durationDays" type="number" {...registerCoupon("durationDays")} placeholder="örn: 30" disabled={isCreatingCoupon} />
+                {couponErrors.durationDays && <p className="text-sm text-destructive mt-1">{couponErrors.durationDays.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="usageLimit">Kullanım Limiti (Kişi Sayısı)</Label>
+                <Input id="usageLimit" type="number" {...registerCoupon("usageLimit")} placeholder="örn: 1" disabled={isCreatingCoupon} />
+                {couponErrors.usageLimit && <p className="text-sm text-destructive mt-1">{couponErrors.usageLimit.message}</p>}
+              </div>
+            </div>
+            <Button type="submit" disabled={isCreatingCoupon}>
+              {isCreatingCoupon ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Kupon Oluştur"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -604,7 +717,6 @@ export default function AdminPage() {
           </Button>
         </CardContent>
       </Card>
-
 
       <Card>
         <CardHeader>
