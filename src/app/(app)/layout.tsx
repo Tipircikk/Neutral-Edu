@@ -32,7 +32,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Brain, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation, Timer, CalendarClock, ListChecks, Palette } from "lucide-react"; // Removed Youtube
+import { Brain, Home, Wand2, FileScan, HelpCircle, FileTextIcon, Lightbulb, ShieldCheck, LogOut, Gem, Loader2, ChevronDown, ChevronUp, LifeBuoy, LayoutGrid, ClipboardCheck, CreditCard, Bell, CalendarDays, Presentation, Timer, CalendarClock, ListChecks, Palette, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import QuotaDisplay from "@/components/dashboard/QuotaDisplay";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
@@ -48,6 +48,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [isAiToolsSubmenuOpen, setIsAiToolsSubmenuOpen] = useState(false);
   const [isHelperToolsSubmenuOpen, setIsHelperToolsSubmenuOpen] = useState(false);
+  const [isAdminSubmenuOpen, setIsAdminSubmenuOpen] = useState(false);
 
   const aiToolPaths = [
     "/dashboard/ai-tools",
@@ -55,7 +56,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     "/dashboard/ai-tools/topic-summarizer",
     "/dashboard/ai-tools/topic-explainer",
     "/dashboard/ai-tools/flashcard-generator",
-    // "/dashboard/ai-tools/video-summarizer", // Kaldırıldı
     "/dashboard/ai-tools/question-solver",
     "/dashboard/ai-tools/test-generator",
     "/dashboard/ai-tools/exam-report-analyzer",
@@ -68,6 +68,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     "/dashboard/tools/countdown",
     "/dashboard/tools/goal-tracker",
   ];
+  
+  const adminPaths = [
+    "/dashboard/admin",
+    "/dashboard/admin/support-tickets",
+  ];
+
 
   useEffect(() => {
     let aiToolsActive = false;
@@ -87,6 +93,16 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       }
     }
     setIsHelperToolsSubmenuOpen(helperToolsActive);
+
+    let adminToolsActive = false;
+    for (const path of adminPaths) {
+        if(pathname.startsWith(path)) {
+            adminToolsActive = true;
+            break;
+        }
+    }
+    setIsAdminSubmenuOpen(adminToolsActive);
+
 
   }, [pathname]);
 
@@ -114,7 +130,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const isHelperToolsPathActive = helperToolPaths.some(path => pathname.startsWith(path));
   const isSupportPath = pathname === "/dashboard/support";
   const isSubscriptionPath = pathname === "/dashboard/subscription";
-  const isAdminPath = pathname.startsWith("/dashboard/admin");
+  const isAdminPathActive = adminPaths.some(path => pathname.startsWith(path));
 
   return (
     <SidebarProvider defaultOpen>
@@ -169,11 +185,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                         <Link href="/dashboard/ai-tools/flashcard-generator"><LayoutGrid /><span>AI Bilgi Kartları</span></Link>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
-                    {/* <SidebarMenuSubItem> // AI Video Özetleyici kaldırıldı
-                      <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/video-summarizer"} className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
-                        <Link href="/dashboard/ai-tools/video-summarizer"><Youtube /><span>AI Video Özetleyici</span></Link>
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem> */}
                     <SidebarMenuSubItem>
                       <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/ai-tools/question-solver"} className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
                         <Link href="/dashboard/ai-tools/question-solver"><HelpCircle /><span>AI Soru Çözücü</span></Link>
@@ -244,9 +255,30 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
               {userProfile?.isAdmin && (
                 <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={isAdminPath} tooltip="Admin Paneli" className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
-                    <Link href="/dashboard/admin"><ShieldCheck /><span>Admin Paneli</span></Link>
+                  <SidebarMenuButton
+                    className="justify-between hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
+                    isActive={isAdminPathActive}
+                    onClick={() => setIsAdminSubmenuOpen(!isAdminSubmenuOpen)}
+                    data-state={isAdminSubmenuOpen ? "open" : "closed"}
+                    tooltip="Admin Paneli"
+                  >
+                    <div className="flex items-center gap-2"><ShieldCheck /><span>Admin Paneli</span></div>
+                    {isAdminSubmenuOpen ? <ChevronUp className="size-4 group-data-[state=collapsed]:hidden" /> : <ChevronDown className="size-4 group-data-[state=collapsed]:hidden" />}
                   </SidebarMenuButton>
+                  {isAdminSubmenuOpen && (
+                    <SidebarMenuSub>
+                       <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/admin"} className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
+                            <Link href="/dashboard/admin"><Settings /><span>Genel Ayarlar</span></Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={pathname === "/dashboard/admin/support-tickets"} className="hover:bg-sidebar-accent data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground">
+                            <Link href="/dashboard/admin/support-tickets"><MessageSquare /><span>Destek Talepleri</span></Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    </SidebarMenuSub>
+                  )}
                 </SidebarMenuItem>
               )}
             </SidebarMenu>
