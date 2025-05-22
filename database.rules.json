@@ -1,10 +1,11 @@
-{
-  "rules_version": "2",
-  "service": "cloud.firestore",
-  "match": "/databases/{database}/documents" {
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
 
     // Users can manage their own profile. Admins can manage any profile.
-    match "/users/{userId}" {
+    match /users/{userId} {
       allow read: if request.auth != null; // Any authenticated user can read any user profile for now, adjust if needed
       allow create: if request.auth.uid == userId; // User can create their own profile
       allow update: if request.auth.uid == userId || (request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true); // User can update their own, admin can update any
@@ -12,7 +13,7 @@
     }
 
     // Support Tickets: User can manage their own, Admin can manage all.
-    match "/supportTickets/{ticketId}" {
+    match /supportTickets/{ticketId} {
       allow read: if request.auth != null && (request.auth.uid == resource.data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
       allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true; // Only admins can list all tickets for the admin panel
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid; // User can create their own ticket
@@ -20,7 +21,7 @@
       allow delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true; // Only admins can delete tickets
 
       // Messages subcollection for Support Tickets
-      match "/messages/{messageId}" {
+      match /messages/{messageId} {
         allow read: if request.auth != null && (request.auth.uid == get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
         allow list: if request.auth != null && (request.auth.uid == get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
         allow create: if request.auth != null && 
@@ -31,26 +32,26 @@
     }
 
     // Pricing Configuration: Everyone can read, only admins can write.
-    match "/pricingConfig/currentPrices" {
+    match /pricingConfig/currentPrices {
       allow get: if true; 
       allow list: if false; 
       allow create, update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
     // App Configuration (like Exam Dates): Everyone can read, only admins can write.
-    match "/appConfig/examDates" {
+    match /appConfig/examDates {
       allow get: if true;
       allow list: if false; 
       allow create, update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
     
     // Coupon Codes: Only admins can read/write/list. Users interact via server-side actions.
-    match "/coupons/{couponId}" {
+    match /coupons/{couponId} {
       allow read, list, create, update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
     // Default deny all other paths if not explicitly allowed
-    match "/{document=**}" {
+    match /{document=**} {
       allow read, write: if false;
     }
   }

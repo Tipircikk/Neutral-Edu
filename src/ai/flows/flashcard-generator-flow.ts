@@ -34,45 +34,43 @@ const GenerateFlashcardsOutputSchema = z.object({
 export type GenerateFlashcardsOutput = z.infer<typeof GenerateFlashcardsOutputSchema>;
 
 export async function generateFlashcards(input: GenerateFlashcardsInput): Promise<GenerateFlashcardsOutput> {
+  console.log(`[Flashcard Generator Action] Received input. customModelIdentifier: ${input.customModelIdentifier}, userPlan: ${input.userPlan}`);
+
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
-  const isCustomModelSelected = !!input.customModelIdentifier;
-
+  
   let modelToUse = '';
-  if (input.customModelIdentifier) {
-    switch (input.customModelIdentifier) {
-      case 'default_gemini_flash':
-        modelToUse = 'googleai/gemini-2.0-flash';
-        break;
-      case 'experimental_gemini_1_5_flash':
-        modelToUse = 'googleai/gemini-1.5-flash-latest';
-        break;
-      case 'experimental_gemini_2_5_flash_preview_05_20':
-        modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-        break;
-      default:
-        console.warn(`[Flashcard Generator Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting based on plan.`);
-        if (isProUser || isPremiumUser) {
-          modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-        } else { 
-          modelToUse = 'googleai/gemini-2.0-flash';
-        }
-        break;
-    }
-  } else { 
+  if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.startsWith('googleai/')) {
+      modelToUse = input.customModelIdentifier;
+      console.log(`[Flashcard Generator Action] Admin selected model: ${modelToUse}`);
+  } else if (input.customModelIdentifier) { // Admin selected a model ID but it's not a valid Genkit one or is unexpected
+    console.warn(`[Flashcard Generator Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to plan-based default.`);
     if (isProUser || isPremiumUser) {
       modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-    } else { 
+    } else {
+      modelToUse = 'googleai/gemini-2.0-flash';
+    }
+  } else { // No custom model ID specified by admin, or it was empty
+    if (isProUser || isPremiumUser) {
+      modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+    } else {
       modelToUse = 'googleai/gemini-2.0-flash';
     }
   }
+  
+  if (!modelToUse || !modelToUse.startsWith('googleai/')) { // Final fallback
+      console.error(`[Flashcard Generator Action] CRITICAL FALLBACK: modelToUse became invalid ('${modelToUse}'). Forcing to default gemini-2.0-flash.`);
+      modelToUse = 'googleai/gemini-2.0-flash';
+  }
+  console.log(`[Flashcard Generator Action] Final model determined: ${modelToUse}`);
+
   const isGemini25PreviewSelected = modelToUse === 'googleai/gemini-2.5-flash-preview-05-20';
 
   const enrichedInput = {
     ...input,
     isProUser,
     isPremiumUser,
-    isCustomModelSelected,
+    isCustomModelSelected: !!input.customModelIdentifier,
     isGemini25PreviewSelected,
   };
   return flashcardGeneratorFlow(enrichedInput, modelToUse);
@@ -91,7 +89,7 @@ const prompt = ai.definePrompt({
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
-(Pro Kullanıcı Notu: Bu Pro seviyesindeki gelişmiş özellik, üyeliğinizin bir avantajıdır. Bilgi kartlarını konunun derin ve karmaşık noktalarını sorgulayacak şekilde, analitik düşünmeyi teşvik edici biçimde tasarla. Gerekirse, kartların arka yüzüne ek olarak, bilginin YKS'deki önemi veya sık yapılan hatalar gibi kısa notlar ekleyebilirsin.)
+(Pro Kullanıcı Notu: Bu Pro seviyesindeki gelişmiş özellik, üyeliğinizin özel bir avantajıdır. Bilgi kartlarını konunun derin ve karmaşık noktalarını sorgulayacak şekilde, analitik düşünmeyi teşvik edici biçimde tasarla. Gerekirse, kartların arka yüzüne ek olarak, bilginin YKS'deki önemi veya sık yapılan hatalar gibi kısa notlar ekleyebilirsin.)
 {{else if isPremiumUser}}
 (Premium Kullanıcı Notu: Kartlara ek ipuçları veya bağlantılı kavramlar ekleyerek içeriği zenginleştir. Arka yüzdeki açıklamaları biraz daha detaylandır.)
 {{else}}
@@ -146,15 +144,26 @@ const flashcardGeneratorFlow = ai.defineFlow(
     }),
     outputSchema: GenerateFlashcardsOutputSchema,
   },
-  async (enrichedInput: z.infer<typeof GenerateFlashcardsInputSchema> & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean}, modelToUse: string ): Promise<GenerateFlashcardsOutput> => {
+  async (enrichedInput: z.infer<typeof GenerateFlashcardsInputSchema> & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean}, modelToUseParam: string ): Promise<GenerateFlashcardsOutput> => {
     
-    let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
+    let finalModelToUse = modelToUseParam;
+    if (!finalModelToUse || !finalModelToUse.startsWith('googleai/')) {
+        console.warn(`[Flashcard Generator Flow] Invalid modelToUseParam ('${finalModelToUse}') received in flow. Defaulting based on plan.`);
+        if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
+            finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+        } else {
+            finalModelToUse = 'googleai/gemini-2.0-flash';
+        }
+        console.log(`[Flashcard Generator Flow] Corrected/Defaulted model INSIDE FLOW to: ${finalModelToUse}`);
+    }
+    
+    let callOptions: { model: string; config?: Record<string, any> } = { model: finalModelToUse };
 
     let maxTokensForOutput = (enrichedInput.numFlashcards || 5) * 200;
     if (maxTokensForOutput > 8000) maxTokensForOutput = 8000;
     if (maxTokensForOutput < 1024) maxTokensForOutput = 1024;
 
-    if (modelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
+    if (finalModelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
         callOptions.config = {};
     } else {
       callOptions.config = {
@@ -164,21 +173,24 @@ const flashcardGeneratorFlow = ai.defineFlow(
       };
     }
 
-    console.log(`[Flashcard Generator Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}`);
+    console.log(`[Flashcard Generator Flow] Using Genkit model: ${finalModelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}, with config: ${JSON.stringify(callOptions.config)}`);
 
     try {
         const {output} = await prompt(enrichedInput, callOptions);
         if (!output || !output.flashcards || output.flashcards.length === 0) {
-        throw new Error("AI YKS Bilgi Kartı Uzmanı, belirtilen metin için bilgi kartı oluşturamadı. Lütfen metni ve ayarları kontrol edin.");
+          console.error(`[Flashcard Generator Flow] AI did not produce valid flashcards. Model: ${finalModelToUse}. Input text length: ${enrichedInput.textContent.length}. Num cards: ${enrichedInput.numFlashcards}. Output:`, JSON.stringify(output).substring(0,300));
+          throw new Error(`AI YKS Bilgi Kartı Uzmanı (${finalModelToUse}), belirtilen metin için bilgi kartı oluşturamadı. Lütfen metni ve ayarları kontrol edin.`);
         }
         return output;
     } catch (error: any) {
-        console.error(`[Flashcard Generator Flow] Error during generation with model ${modelToUse}:`, error);
-        let errorMessage = `AI modeli (${modelToUse}) ile bilgi kartı oluşturulurken bir hata oluştu.`;
+        console.error(`[Flashcard Generator Flow] Error during generation with model ${finalModelToUse}:`, error);
+        let errorMessage = `AI modeli (${finalModelToUse}) ile bilgi kartı oluşturulurken bir hata oluştu.`;
         if (error.message) {
             errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
             if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
-              errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
+              errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${finalModelToUse}. Detay: ${error.message.substring(0, 150)}`;
+            } else if (error.name === 'GenkitError' && error.message.includes('Schema validation failed')) {
+              errorMessage = `AI modeli (${finalModelToUse}) beklenen yanıta uymayan bir çıktı üretti. Detay: ${error.message.substring(0,250)}`;
             }
         }
 
