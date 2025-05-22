@@ -89,7 +89,7 @@ Görevin, {{{inputText}}} girdisini (bu bir YKS konu başlığı veya metin olab
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
-(Pro Kullanıcı Notu: Pro üyeliğinizin bir parçası olarak, {{{inputText}}} konusunu/metnini en ince ayrıntılarına kadar analiz et. Konunun felsefi temellerine, tarihsel gelişimine ve YKS dışındaki akademik dünyadaki yerine dahi değin. Anahtar kavramları ve YKS bağlantılarını en kapsamlı şekilde sun. Özetin, konuyu derinlemesine anlamayı sağlayacak zenginlikte olsun.)
+(Pro Kullanıcı Notu: Bu Pro seviyesindeki derinlemesine analiz ve özetleme, üyeliğinizin özel bir avantajıdır. {{{inputText}}} konusunu/metnini en ince ayrıntılarına kadar analiz et. Konunun felsefi temellerine, tarihsel gelişimine ve YKS dışındaki akademik dünyadaki yerine dahi değin. Anahtar kavramları ve YKS bağlantılarını en kapsamlı şekilde sun. Özetin, konuyu derinlemesine anlamayı sağlayacak zenginlikte olsun.)
 {{else if isPremiumUser}}
 (Premium Kullanıcı Notu: Özetlerin derinliğini artır, daha fazla bağlantı kur ve konuyu daha geniş bir perspektiften ele al. Anahtar kavramları ve YKS bağlantılarını detaylı bir şekilde açıkla.)
 {{else}}
@@ -170,8 +170,3 @@ const topicSummarizerFlow = ai.defineFlow(
     }
   }
 );
-    
-
-    
-
-    

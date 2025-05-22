@@ -1,16 +1,15 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback, Fragment, useRef } from "react";
+import React, { useState, useEffect, useCallback, Fragment } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Presentation, Wand2, Loader2, AlertTriangle, Download, Settings } from "lucide-react"; // Speaker kaldırıldı
+import { Presentation, Wand2, Loader2, AlertTriangle, Download, Settings } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input as ShadInput } from "@/components/ui/input"; 
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-// Switch kaldırıldı, çünkü TTS yok
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/useUser";
 import { explainTopic, type ExplainTopicOutput, type ExplainTopicInput } from "@/ai/flows/topic-explainer-flow";
@@ -25,7 +24,6 @@ export default function TopicExplainerPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [adminSelectedModel, setAdminSelectedModel] = useState<string | undefined>(undefined);
-  // generateTtsSwitch, submittedGenerateTtsRequest, loadingSubMessage state'leri kaldırıldı
 
   const { toast } = useToast();
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
@@ -81,8 +79,8 @@ export default function TopicExplainerPage() {
     
     return elements.filter(el => el !== ""); 
   };
-
-  const formatExplanationForDisplay = (text: string | undefined | null): JSX.Element[] => {
+  
+  const renderTextWithFormatting = (text: string | undefined | null): JSX.Element[] => {
     if (!text) return [];
     const lines = text.split('\n'); 
     const elements: JSX.Element[] = [];
@@ -120,6 +118,7 @@ export default function TopicExplainerPage() {
     flushList();
     return elements;
   };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,7 +161,6 @@ export default function TopicExplainerPage() {
         customPersonaDescription: teacherPersona === "ozel" ? customPersonaDescription : undefined,
         userPlan: currentProfile.plan,
         customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
-        // generateTts: undefined, // TTS kaldırıldı
       };
       const result = await explainTopic(input);
 
@@ -263,7 +261,7 @@ export default function TopicExplainerPage() {
         });
       }
 
-      const renderArraySection = (title: string, items: string[] | undefined) => {
+      const renderArraySectionToPdf = (title: string, items: string[] | undefined) => {
         if (items && items.length > 0) {
           currentY += lineHeight;
           addWrappedText(title, { fontSize: headingFontSize, fontStyle: 'bold', y: currentY });
@@ -271,10 +269,10 @@ export default function TopicExplainerPage() {
         }
       };
 
-      renderArraySection("Anahtar Kavramlar:", explanationOutput.keyConcepts);
-      renderArraySection("Sık Yapılan Hatalar:", explanationOutput.commonMistakes);
-      renderArraySection("YKS İpuçları:", explanationOutput.yksTips);
-      renderArraySection("Aktif Hatırlama Soruları:", explanationOutput.activeRecallQuestions);
+      renderArraySectionToPdf("Anahtar Kavramlar:", explanationOutput.keyConcepts);
+      renderArraySectionToPdf("Sık Yapılan Hatalar:", explanationOutput.commonMistakes);
+      renderArraySectionToPdf("YKS İpuçları ve Stratejileri:", explanationOutput.yksTips);
+      renderArraySectionToPdf("Aktif Hatırlama Soruları:", explanationOutput.activeRecallQuestions);
       
       const safeFileName = (explanationOutput.explanationTitle || "konu_anlatimi").replace(/[^a-z0-9_]/gi, '_').toLowerCase();
       doc.save(`${safeFileName}.pdf`);
@@ -483,13 +481,17 @@ export default function TopicExplainerPage() {
           <CardContent className="space-y-6">
             <ScrollArea className="h-[600px] w-full rounded-md border p-4 bg-muted/30">
               <div className="prose prose-sm dark:prose-invert max-w-none leading-relaxed">
-                <h3 className="text-lg font-semibold mt-3 mb-1 text-foreground">Detaylı Konu Anlatımı:</h3>
-                {formatExplanationForDisplay(explanationOutput.explanation)}
+                {explanationOutput.explanation && (
+                  <>
+                    <h3 className="text-lg font-semibold mt-3 mb-1 text-foreground">Detaylı Konu Anlatımı:</h3>
+                    {renderTextWithFormatting(explanationOutput.explanation)}
+                  </>
+                )}
 
                 {explanationOutput.keyConcepts && explanationOutput.keyConcepts.length > 0 && (
                   <>
                     <h3 className="text-lg font-semibold mt-4 mb-1 text-foreground">Anahtar Kavramlar:</h3>
-                    <ul className="list-disc pl-5 text-muted-foreground">
+                    <ul className="list-disc pl-5 text-muted-foreground space-y-1">
                       {explanationOutput.keyConcepts.map((concept, index) => (
                         <li key={`kc-${index}`}>{parseInlineFormatting(concept)}</li>
                       ))}
@@ -500,7 +502,7 @@ export default function TopicExplainerPage() {
                 {explanationOutput.commonMistakes && explanationOutput.commonMistakes.length > 0 && (
                   <>
                     <h3 className="text-lg font-semibold mt-4 mb-1 text-foreground">Sık Yapılan Hatalar:</h3>
-                    <ul className="list-disc pl-5 text-muted-foreground">
+                    <ul className="list-disc pl-5 text-muted-foreground space-y-1">
                       {explanationOutput.commonMistakes.map((mistake, index) => (
                         <li key={`cm-${index}`}>{parseInlineFormatting(mistake)}</li>
                       ))}
@@ -510,8 +512,8 @@ export default function TopicExplainerPage() {
 
                 {explanationOutput.yksTips && explanationOutput.yksTips.length > 0 && (
                   <>
-                    <h3 className="text-lg font-semibold mt-4 mb-1 text-foreground">YKS İpuçları:</h3>
-                    <ul className="list-disc pl-5 text-muted-foreground">
+                    <h3 className="text-lg font-semibold mt-4 mb-1 text-foreground">YKS İpuçları ve Stratejileri:</h3>
+                    <ul className="list-disc pl-5 text-muted-foreground space-y-1">
                       {explanationOutput.yksTips.map((tip, index) => (
                         <li key={`yt-${index}`}>{parseInlineFormatting(tip)}</li>
                       ))}
@@ -539,8 +541,6 @@ export default function TopicExplainerPage() {
           </CardContent>
         </Card>
       )}
-
-      {/* TTS ile ilgili kart kaldırıldı */}
 
       {!isGenerating && !explanationOutput && !userProfileLoading && (userProfile || !userProfile) && (
          <Alert className="mt-6">

@@ -91,7 +91,7 @@ const prompt = ai.definePrompt({
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
-(Pro Kullanıcı Notu: Pro üyeliğinizle gelen bu gelişmiş özellikle, bilgi kartlarını konunun derin ve karmaşık noktalarını sorgulayacak şekilde, analitik düşünmeyi teşvik edici biçimde tasarla. Gerekirse, kartların arka yüzüne ek olarak, bilginin YKS'deki önemi veya sık yapılan hatalar gibi kısa notlar ekleyebilirsin.)
+(Pro Kullanıcı Notu: Bu Pro seviyesindeki gelişmiş özellik, üyeliğinizin bir avantajıdır. Bilgi kartlarını konunun derin ve karmaşık noktalarını sorgulayacak şekilde, analitik düşünmeyi teşvik edici biçimde tasarla. Gerekirse, kartların arka yüzüne ek olarak, bilginin YKS'deki önemi veya sık yapılan hatalar gibi kısa notlar ekleyebilirsin.)
 {{else if isPremiumUser}}
 (Premium Kullanıcı Notu: Kartlara ek ipuçları veya bağlantılı kavramlar ekleyerek içeriği zenginleştir. Arka yüzdeki açıklamaları biraz daha detaylandır.)
 {{else}}
@@ -189,8 +189,3 @@ const flashcardGeneratorFlow = ai.defineFlow(
     }
   }
 );
-    
-
-    
-
-    

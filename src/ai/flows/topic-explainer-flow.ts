@@ -8,7 +8,6 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import type { UserProfile } from '@/types';
-// @google/genai ve Buffer importları, TTS kaldırıldığı için silindi.
 
 const ExplainTopicInputSchema = z.object({
   topicName: z.string().min(3).describe('Açıklanması istenen YKS konu başlığı (örn: "Matematik - Türev ve Uygulamaları", "Edebiyat - Milli Edebiyat Dönemi").'),
@@ -17,19 +16,16 @@ const ExplainTopicInputSchema = z.object({
   customPersonaDescription: z.string().optional().describe("Eğer 'teacherPersona' olarak 'ozel' seçildiyse, kullanıcının istediği hoca kişiliğinin detaylı açıklaması."),
   userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
   customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi."),
-  // generateTts: z.boolean().optional(), // TTS kaldırıldı
 });
 export type ExplainTopicInput = z.infer<typeof ExplainTopicInputSchema>;
 
 const ExplainTopicOutputSchema = z.object({
   explanationTitle: z.string().describe("Oluşturulan konu anlatımı için bir başlık (örn: '{{{topicName}}} Detaylı Konu Anlatımı')."),
-  explanation: z.string().describe('Konunun, YKS öğrencisinin anlayışını en üst düzeye çıkaracak şekilde, AI tarafından oluşturulmuş, yapılandırılmış ve kapsamlı anlatımı. Anlatım, ana tanımları, temel ilkeleri, önemli alt başlıkları, örnekleri ve YKS\'de çıkabilecek bağlantıları içermelidir. Matematiksel ifadeler (örn: x^2, H_2O, √, π) metin içinde okunabilir şekilde belirtilmelidir.'),
-  keyConcepts: z.array(z.string()).optional().describe('Anlatımda vurgulanan ve YKS için hayati öneme sahip 3-5 anahtar kavram veya terim.'),
-  commonMistakes: z.array(z.string()).optional().describe("Öğrencilerin bu konuda sık yaptığı hatalar veya karıştırdığı noktalar."),
-  yksTips: z.array(z.string()).optional().describe("Bu konunun YKS'deki önemi, hangi soru tiplerinde çıktığı ve çalışırken nelere dikkat edilmesi gerektiği hakkında 2-3 stratejik ipucu."),
-  activeRecallQuestions: z.array(z.string()).optional().describe("Konuyu pekiştirmek ve öğrencinin aktif katılımını sağlamak için AI tarafından sorulan 2-3 çeşitli (kısa cevaplı, boşluk doldurma, doğru/yanlış vb.) ve doğrudan konuyla ilgili soru."),
-  // audioDataUri: z.string().optional(), // TTS kaldırıldı
-  // ttsError: z.string().optional(), // TTS kaldırıldı
+  explanation: z.string().describe('Konunun, YKS öğrencisinin anlayışını en üst düzeye çıkaracak şekilde, AI tarafından oluşturulmuş, yapılandırılmış ve kapsamlı ANLATIMI. BU ALAN SADECE ANA KONU ANLATIMINI İÇERMELİDİR; anahtar kavramlar, hatalar, ipuçları ve sorular aşağıdaki ayrı alanlarda bir dizi (array) olarak tanımlanmıştır.'),
+  keyConcepts: z.array(z.string()).optional().describe('Anlatımda vurgulanan ve YKS için hayati öneme sahip 3-5 anahtar kavram veya terim. HER BİR DİZİ ELEMANI TEK BİR KAVRAM/TERİM İÇERMELİDİR.'),
+  commonMistakes: z.array(z.string()).optional().describe("Öğrencilerin bu konuda sık yaptığı hatalar veya karıştırdığı noktalar. HER BİR DİZİ ELEMANI TEK BİR HATA/NOKTA İÇERMELİDİR."),
+  yksTips: z.array(z.string()).optional().describe("Bu konunun YKS'deki önemi, hangi soru tiplerinde çıktığı ve çalışırken nelere dikkat edilmesi gerektiği hakkında 2-3 stratejik ipucu. HER BİR DİZİ ELEMANI TEK BİR İPUCU/STRATEJİ İÇERMELİDİR."),
+  activeRecallQuestions: z.array(z.string()).optional().describe("Konuyu pekiştirmek ve öğrencinin aktif katılımını sağlamak için AI tarafından sorulan 2-3 çeşitli ve doğrudan konuyla ilgili soru. HER BİR DİZİ ELEMANI TEK BİR SORU İÇERMELİDİR."),
 });
 export type ExplainTopicOutput = z.infer<typeof ExplainTopicOutputSchema>;
 
@@ -47,12 +43,11 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
   
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
-  const isCustomModelSelected = !!input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.trim() !== "";
-
+  
   let modelToUseForText = '';
   
-  if (isCustomModelSelected) {
-    const customIdLower = input.customModelIdentifier!.toLowerCase();
+  if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.trim() !== "") {
+    const customIdLower = input.customModelIdentifier.toLowerCase();
     switch (customIdLower) {
       case 'default_gemini_flash': modelToUseForText = 'googleai/gemini-2.0-flash'; break;
       case 'experimental_gemini_1_5_flash': modelToUseForText = 'googleai/gemini-1.5-flash-latest'; break;
@@ -78,7 +73,7 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
     ...input,
     isProUser,
     isPremiumUser,
-    isCustomModelSelected,
+    isCustomModelSelected: !!input.customModelIdentifier, // This reflects initial input, not necessarily the final model
     isGemini25PreviewSelected: modelToUseForText === 'googleai/gemini-2.5-flash-preview-05-20',
     isPersonaSamimi: input.teacherPersona === 'samimi',
     isPersonaEglenceli: input.teacherPersona === 'eglenceli',
@@ -105,7 +100,7 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
     }
     
     console.log("[ExplainTopic Action] Successfully processed. Returning text-only output to client.");
-    return flowOutput; // TTS kaldırıldığı için sadece metin tabanlı çıktı dönülüyor
+    return flowOutput;
 
   } catch (error: any) {
     console.error("[ExplainTopic Action] CRITICAL Unhandled error in explainTopic:", error, "Input was:", JSON.stringify(input));
@@ -117,9 +112,12 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
     }
     
     return {
-        ...defaultErrorOutput,
         explanationTitle: `Kritik Sunucu Hatası: ${input.topicName || 'Konu Belirtilmemiş'}`,
         explanation: errorMessage,
+        keyConcepts: ["Kritik hata oluştu."],
+        commonMistakes: [],
+        yksTips: [],
+        activeRecallQuestions: [],
     };
   }
 }
@@ -142,16 +140,15 @@ const topicExplainerPrompt = ai.definePrompt({
   output: {schema: ExplainTopicOutputSchema},
   prompt: `Sen, YKS konularını öğrencilere en iyi şekilde öğreten, en karmaşık konuları bile en anlaşılır, en akılda kalıcı ve en kapsamlı şekilde öğreten, pedagojik dehası ve alan hakimiyeti tartışılmaz, son derece deneyimli bir AI YKS Süper Öğretmenisin.
 Görevin, öğrencinin belirttiği "{{{topicName}}}" konusunu, seçtiği "{{{explanationLevel}}}" detay seviyesine ve "{{{teacherPersona}}}" hoca tarzına uygun olarak, adım adım ve YKS stratejileriyle açıklamaktır.
-Anlatımın sonunda, konuyu pekiştirmek için 2-3 çeşitli ve konuyla ilgili aktif hatırlama sorusu sor.
 Matematiksel ifadeleri (örn: x^2, H_2O, √, π, ±, ≤, ≥) metin içinde okunabilir şekilde belirt. Cevapların Türkçe olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
-(Pro Kullanıcı Notu: Bu, Pro üyeliğinizle gelen bir USTA DERSİ niteliğindedir. "{{{topicName}}}" konusunu, YKS'deki en zorlayıcı soru tiplerini, UZMAN SEVİYESİNDE derinlemesine stratejileri (örn: zaman yönetimi, eleme teknikleri, soru kökü analizi, farklı çözüm yolları, en sık karşılaşılan çeldirici türleri), öğrencilerin sıklıkla düştüğü TUZAKLARI ve bu tuzaklardan kaçınma yöntemlerini, konunun diğer disiplinlerle olan KARMAŞIK BAĞLANTILARINI ve YKS'deki güncel soru trendlerini içerecek şekilde, son derece kapsamlı ve akademik bir zenginlikle açıkla. Anlatımın, YKS'de zirveyi hedefleyen bir öğrencinin ihtiyaç duyacağı tüm detayları, BENZERSİZ İÇGÖRÜLERİ ve uzman bakış açılarını barındırmalıdır. {{{explanationLevel}}} seviyesini "detayli" kabul et ve sıradan bir anlatımın çok ötesine geç. YKS ipuçları bölümünde, en az 3-4 kapsamlı, uygulanabilir ve sıra dışı strateji, kritik zaman yönetimi teknikleri ve en sık yapılan hatalardan kaçınma yolları hakkında detaylı tavsiyeler ver. Bu konunun YKS'deki stratejik önemini ve farklı soru formatlarında nasıl karşına çıkabileceğini vurgula. En gelişmiş AI yeteneklerini kullanarak, akılda kalıcı ve öğretici bir başyapıt sun. Özellikle konunun mantığını ve "neden"lerini derinlemesine irdele. Çıktıların kapsamlı ve detaylı olmalı. Örneğin, bir matematik konusunda sadece formülü vermek yerine, formülün ispatına veya geometrik yorumuna da değinebilirsin. Tarih konusunda, olayın sadece sonucunu değil, uzun vadeli etkilerini ve farklı bakış açılarını da sunabilirsin.)
+(Pro Kullanıcı Notu: Bu, Pro üyeliğinizle gelen bir USTA DERSİ niteliğindedir. "{{{topicName}}}" konusunu, YKS'deki en zorlayıcı soru tiplerini, UZMAN SEVİYESİNDE derinlemesine stratejileri (örn: zaman yönetimi, eleme teknikleri, soru kökü analizi, farklı çözüm yolları, en sık karşılaşılan çeldirici türleri), öğrencilerin sıklıkla düştüğü TUZAKLARI ve bu tuzaklardan kaçınma yöntemlerini, konunun diğer disiplinlerle olan KARMAŞIK BAĞLANTILARINI ve YKS'deki güncel soru trendlerini içerecek şekilde, son derece kapsamlı ve akademik bir zenginlikle açıkla. Bu üst düzey içerik, Pro üyeliğinizin bir avantajıdır. Anlatımın, YKS'de zirveyi hedefleyen bir öğrencinin ihtiyaç duyacağı tüm detayları, BENZERSİZ İÇGÖRÜLERİ ve uzman bakış açılarını barındırmalıdır. {{{explanationLevel}}} seviyesini "detayli" kabul et ve sıradan bir anlatımın çok ötesine geç. Özellikle konunun mantığını ve "neden"lerini derinlemesine irdele. Çıktıların kapsamlı ve detaylı olmalı.)
 {{else if isPremiumUser}}
-(Premium Kullanıcı Notu: {{{explanationLevel}}} seviyesine ve seçilen hoca tarzına uygun olarak, anlatımına daha fazla örnek, YKS'de çıkmış benzer sorulara atıflar ve 1-2 etkili çalışma tekniği (örn: Feynman Tekniği, Pomodoro) ile birlikte ekstra ipuçları ekle. YKS ipuçları bölümünde 2-3 pratik strateji ve önemli bir yaygın hatadan bahset. Konuyu orta-üst seviyede detaylandır. Anahtar kavramları ve YKS'deki önemlerini vurgula. Çıktıların dengeli ve bilgilendirici olmalı.)
+(Premium Kullanıcı Notu: {{{explanationLevel}}} seviyesine ve seçilen hoca tarzına uygun olarak, anlatımına daha fazla örnek, YKS'de çıkmış benzer sorulara atıflar ve 1-2 etkili çalışma tekniği (örn: Feynman Tekniği, Pomodoro) ile birlikte ekstra ipuçları ekle. Konuyu orta-üst seviyede detaylandır. Anahtar kavramları ve YKS'deki önemlerini vurgula. Çıktıların dengeli ve bilgilendirici olmalı.)
 {{else}}
-(Ücretsiz Kullanıcı Notu: Anlatımını {{{explanationLevel}}} seviyesine uygun, temel ve anlaşılır tut. YKS ipuçları bölümünde 1-2 genel geçerli tavsiye ver. Konunun ana hatlarını ve en temel tanımlarını sun. Çıktıların temel düzeyde ve net olmalı.)
+(Ücretsiz Kullanıcı Notu: Anlatımını {{{explanationLevel}}} seviyesine uygun, temel ve anlaşılır tut. Konunun ana hatlarını ve en temel tanımlarını sun. Çıktıların temel düzeyde ve net olmalı.)
 {{/if}}
 
 {{#if isCustomModelSelected}}
@@ -185,8 +182,9 @@ Anlatım Seviyesi ({{{explanationLevel}}}):
 
 Konu: {{{topicName}}}
 
-Lütfen bu konuyu aşağıdaki formatta, seçilen "{{{explanationLevel}}}" seviyesine, "{{{teacherPersona}}}" tarzına ve YKS ihtiyaçlarına göre açıkla:
+Lütfen bu konuyu aşağıdaki formatta, seçilen "{{{explanationLevel}}}" seviyesine, "{{{teacherPersona}}}" tarzına ve YKS ihtiyaçlarına göre açıkla. Her bir bölümü Zod şemasındaki ilgili alana yerleştir. Şemadaki 'describe' alanları, her alanın ne içermesi gerektiğini açıklar. Özellikle 'keyConcepts', 'commonMistakes', 'yksTips' ve 'activeRecallQuestions' alanlarının string dizileri (array of strings) olduğunu ve HER BİR DİZİ ELEMANININ SADECE TEK BİR KAVRAM/HATA/İPUCU/SORU içermesi gerektiğini unutma.
 
+İstenen Çıktı Bölümleri (Her bir bölümü şemadaki ilgili alana yerleştir. Örneğin 'keyConcepts' bir dizi string olmalı, ana anlatım 'explanation' alanında olmalı):
 1.  **Anlatım Başlığı (explanationTitle)**: Konuyla ilgili ilgi çekici başlık.
 2.  **Kapsamlı Konu Anlatımı (explanation)**:
     *   Giriş: Konunun YKS'deki yeri ve önemi.
@@ -194,10 +192,11 @@ Lütfen bu konuyu aşağıdaki formatta, seçilen "{{{explanationLevel}}}" seviy
     *   Alt Başlıklar ve Detaylar: Mantıksal alt başlıklarla, bol örnekle açıkla.
     *   Örnekler ve Uygulamalar: YKS düzeyine uygun örnekler.
     *   Sonuç/Özet: Ana hatları özetle.
-3.  **Anahtar Kavramlar (keyConcepts) (isteğe bağlı, seviyeye göre)**: 3-5 kritik YKS kavramı listele.
-4.  **Sık Yapılan Hatalar (commonMistakes) (isteğe bağlı, 'orta' ve 'detayli' seviyede)**: 2-3 yaygın hata ve kaçınma yolları.
-5.  **YKS İpuçları ve Stratejileri (yksTips) (isteğe bağlı, seviyeye göre)**: Planına göre 1-4 stratejik YKS ipucu.
-6.  **Aktif Hatırlama Soruları (activeRecallQuestions)**: 2-3 çeşitli (kısa cevaplı, boşluk doldurma, doğru/yanlış vb.) ve konuyla ilgili soru sor.
+    **(Bu bölüm SADECE konunun ana anlatımını içermelidir. Anahtar kavramlar, hatalar, YKS ipuçları ve aktif hatırlama soruları aşağıdaki ayrı bölümlerde Zod şemasına uygun olarak string dizileri şeklinde listelenmelidir.)**
+3.  **Anahtar Kavramlar (keyConcepts) (isteğe bağlı, seviyeye göre)**: YKS için 3-5 kritik YKS kavramını LİSTELE (string dizisi). Her bir dizi elemanı TEK BİR KAVRAM/TERİM içermelidir.
+4.  **Sık Yapılan Hatalar (commonMistakes) (isteğe bağlı, 'orta' ve 'detayli' seviyede)**: 2-3 yaygın hatayı ve kaçınma yollarını LİSTELE (string dizisi). Her bir dizi elemanı TEK BİR HATA/NOKTA içermelidir.
+5.  **YKS İpuçları ve Stratejileri (yksTips) (isteğe bağlı, seviyeye göre)**: Planına göre 1-4 stratejik YKS ipucunu LİSTELE (string dizisi). Her bir dizi elemanı TEK BİR İPUCU/STRATEJİ içermelidir. {{#if isProUser}} (Pro Kullanıcı Notu: Bu Pro seviyesindeki derinlemesine YKS ipuçları ve stratejileri, üyeliğinizin özel bir avantajıdır. En kapsamlı ve uygulanabilir stratejileri, kritik zaman yönetimi tekniklerini ve en sık yapılan hatalardan kaçınma yolları hakkında detaylı tavsiyeler ver. Bu konunun YKS'deki stratejik önemini ve farklı soru formatlarında nasıl karşına çıkabileceğini vurgula.) {{/if}}
+6.  **Aktif Hatırlama Soruları (activeRecallQuestions)**: Konuyu pekiştirmek için 2-3 çeşitli (kısa cevaplı, boşluk doldurma, doğru/yanlış vb.) ve konuyla ilgili soruyu LİSTELE (string dizisi). Her bir dizi elemanı TEK BİR SORU içermelidir.
 
 Dilbilgisi ve YKS terminolojisine dikkat et. Bilgilerin doğru ve güncel olduğundan emin ol.
 `,

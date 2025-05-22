@@ -403,7 +403,7 @@ const studyPlanGeneratorPrompt = ai.definePrompt({
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
 {{#if isProUser}}
-(Pro Kullanıcı Notu: Pro üyeliğinizle gelen bu kapsamlı planlama aracında, giriş bölümünde en uzman YKS stratejilerini, etkili öğrenme tekniklerini (örn: Feynman Tekniği, aralıklı tekrar, Pomodoro), güvenilir kaynak önerilerini, deneme sınavı çözme ve analiz taktiklerini, stres yönetimi ve motivasyon koruma gibi detaylı bilgiler sun. Planın geneline yayılmış olarak, sık yapılan YKS hatalarına ve bunlardan kaçınma yollarına değin.)
+(Pro Kullanıcı Notu: Pro üyeliğinizle gelen bu kapsamlı planlama aracı, üyeliğinizin özel bir avantajıdır. Giriş bölümünde en uzman YKS stratejilerini, etkili öğrenme tekniklerini (örn: Feynman Tekniği, aralıklı tekrar, Pomodoro), güvenilir kaynak önerilerini, deneme sınavı çözme ve analiz taktiklerini, stres yönetimi ve motivasyon koruma gibi detaylı bilgiler sun. Planın geneline yayılmış olarak, sık yapılan YKS hatalarına ve bunlardan kaçınma yollarına değin.)
 {{else if isPremiumUser}}
 (Premium Kullanıcı Notu: Giriş bölümünde, 1-2 etkili konu tekrarı yöntemi (örn: aktif hatırlama), çalışma verimliliği için pratik ipuçları, genel motivasyon teknikleri ve zaman yönetimi hakkında bilgiler sun. Planın bazı günlerine küçük motivasyon notları ekle.)
 {{else}}
@@ -454,6 +454,3 @@ Planlama İlkeleri:
 *   ŞEMADAKİ 'required' OLARAK İŞARETLENMİŞ TÜM ALANLARIN ÇIKTIDA BULUNDUĞUNDAN EMİN OL. ÖZELLİKLE 'weeklyPlans' İÇİNDEKİ HER BİR HAFTANIN 'week' NUMARASININ (SAYI OLARAK) VE 'dailyTasks' İÇİNDEKİ 'focusTopics'İN DOLU OLDUĞUNDAN MUTLAKA EMİN OL. AI, BU ŞARTLARA HARFİYEN UYMALIDIR. 'week' alanı her zaman bir sayı olmalıdır. Yanıtın ÖZ ama ANLAŞILIR olsun.
 `,
 });
-    
-
-    
