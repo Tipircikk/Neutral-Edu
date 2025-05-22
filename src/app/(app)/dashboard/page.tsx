@@ -14,6 +14,7 @@ import { differenceInMilliseconds, intervalToDuration, format, isPast, isToday, 
 import { tr } from 'date-fns/locale';
 import { Progress } from "@/components/ui/progress";
 import { Loader2 } from "lucide-react";
+import { getDefaultQuota } from "@/lib/firebase/firestore"; // Added missing import
 
 const CountdownItem = ({ targetDate, title }: { targetDate: Date | null, title: string }) => {
   const [timeLeft, setTimeLeft] = useState<Duration | null>(null);
@@ -79,7 +80,7 @@ const CountdownItem = ({ targetDate, title }: { targetDate: Date | null, title: 
 
 
 export default function DashboardHomePage() {
-  const { userProfile, loading: userProfileLoading } = useUser(); // Renamed to userProfileLoading to avoid conflict
+  const { userProfile, loading: userProfileLoading } = useUser();
   const [examDates, setExamDates] = useState<ExamDatesConfig | null>(null);
   const [loadingDates, setLoadingDates] = useState(true);
 
@@ -310,4 +311,3 @@ export default function DashboardHomePage() {
   );
 }
 
-    
