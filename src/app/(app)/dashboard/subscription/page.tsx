@@ -4,16 +4,51 @@
 import { useUser } from "@/hooks/useUser";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Gem, CheckCircle, ExternalLink, AlertTriangle, CalendarClock } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Loader2, Gem, CheckCircle, ExternalLink, AlertTriangle, CalendarClock, Ticket } from "lucide-react";
 import Link from "next/link";
 import { getDefaultQuota } from "@/lib/firebase/firestore";
 import { Badge } from "@/components/ui/badge";
 import { Timestamp } from "firebase/firestore";
 import { format, differenceInDays, isToday, isPast, formatDistanceToNowStrict } from 'date-fns';
 import { tr } from 'date-fns/locale';
+import { useState, useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { applyCouponCodeAction } from "@/app/actions/couponActions";
+
 
 export default function SubscriptionPage() {
-  const { userProfile, loading: userLoading } = useUser();
+  const { userProfile, loading: userLoading, fetchUserProfile } = useUser();
+  const [couponCode, setCouponCode] = useState("");
+  const [isLoadingCoupon, setIsLoadingCoupon] = useState(false);
+  const { toast } = useToast();
+
+  const handleRedeemCoupon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!couponCode.trim()) {
+      toast({ title: "Kupon Kodu Gerekli", description: "Lütfen bir kupon kodu girin.", variant: "destructive" });
+      return;
+    }
+    setIsLoadingCoupon(true);
+    try {
+      const result = await applyCouponCodeAction(couponCode.trim());
+      if (result.success) {
+        toast({ title: "Kupon Kullanıldı!", description: result.message });
+        setCouponCode("");
+        if (userProfile) { // Fetch updated profile only if a profile was already loaded
+          await fetchUserProfile(userProfile.uid); // Refresh user profile to show new plan details
+        }
+      } else {
+        toast({ title: "Kupon Kullanma Hatası", description: result.message, variant: "destructive" });
+      }
+    } catch (error: any) {
+      toast({ title: "Beklenmedik Hata", description: error.message || "Kupon işlenirken bir sorun oluştu.", variant: "destructive" });
+    } finally {
+      setIsLoadingCoupon(false);
+    }
+  };
+
 
   if (userLoading) {
     return (
@@ -39,18 +74,18 @@ export default function SubscriptionPage() {
 
   const planFeatures: Record<UserProfile["plan"], string[]> = {
     free: [
-      "Günde 2 Yapay Zeka İşlemi",
+      `Günde ${FREE_PLAN_DAILY_QUOTA} Yapay Zeka İşlemi`,
       "Temel AI Yanıtları",
       "Standart Destek",
     ],
     premium: [
-      "Günde 10 Yapay Zeka İşlemi",
+      `Günde ${PREMIUM_PLAN_DAILY_QUOTA} Yapay Zeka İşlemi`,
       "Gelişmiş AI Yanıtları ve Modelleri (potansiyel)",
       "Öncelikli Destek",
       "Daha Hızlı İşleme (potansiyel)",
     ],
     pro: [
-      "Günde 25 Yapay Zeka İşlemi",
+      `Günde ${PRO_PLAN_DAILY_QUOTA} Yapay Zeka İşlemi`,
       "En Gelişmiş AI Yanıtları ve Modelleri (potansiyel)",
       "VIP Destek",
       "En Hızlı İşleme Önceliği (potansiyel)",
@@ -63,7 +98,7 @@ export default function SubscriptionPage() {
 
   if (userProfile.planExpiryDate && userProfile.planExpiryDate instanceof Timestamp) {
     const expiryDate = userProfile.planExpiryDate.toDate();
-    expiryDateDisplay = format(expiryDate, 'PP', { locale: tr }); // örn: 25 Ara 2024
+    expiryDateDisplay = format(expiryDate, 'PP', { locale: tr }); 
 
     const now = new Date();
     if (isPast(expiryDate) && !isToday(expiryDate)) {
@@ -75,7 +110,7 @@ export default function SubscriptionPage() {
       if (daysRemaining >= 0) {
         remainingTimeDisplay = formatDistanceToNowStrict(expiryDate, { locale: tr, addSuffix: true, unit: 'day' }).replace("içinde", "kaldı");
       } else {
-         remainingTimeDisplay = "Süresi Doldu"; // Fallback for any edge cases
+         remainingTimeDisplay = "Süresi Doldu"; 
       }
     }
   }
@@ -159,6 +194,35 @@ export default function SubscriptionPage() {
               </ul>
             </CardContent>
           </Card>
+
+           <Card>
+            <CardHeader>
+              <CardTitle className="text-lg sm:text-xl flex items-center gap-2"><Ticket className="h-5 w-5"/>Kupon Kodu Kullan</CardTitle>
+              <CardDescription>Bir kupon kodunuz varsa, buradan kullanabilirsiniz.</CardDescription>
+            </CardHeader>
+            <form onSubmit={handleRedeemCoupon}>
+              <CardContent className="space-y-3">
+                <div>
+                  <Label htmlFor="couponCode" className="sr-only">Kupon Kodu</Label>
+                  <Input
+                    id="couponCode"
+                    type="text"
+                    placeholder="Kupon kodunuzu girin"
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                    disabled={isLoadingCoupon}
+                    className="text-base"
+                  />
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button type="submit" disabled={isLoadingCoupon || !couponCode.trim()} className="w-full sm:w-auto">
+                  {isLoadingCoupon ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Kodu Kullan"}
+                </Button>
+              </CardFooter>
+            </form>
+          </Card>
+
 
           {userProfile.plan !== "pro" && (
             <Card className="bg-gradient-to-r from-primary/10 via-purple-500/10 to-pink-500/10 border-primary/30">

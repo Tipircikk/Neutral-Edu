@@ -1,5 +1,5 @@
 
-import { doc, setDoc, getDoc, updateDoc, serverTimestamp, Timestamp, collection, where, query, writeBatch, getDocs } from "firebase/firestore";
+import { doc, setDoc, getDoc, updateDoc, serverTimestamp, Timestamp, collection, where, query, writeBatch, getDocs, arrayUnion } from "firebase/firestore";
 import { db } from "./config";
 import type { UserProfile, CouponCode } from "@/types";
 
@@ -114,8 +114,7 @@ export const redeemCouponCodeInternal = async (uid: string, couponCodeId: string
     }
 
     if (couponData.timesUsed >= couponData.usageLimit) {
-      // Double check, should be caught by isActive but good for race conditions if isActive is updated later
-      batch.update(couponRef, { isActive: false }); // Ensure it's deactivated
+      batch.update(couponRef, { isActive: false }); 
       await batch.commit();
       return { success: false, message: "Bu kupon kullanım limitine ulaştı." };
     }
@@ -126,28 +125,21 @@ export const redeemCouponCodeInternal = async (uid: string, couponCodeId: string
     }
     const userProfile = userSnap.data() as UserProfile;
 
-    // Plan hierarchy: pro > premium > free
     const planHierarchy: Record<UserProfile["plan"], number> = { pro: 2, premium: 1, free: 0 };
     if (planHierarchy[userProfile.plan] > planHierarchy[couponData.planApplied]) {
         return { success: false, message: `Mevcut planınız (${userProfile.plan}) zaten bu kuponun verdiği plandan (${couponData.planApplied}) daha üstün.`};
     }
-    if (userProfile.plan === couponData.planApplied && userProfile.plan === 'pro' && !userProfile.planExpiryDate) {
-        return { success: false, message: "Zaten süresiz Pro üyesisiniz. Bu kupon size ek bir avantaj sağlamaz." };
+    if (userProfile.plan === couponData.planApplied && !userProfile.planExpiryDate) { // Already on same plan and it's indefinite
+        return { success: false, message: `Zaten süresiz ${couponData.planApplied} üyesisiniz. Bu kupon size ek bir avantaj sağlamaz.` };
     }
-     if (userProfile.plan === couponData.planApplied && userProfile.plan === 'premium' && !userProfile.planExpiryDate) {
-        return { success: false, message: "Zaten süresiz Premium üyesisiniz. Bu kupon size ek bir avantaj sağlamaz." };
-    }
-
 
     let newExpiryDate: Timestamp;
     const now = new Date();
     let currentExpiry = userProfile.planExpiryDate instanceof Timestamp ? userProfile.planExpiryDate.toDate() : null;
 
     if (userProfile.plan === couponData.planApplied && currentExpiry && currentExpiry > now) {
-      // Same plan, extend current expiry
       newExpiryDate = Timestamp.fromDate(new Date(currentExpiry.getTime() + couponData.durationDays * 24 * 60 * 60 * 1000));
     } else {
-      // New plan or expired/free plan, start from now
       newExpiryDate = Timestamp.fromDate(new Date(now.getTime() + couponData.durationDays * 24 * 60 * 60 * 1000));
     }
     
@@ -156,8 +148,8 @@ export const redeemCouponCodeInternal = async (uid: string, couponCodeId: string
     batch.update(userRef, {
       plan: couponData.planApplied,
       planExpiryDate: newExpiryDate,
-      dailyRemainingQuota: newQuota, // Reset quota to new plan's default
-      lastSummaryDate: serverTimestamp(), // Reset last summary date to start new quota cycle
+      dailyRemainingQuota: newQuota, 
+      lastSummaryDate: serverTimestamp(), 
       updatedAt: serverTimestamp(),
     });
 
@@ -167,8 +159,7 @@ export const redeemCouponCodeInternal = async (uid: string, couponCodeId: string
       timesUsed: newTimesUsed,
       isActive: newIsActive,
       updatedAt: serverTimestamp(),
-      // Potentially add who redeemed it, if needed later:
-      // redeemedBy: arrayUnion({ userId: uid, redeemedAt: serverTimestamp() }) 
+      redeemedBy: arrayUnion({ userId: uid, redeemedAt: serverTimestamp() })
     });
 
     await batch.commit();
@@ -182,8 +173,8 @@ export const redeemCouponCodeInternal = async (uid: string, couponCodeId: string
 
 
 export const createCouponCodeInFirestore = async (
-  couponData: Omit<CouponCode, 'id' | 'timesUsed' | 'createdAt' | 'updatedAt' | 'isActive'>,
-  couponCodeId: string,
+  couponData: Omit<CouponCode, 'id' | 'timesUsed' | 'createdAt' | 'updatedAt' | 'isActive' | 'redeemedBy'>,
+  couponCodeId: string, // This is the actual code string and will be the document ID
   adminUid: string,
   adminEmail: string | null
 ): Promise<{ success: boolean; message: string; couponId?: string }> => {
@@ -196,12 +187,13 @@ export const createCouponCodeInFirestore = async (
     }
 
     const newCoupon: CouponCode = {
-      id: couponCodeId,
+      id: couponCodeId, // Set the id to the couponCodeId
       ...couponData,
       timesUsed: 0,
       isActive: true,
       createdByAdminId: adminUid,
       createdByAdminEmail: adminEmail,
+      redeemedBy: [],
       createdAt: serverTimestamp() as Timestamp,
       updatedAt: serverTimestamp() as Timestamp,
     };
@@ -214,3 +206,5 @@ export const createCouponCodeInFirestore = async (
     return { success: false, message: error.message || "Kupon oluşturulurken bir Firestore hatası oluştu." };
   }
 };
+
+    

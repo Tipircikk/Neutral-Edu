@@ -388,7 +388,6 @@ export default function AdminPage() {
       if (result.success) {
         toast({ title: "Kupon Oluşturuldu", description: result.message });
         resetCouponForm({ couponCodeId: "", planApplied: "premium", durationDays: 30, usageLimit: 1 });
-        // Optionally, refresh a list of coupons here if displaying them
       } else {
         toast({ title: "Kupon Oluşturma Hatası", description: result.message, variant: "destructive" });
       }
@@ -774,3 +773,5 @@ export default function AdminPage() {
     </div>
   );
 }
+
+    

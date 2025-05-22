@@ -12,7 +12,7 @@ interface CouponActionResult {
 }
 
 export const applyCouponCodeAction = async (couponCode: string): Promise<CouponActionResult> => {
-  const currentUser = auth.currentUser; // This might be null if not properly handled or if auth state changes
+  const currentUser = auth.currentUser;
   if (!currentUser) {
     return { success: false, message: "Kupon kullanmak için giriş yapmalısınız." };
   }
@@ -41,13 +41,14 @@ export const createCouponAction = async (
   if (!adminUid) {
     return { success: false, message: "Admin UID bulunamadı. Yetkilendirme hatası." };
   }
-  // Optional: Re-verify admin status here if needed, though client-side check should prevent non-admins
+  
+  // Optional: Re-verify admin status on server if critical, though client-side check is primary.
   // const adminProfile = await getUserProfile(adminUid);
   // if (!adminProfile?.isAdmin) {
   //   return { success: false, message: "Bu işlemi yapmak için admin yetkiniz yok." };
   // }
 
-  const couponDataToCreate: Omit<CouponCode, 'id' | 'timesUsed' | 'createdAt' | 'updatedAt' | 'isActive' | 'createdByAdminId' | 'createdByAdminEmail'> = {
+  const couponDataToCreate: Omit<CouponCode, 'id' | 'timesUsed' | 'createdAt' | 'updatedAt' | 'isActive' | 'redeemedBy' | 'createdByAdminId' | 'createdByAdminEmail'> = {
     planApplied: formData.planApplied,
     durationDays: formData.durationDays,
     usageLimit: formData.usageLimit,
@@ -66,3 +67,5 @@ export const createCouponAction = async (
     return { success: false, message: error.message || "Sunucu tarafında kupon oluşturulurken bir hata oluştu." };
   }
 };
+
+    

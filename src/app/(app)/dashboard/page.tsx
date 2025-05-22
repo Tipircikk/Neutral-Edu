@@ -13,7 +13,6 @@ import type { ExamDatesConfig, UserProfile } from "@/types";
 import { differenceInMilliseconds, intervalToDuration, format, isPast, isToday, formatDistanceToNowStrict } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { Progress } from "@/components/ui/progress";
-import { getDefaultQuota } from "@/lib/firebase/firestore";
 import { Loader2 } from "lucide-react";
 
 const CountdownItem = ({ targetDate, title }: { targetDate: Date | null, title: string }) => {
@@ -80,7 +79,7 @@ const CountdownItem = ({ targetDate, title }: { targetDate: Date | null, title: 
 
 
 export default function DashboardHomePage() {
-  const { userProfile } = useUser();
+  const { userProfile, loading: userProfileLoading } = useUser(); // Renamed to userProfileLoading to avoid conflict
   const [examDates, setExamDates] = useState<ExamDatesConfig | null>(null);
   const [loadingDates, setLoadingDates] = useState(true);
 
@@ -137,6 +136,15 @@ export default function DashboardHomePage() {
   const totalQuota = userProfile ? getDefaultQuota(userProfile.plan) : 0;
   const usedQuota = userProfile ? totalQuota - userProfile.dailyRemainingQuota : 0;
   const quotaPercentage = totalQuota > 0 ? (usedQuota / totalQuota) * 100 : 0;
+  
+  if (userProfileLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Gösterge Paneli Yükleniyor...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto">
@@ -185,9 +193,15 @@ export default function DashboardHomePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-1">
-              <p className="text-lg font-semibold text-primary">{userProfile?.plan.charAt(0).toUpperCase() + userProfile.plan.slice(1)} Plan</p>
-              {subscriptionStatus && <p className="text-xs text-muted-foreground">{subscriptionStatus}</p>}
-              {!subscriptionStatus && userProfile?.plan === 'free' && <p className="text-xs text-muted-foreground">Temel Ücretsiz Plan</p>}
+              {userProfile ? (
+                <>
+                  <p className="text-lg font-semibold text-primary">{userProfile.plan.charAt(0).toUpperCase() + userProfile.plan.slice(1)} Plan</p>
+                  {subscriptionStatus && <p className="text-xs text-muted-foreground">{subscriptionStatus}</p>}
+                  {!subscriptionStatus && userProfile.plan === 'free' && <p className="text-xs text-muted-foreground">Temel Ücretsiz Plan</p>}
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground">Yükleniyor...</p>
+              )}
             </CardContent>
           </Card>
           
@@ -198,9 +212,15 @@ export default function DashboardHomePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-1.5">
-              <Progress value={quotaPercentage} className="h-2 [&>div]:bg-primary" />
-              <p className="text-sm font-semibold text-foreground">{usedQuota} / {totalQuota}</p>
-              <p className="text-xs text-muted-foreground">Kalan: {userProfile?.dailyRemainingQuota}</p>
+              {userProfile ? (
+                <>
+                  <Progress value={quotaPercentage} className="h-2 [&>div]:bg-primary" />
+                  <p className="text-sm font-semibold text-foreground">{usedQuota} / {totalQuota}</p>
+                  <p className="text-xs text-muted-foreground">Kalan: {userProfile.dailyRemainingQuota}</p>
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground">Yükleniyor...</p>
+              )}
             </CardContent>
           </Card>
         </CardContent>
@@ -268,7 +288,7 @@ export default function DashboardHomePage() {
         </CardContent>
       </Card>
 
-      {(userProfile?.plan !== 'premium' && userProfile?.plan !== 'pro') && (
+      {userProfile && userProfile.plan !== 'premium' && userProfile.plan !== 'pro' && (
         <Card className="shadow-lg bg-gradient-to-r from-primary/80 via-purple-600/80 to-pink-500/80 text-primary-foreground">
           <CardHeader>
             <CardTitle className="text-xl sm:text-2xl">NeutralEdu AI Pro</CardTitle>
@@ -289,3 +309,5 @@ export default function DashboardHomePage() {
     </div>
   );
 }
+
+    
