@@ -77,6 +77,7 @@ export async function generateFlashcards(input: GenerateFlashcardsInput): Promis
     }
   }
   
+  // Absolute fallback to prevent "()=>null" or other invalid strings if logic above somehow fails
   if (typeof modelToUse !== 'string' || !modelToUse.startsWith('googleai/')) { 
       console.error(`[Flashcard Generator Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to gemini-2.0-flash.`);
       modelToUse = 'googleai/gemini-2.0-flash';
@@ -165,6 +166,7 @@ const flashcardGeneratorFlow = ai.defineFlow(
     let finalModelToUse = modelToUseParam;
     console.log(`[Flashcard Generator Flow] Initial modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
 
+    // Double check the model name validity inside the flow
     if (typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
         console.warn(`[Flashcard Generator Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting based on plan from enrichedInput.`);
         if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
@@ -183,20 +185,20 @@ const flashcardGeneratorFlow = ai.defineFlow(
         { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
     ];
     
-    let maxTokensForOutput = (enrichedInput.numFlashcards || 5) * 200; // Base calculation
+    let maxTokensForOutput = (enrichedInput.numFlashcards || 5) * 200; 
     if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
         maxTokensForOutput = Math.max(maxTokensForOutput, 2048); 
     } else {
         maxTokensForOutput = Math.max(maxTokensForOutput, 1024); 
     }
-    if (maxTokensForOutput > 8192) maxTokensForOutput = 8192;
-
-    // If the problematic model is selected, try a lower, fixed maxOutputTokens
+    
+    // Specific override for gemini-2.5-flash-preview-05-20 due to potential "400 Bad Request" with dynamic tokens.
     if (finalModelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
-        const testMaxTokens = 1024; // Test with a known safe value
-        console.log(`[Flashcard Generator Flow] Model is ${finalModelToUse}. Overriding maxOutputTokens from ${maxTokensForOutput} to ${testMaxTokens}.`);
-        maxTokensForOutput = testMaxTokens;
+        const fixedMaxTokensForPreview = 1024; // Test with a known, potentially safer value
+        console.log(`[Flashcard Generator Flow] Model is ${finalModelToUse}. Overriding maxOutputTokens from ${maxTokensForOutput} to ${fixedMaxTokensForPreview}.`);
+        maxTokensForOutput = fixedMaxTokensForPreview;
     }
+    if (maxTokensForOutput > 8192) maxTokensForOutput = 8192;
 
 
     const callOptions: { model: string; config?: Record<string, any> } = { 
@@ -204,9 +206,7 @@ const flashcardGeneratorFlow = ai.defineFlow(
         config: {
             temperature: standardTemperature,
             safetySettings: standardSafetySettings,
-            generationConfig: {
-              maxOutputTokens: maxTokensForOutput,
-            }
+            maxOutputTokens: maxTokensForOutput, // Moved out of nested generationConfig
         }
     };
 
@@ -229,7 +229,7 @@ const flashcardGeneratorFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${finalModelToUse}. Detay: ${error.message.substring(0, 150)}`;
             } else if (error.name === 'GenkitError' && error.message.includes('Schema validation failed')) {
               errorMessage = `AI modeli (${finalModelToUse}) beklenen yanıta uymayan bir çıktı üretti. Detay: ${error.message.substring(0,250)}`;
-            } else if (error.message.includes('400 Bad Request')) {
+            } else if (error.message.includes('400 Bad Request')) { // Catching specific 400 error
               errorMessage = `AI modeli (${finalModelToUse}) geçersiz bir istek aldığını belirtti (400 Bad Request). İstek parametrelerini (özellikle model konfigürasyonunu) kontrol edin. Detay: ${error.message.substring(0,250)}`;
             }
         }
@@ -241,4 +241,3 @@ const flashcardGeneratorFlow = ai.defineFlow(
     }
   }
 );
-
