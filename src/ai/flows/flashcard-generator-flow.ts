@@ -56,13 +56,13 @@ export async function generateFlashcards(input: GenerateFlashcardsInput): Promis
             modelToUse = customIdLower;
             console.warn(`[Flashcard Generator Action] Admin specified a direct Genkit model name: '${modelToUse}'. Ensure this model is supported.`);
         } else {
-            console.warn(`[Flashcard Generator Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to universal default.`);
+            console.warn(`[Flashcard Generator Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to universal default for ALL users in this tool.`);
             modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default
         }
         break;
     }
   } else {
-    console.log(`[Flashcard Generator Action] No custom model specified by admin. Using universal default for all users.`);
+    console.log(`[Flashcard Generator Action] No custom model specified by admin. Using universal default for ALL users in this tool.`);
     modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default for all users
   }
 
@@ -124,7 +124,7 @@ Metin İçeriği:
 İstenen Bilgi Kartı Sayısı: {{{numFlashcards}}}
 YKS Zorluk Seviyesi: {{{difficulty}}}
 
-Lütfen bu bilgilere dayanarak, aşağıdaki formatta TAM OLARAK {{{numFlashcards}}} adet YKS odaklı bilgi kartı oluştur. Eğer bu mümkün değilse, mümkün olan en fazla sayıda (en fazla {{{numFlashcards}}} adet) kartı oluştur ve neden daha az oluşturulduğunu (örneğin, 'Metin X adet kart için yeterli değildi.') 'summaryTitle' alanının sonuna kısa bir not olarak ekleyebilirsin.
+Lütfen bu bilgilere dayanarak, aşağıdaki formatta TAM OLARAK {{{numFlashcards}}} adet YKS odaklı bilgi kartı oluştur. Eğer bu mümkün değilse, mümkün olan en fazla sayıda (en fazla {{{numFlashcards}}} adet) kartı oluştur ve neden daha az oluşturulduğunu (örneğin, 'Metin {{{numFlashcards}}} adet kart için yeterli değildi, X adet üretildi.') 'summaryTitle' alanının sonuna kısa bir not olarak ekleyebilirsin.
 
 1.  **Bilgi Kartları (flashcards)**: Her kart için:
     *   **Ön Yüz (front)**: Soru, kavram veya terim.
@@ -173,7 +173,8 @@ const flashcardGeneratorFlow = ai.defineFlow(
     ];
     
     // Max tokens calculation
-    let maxTokensForOutput = (enrichedInput.numFlashcards || 5) * 250; // Estimate per card
+    // Increased estimate per card and the cap for gemini-2.5-flash-preview-05-20
+    let maxTokensForOutput = (enrichedInput.numFlashcards || 5) * 300; // Estimate 300 tokens per card
     if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
         maxTokensForOutput = Math.max(maxTokensForOutput, 2048); 
     } else {
@@ -182,15 +183,12 @@ const flashcardGeneratorFlow = ai.defineFlow(
 
     // Specific model adjustments
     if (finalModelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
-        maxTokensForOutput = Math.min(maxTokensForOutput, 2048); 
+        maxTokensForOutput = Math.min(maxTokensForOutput, 4096); // Increased cap for this specific model
         console.log(`[Flashcard Generator Flow] Model is ${finalModelToUse}. Capping maxOutputTokens to ${maxTokensForOutput}.`);
     } else if (finalModelToUse === 'googleai/gemini-1.5-flash-latest' || finalModelToUse === 'googleai/gemini-2.0-flash' ) {
-         // These models might handle larger token outputs more gracefully or have different limits.
-         // Ensure it doesn't exceed their absolute max token output. For now, let's cap at 8192 for safety.
-         maxTokensForOutput = Math.min(maxTokensForOutput, 8192);
+         maxTokensForOutput = Math.min(maxTokensForOutput, 8192); // General cap for other capable models
     } else {
-        // For any other or future models, cap at a general high value if not specifically handled.
-        maxTokensForOutput = Math.min(maxTokensForOutput, 8192);
+        maxTokensForOutput = Math.min(maxTokensForOutput, 8192); // General cap for any other models
     }
 
 
@@ -199,13 +197,11 @@ const flashcardGeneratorFlow = ai.defineFlow(
         config: {
             temperature: standardTemperature,
             safetySettings: standardSafetySettings,
-            // generationConfig: { // This key is NOT for Genkit's config for Google AI plugin
             maxOutputTokens: maxTokensForOutput,
-            // }
         }
     };
 
-    const promptInputForLog = { ...enrichedInput, resolvedModelUsed: finalModelToUse };
+    const promptInputForLog = { ...enrichedInput, resolvedModelUsed: finalModelToUse, calculatedMaxOutputTokens: maxTokensForOutput };
     console.log(`[Flashcard Generator Flow] Using Genkit model: ${finalModelToUse} for plan: ${enrichedInput.userPlan}, customModel (raw): ${enrichedInput.customModelIdentifier}, with config: ${JSON.stringify(callOptions.config)}`);
 
     try {
@@ -234,7 +230,7 @@ const flashcardGeneratorFlow = ai.defineFlow(
             } else if (error.message.includes('400 Bad Request') && error.message.includes("Unknown name \"generationConfig\"")) {
               errorMessage = `AI modeli (${finalModelToUse}) yapılandırmada 'generationConfig' anahtarını tanımadı. MaxOutputTokens doğrudan config altında olmalı. Detay: ${error.message.substring(0,250)}`;
             } else if (error.message.includes('400 Bad Request')) { 
-              errorMessage = `AI modeli (${finalModelToUse}) geçersiz bir istek aldığını belirtti (400 Bad Request). İstek parametrelerini kontrol edin. Detay: ${error.message.substring(0,250)}`;
+              errorMessage = `AI modeli (${finalModelToUse}) geçersiz bir istek aldığını belirtti (400 Bad Request). İstek parametrelerini kontrol edin. Model: ${finalModelToUse}, Token Limiti: ${maxTokensForOutput}. Detay: ${error.message.substring(0,250)}`;
             }
         }
 
@@ -245,4 +241,6 @@ const flashcardGeneratorFlow = ai.defineFlow(
     }
   }
 );
+    
+
     
