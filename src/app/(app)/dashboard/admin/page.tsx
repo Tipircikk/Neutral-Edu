@@ -5,7 +5,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/hooks/useUser";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ShieldAlert, Users, BarChart3, Settings, Inbox, Edit3, DollarSign, MessageSquareWarning, CalendarClock, TicketPlus } from "lucide-react";
+import { Loader2, ShieldAlert, Users, BarChart3, Settings, Inbox, Edit3, DollarSign, MessageSquareWarning, CalendarClock, TicketPlus, Ticket as TicketIcon, Calendar as CalendarIcon, Tag, BarChartHorizontalBig } from "lucide-react"; // Added more icons
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +32,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createCouponAction, type CouponCreationFormData } from "@/app/actions/couponActions";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 
 const CreateCouponSchema = z.object({
@@ -62,6 +63,8 @@ export default function AdminPage() {
   const [usersLoading, setUsersLoading] = useState(true);
   const [supportTickets, setSupportTickets] = useState<SupportTicket[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState(true);
+  const [allCoupons, setAllCoupons] = useState<CouponCode[]>([]);
+  const [couponsLoading, setCouponsLoading] = useState(true);
   const { toast } = useToast();
 
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
@@ -195,6 +198,30 @@ export default function AdminPage() {
     }
   };
 
+  const fetchAllCoupons = async () => {
+    setCouponsLoading(true);
+    try {
+      const couponsCollection = collection(db, "coupons");
+      const couponsQuery = query(couponsCollection, orderBy("createdAt", "desc"));
+      const querySnapshot = await getDocs(couponsQuery);
+      const couponsList = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt instanceof FirestoreTimestamp ? data.createdAt : FirestoreTimestamp.now(),
+          updatedAt: data.updatedAt instanceof FirestoreTimestamp ? data.updatedAt : FirestoreTimestamp.now(),
+        } as CouponCode;
+      });
+      setAllCoupons(couponsList);
+    } catch (error: any) {
+      console.error("Error fetching coupons:", error);
+      toast({ title: "Kuponlar Yüklenemedi", description: error.message || "Kupon listesi çekilirken bir hata oluştu.", variant: "destructive" });
+    } finally {
+      setCouponsLoading(false);
+    }
+  };
+
   const fetchCurrentPrices = async () => {
     try {
       const priceConfigDocRef = doc(db, "pricingConfig", "currentPrices");
@@ -231,6 +258,7 @@ export default function AdminPage() {
     if (adminUserProfile?.isAdmin) {
       fetchAllUsers();
       fetchSupportTickets();
+      fetchAllCoupons();
       fetchCurrentPrices();
       fetchExamDates();
     }
@@ -388,6 +416,7 @@ export default function AdminPage() {
       if (result.success) {
         toast({ title: "Kupon Oluşturuldu", description: result.message });
         resetCouponForm({ couponCodeId: "", planApplied: "premium", durationDays: 30, usageLimit: 1 });
+        fetchAllCoupons(); // Refresh coupon list
       } else {
         toast({ title: "Kupon Oluşturma Hatası", description: result.message, variant: "destructive" });
       }
@@ -400,7 +429,7 @@ export default function AdminPage() {
   };
 
 
-  if (adminLoading || (adminUserProfile?.isAdmin && (usersLoading || ticketsLoading))) {
+  if (adminLoading || (adminUserProfile?.isAdmin && (usersLoading || ticketsLoading || couponsLoading))) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -425,195 +454,116 @@ export default function AdminPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Admin Paneli</h1>
         <p className="text-muted-foreground">
-          Kullanıcıları, destek taleplerini ve uygulama ayarlarını yönetin.
+          Kullanıcıları, destek taleplerini, kuponları ve uygulama ayarlarını yönetin.
         </p>
       </div>
 
        <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><TicketPlus className="h-6 w-6" /> Kupon Kodu Yönetimi</CardTitle>
-          <CardDescription>Yeni kupon kodları oluşturun.</CardDescription>
+          <CardDescription>Yeni kupon kodları oluşturun ve mevcut kuponları görüntüleyin.</CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmitCoupon(handleCreateCoupon)} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="couponCodeId">Kupon Kodu</Label>
-                <Input id="couponCodeId" {...registerCoupon("couponCodeId")} placeholder="örn: PRO30GUN" disabled={isCreatingCoupon} />
-                {couponErrors.couponCodeId && <p className="text-sm text-destructive mt-1">{couponErrors.couponCodeId.message}</p>}
+        <CardContent className="space-y-8">
+          <div>
+            <h3 className="text-lg font-semibold mb-2">Yeni Kupon Oluştur</h3>
+            <form onSubmit={handleSubmitCoupon(handleCreateCoupon)} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="couponCodeId">Kupon Kodu</Label>
+                  <Input id="couponCodeId" {...registerCoupon("couponCodeId")} placeholder="örn: PRO30GUN" disabled={isCreatingCoupon} />
+                  {couponErrors.couponCodeId && <p className="text-sm text-destructive mt-1">{couponErrors.couponCodeId.message}</p>}
+                </div>
+                <div>
+                  <Label htmlFor="planApplied">Uygulanacak Plan</Label>
+                  <Controller
+                    name="planApplied"
+                    control={controlCoupon}
+                    render={({ field }) => (
+                      <Select onValueChange={field.onChange} value={field.value} disabled={isCreatingCoupon}>
+                        <SelectTrigger id="planApplied">
+                          <SelectValue placeholder="Plan seçin" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="premium">Premium</SelectItem>
+                          <SelectItem value="pro">Pro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  {couponErrors.planApplied && <p className="text-sm text-destructive mt-1">{couponErrors.planApplied.message}</p>}
+                </div>
               </div>
-              <div>
-                <Label htmlFor="planApplied">Uygulanacak Plan</Label>
-                <Controller
-                  name="planApplied"
-                  control={controlCoupon}
-                  render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value} disabled={isCreatingCoupon}>
-                      <SelectTrigger id="planApplied">
-                        <SelectValue placeholder="Plan seçin" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="premium">Premium</SelectItem>
-                        <SelectItem value="pro">Pro</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-                {couponErrors.planApplied && <p className="text-sm text-destructive mt-1">{couponErrors.planApplied.message}</p>}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="durationDays">Geçerlilik Süresi (Gün)</Label>
+                  <Input id="durationDays" type="number" {...registerCoupon("durationDays")} placeholder="örn: 30" disabled={isCreatingCoupon} />
+                  {couponErrors.durationDays && <p className="text-sm text-destructive mt-1">{couponErrors.durationDays.message}</p>}
+                </div>
+                <div>
+                  <Label htmlFor="usageLimit">Kullanım Limiti (Kişi Sayısı)</Label>
+                  <Input id="usageLimit" type="number" {...registerCoupon("usageLimit")} placeholder="örn: 1" disabled={isCreatingCoupon} />
+                  {couponErrors.usageLimit && <p className="text-sm text-destructive mt-1">{couponErrors.usageLimit.message}</p>}
+                </div>
               </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="durationDays">Geçerlilik Süresi (Gün)</Label>
-                <Input id="durationDays" type="number" {...registerCoupon("durationDays")} placeholder="örn: 30" disabled={isCreatingCoupon} />
-                {couponErrors.durationDays && <p className="text-sm text-destructive mt-1">{couponErrors.durationDays.message}</p>}
-              </div>
-              <div>
-                <Label htmlFor="usageLimit">Kullanım Limiti (Kişi Sayısı)</Label>
-                <Input id="usageLimit" type="number" {...registerCoupon("usageLimit")} placeholder="örn: 1" disabled={isCreatingCoupon} />
-                {couponErrors.usageLimit && <p className="text-sm text-destructive mt-1">{couponErrors.usageLimit.message}</p>}
-              </div>
-            </div>
-            <Button type="submit" disabled={isCreatingCoupon}>
-              {isCreatingCoupon ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Kupon Oluştur"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Users className="h-6 w-6" /> Kullanıcı Yönetimi</CardTitle>
-          <CardDescription>Kullanıcıların planlarını, rollerini ve abonelik sürelerini görüntüleyin ve düzenleyin.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {usersLoading ? (
-             <div className="flex items-center justify-center p-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="ml-2 text-muted-foreground">Kullanıcılar yükleniyor...</p>
-             </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Plan</TableHead>
-                  <TableHead>Plan Bitiş</TableHead>
-                  <TableHead>Kalan Kota</TableHead>
-                  <TableHead>Bugünkü Kullanım</TableHead>
-                  <TableHead>Rolü</TableHead>
-                  <TableHead className="text-right">Eylemler</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedUsers.map((user) => (
-                  <TableRow key={user.uid}>
-                    <TableCell className="font-medium">{user.email}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={user.plan === 'pro' ? 'default' : user.plan === 'premium' ? 'secondary' : 'outline'}
-                        className={
-                            user.plan === 'pro' ? 'bg-purple-600 hover:bg-purple-700 text-white' :
-                            user.plan === 'premium' ? 'bg-blue-500 hover:bg-blue-600 text-white' : ''
-                        }
-                      >
-                        {user.plan.charAt(0).toUpperCase() + user.plan.slice(1)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {user.planExpiryDate instanceof FirestoreTimestamp
-                        ? format(user.planExpiryDate.toDate(), 'PP', { locale: tr })
-                        : (user.plan === 'premium' || user.plan === 'pro') ? 'Süresiz' : 'Yok'}
-                    </TableCell>
-                    <TableCell>{typeof user.dailyRemainingQuota === 'number' ? user.dailyRemainingQuota : getDefaultQuota(user.plan)}</TableCell>
-                    <TableCell>{getUsageToday(user)}</TableCell>
-                    <TableCell>
-                      <Badge variant={user.isAdmin ? 'destructive' : 'outline'}>
-                        {user.isAdmin ? "Admin" : "Kullanıcı"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="outline" size="sm" onClick={() => handleOpenEditUserDialog(user)}>
-                        <Edit3 className="mr-2 h-3 w-3"/> Düzenle
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Inbox className="h-6 w-6" /> Destek Talepleri</CardTitle>
-          <CardDescription>Kullanıcı destek taleplerini görüntüleyin ve yanıtlayın. Talepler önceliklendirilmiştir (Pro &gt; Premium &gt; Ücretsiz, Açık &gt; Yanıtlanmış).</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {ticketsLoading ? (
-            <div className="flex items-center justify-center p-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="ml-2 text-muted-foreground">Destek talepleri yükleniyor...</p>
-            </div>
-          ) : supportTickets.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Görüntülenecek destek talebi bulunmamaktadır.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Kullanıcı</TableHead>
-                  <TableHead>Plan</TableHead>
-                  <TableHead>Konu</TableHead>
-                  <TableHead>Durum</TableHead>
-                  <TableHead>Son Mesaj (Özet)</TableHead>
-                  <TableHead>Son Mesaj Tarihi</TableHead>
-                  <TableHead className="text-right">Eylemler</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {supportTickets.map((ticket) => (
-                  <TableRow key={ticket.id}>
-                    <TableCell className="font-medium">{ticket.userEmail || ticket.userId}</TableCell>
-                    <TableCell>
-                        {ticket.userPlan ? (
-                            <Badge
-                                variant={ticket.userPlan === 'pro' ? 'default' : ticket.userPlan === 'premium' ? 'secondary' : 'outline'}
-                                className={
-                                    ticket.userPlan === 'pro' ? 'bg-purple-600 hover:bg-purple-700 text-white' :
-                                    ticket.userPlan === 'premium' ? 'bg-blue-500 hover:bg-blue-600 text-white' : ''
-                                }
-                            >
-                                {ticket.userPlan.charAt(0).toUpperCase() + ticket.userPlan.slice(1)}
-                            </Badge>
-                        ) : <Badge variant="outline">Bilinmiyor</Badge>}
-                    </TableCell>
-                    <TableCell>{formatTicketSubject(ticket.subject)}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={ticket.status === 'open' ? 'destructive' : ticket.status === 'answered' ? 'secondary' : 'outline'}
-                        className={ticket.status === 'answered' ? 'bg-green-500 hover:bg-green-600 text-white' : ''}
-                      >
-                        {formatTicketStatus(ticket.status)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="max-w-xs truncate">{ticket.lastMessageSnippet || "İlk mesaj bekleniyor..."}</TableCell>
-                    <TableCell>
-                      {ticket.lastMessageAt instanceof FirestoreTimestamp
-                        ? format(ticket.lastMessageAt.toDate(), 'PPpp', { locale: tr })
-                        : 'N/A'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="outline" size="sm" onClick={() => handleOpenReplyDialog(ticket)}>
-                        <MessageSquareWarning className="mr-2 h-3 w-3"/>
-                        Görüntüle/Yanıtla
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+              <Button type="submit" disabled={isCreatingCoupon}>
+                {isCreatingCoupon ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Kupon Oluştur"}
+              </Button>
+            </form>
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold mb-2">Mevcut Kuponlar</h3>
+            {couponsLoading ? (
+                <div className="flex items-center justify-center p-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="ml-2 text-muted-foreground">Kuponlar yükleniyor...</p>
+                </div>
+            ) : allCoupons.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Henüz oluşturulmuş kupon bulunmamaktadır.</p>
+            ) : (
+                <ScrollArea className="h-[300px] w-full rounded-md border">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Kod</TableHead>
+                                <TableHead>Plan</TableHead>
+                                <TableHead>Süre</TableHead>
+                                <TableHead>Limit</TableHead>
+                                <TableHead>Kullanıldı</TableHead>
+                                <TableHead>Aktif Mi?</TableHead>
+                                <TableHead>Oluşturan</TableHead>
+                                <TableHead>Tarih</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {allCoupons.map((coupon) => (
+                                <TableRow key={coupon.id}>
+                                    <TableCell className="font-medium">{coupon.id}</TableCell>
+                                    <TableCell>
+                                        <Badge variant={coupon.planApplied === 'pro' ? 'default' : 'secondary'} className={coupon.planApplied === 'pro' ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'}>
+                                            {coupon.planApplied.charAt(0).toUpperCase() + coupon.planApplied.slice(1)}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell>{coupon.durationDays} gün</TableCell>
+                                    <TableCell>{coupon.usageLimit}</TableCell>
+                                    <TableCell>{coupon.timesUsed}</TableCell>
+                                    <TableCell>
+                                        <Badge variant={coupon.isActive ? 'default' : 'outline'} className={coupon.isActive ? 'bg-green-500 hover:bg-green-600' : ''}>
+                                            {coupon.isActive ? "Evet" : "Hayır"}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell className="text-xs">{coupon.createdByAdminEmail || coupon.createdByAdminId.substring(0,8)+'...'}</TableCell>
+                                    <TableCell className="text-xs">
+                                        {coupon.createdAt instanceof FirestoreTimestamp
+                                        ? format(coupon.createdAt.toDate(), 'dd/MM/yy HH:mm', { locale: tr })
+                                        : 'N/A'}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </ScrollArea>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -678,6 +628,146 @@ export default function AdminPage() {
           <Button onClick={handleSavePrices} disabled={isSavingPrices}>
             {isSavingPrices ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Fiyatları Kaydet"}
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Users className="h-6 w-6" /> Kullanıcı Yönetimi</CardTitle>
+          <CardDescription>Kullanıcıların planlarını, rollerini ve abonelik sürelerini görüntüleyin ve düzenleyin.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {usersLoading ? (
+             <div className="flex items-center justify-center p-8">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="ml-2 text-muted-foreground">Kullanıcılar yükleniyor...</p>
+             </div>
+          ) : (
+            <ScrollArea className="h-[400px] w-full rounded-md border">
+                <Table>
+                <TableHeader>
+                    <TableRow>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Plan</TableHead>
+                    <TableHead>Plan Bitiş</TableHead>
+                    <TableHead>Kalan Kota</TableHead>
+                    <TableHead>Bugünkü Kullanım</TableHead>
+                    <TableHead>Rolü</TableHead>
+                    <TableHead className="text-right">Eylemler</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {sortedUsers.map((user) => (
+                    <TableRow key={user.uid}>
+                        <TableCell className="font-medium">{user.email}</TableCell>
+                        <TableCell>
+                        <Badge
+                            variant={user.plan === 'pro' ? 'default' : user.plan === 'premium' ? 'secondary' : 'outline'}
+                            className={
+                                user.plan === 'pro' ? 'bg-purple-600 hover:bg-purple-700 text-white' :
+                                user.plan === 'premium' ? 'bg-blue-500 hover:bg-blue-600 text-white' : ''
+                            }
+                        >
+                            {user.plan.charAt(0).toUpperCase() + user.plan.slice(1)}
+                        </Badge>
+                        </TableCell>
+                        <TableCell>
+                        {user.planExpiryDate instanceof FirestoreTimestamp
+                            ? format(user.planExpiryDate.toDate(), 'PP', { locale: tr })
+                            : (user.plan === 'premium' || user.plan === 'pro') ? 'Süresiz' : 'Yok'}
+                        </TableCell>
+                        <TableCell>{typeof user.dailyRemainingQuota === 'number' ? user.dailyRemainingQuota : getDefaultQuota(user.plan)}</TableCell>
+                        <TableCell>{getUsageToday(user)}</TableCell>
+                        <TableCell>
+                        <Badge variant={user.isAdmin ? 'destructive' : 'outline'}>
+                            {user.isAdmin ? "Admin" : "Kullanıcı"}
+                        </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                        <Button variant="outline" size="sm" onClick={() => handleOpenEditUserDialog(user)}>
+                            <Edit3 className="mr-2 h-3 w-3"/> Düzenle
+                        </Button>
+                        </TableCell>
+                    </TableRow>
+                    ))}
+                </TableBody>
+                </Table>
+            </ScrollArea>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Inbox className="h-6 w-6" /> Destek Talepleri</CardTitle>
+          <CardDescription>Kullanıcı destek taleplerini görüntüleyin ve yanıtlayın. Talepler önceliklendirilmiştir (Pro &gt; Premium &gt; Ücretsiz, Açık &gt; Yanıtlanmış).</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {ticketsLoading ? (
+            <div className="flex items-center justify-center p-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="ml-2 text-muted-foreground">Destek talepleri yükleniyor...</p>
+            </div>
+          ) : supportTickets.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Görüntülenecek destek talebi bulunmamaktadır.</p>
+          ) : (
+            <ScrollArea className="h-[400px] w-full rounded-md border">
+                <Table>
+                <TableHeader>
+                    <TableRow>
+                    <TableHead>Kullanıcı</TableHead>
+                    <TableHead>Plan</TableHead>
+                    <TableHead>Konu</TableHead>
+                    <TableHead>Durum</TableHead>
+                    <TableHead>Son Mesaj (Özet)</TableHead>
+                    <TableHead>Son Mesaj Tarihi</TableHead>
+                    <TableHead className="text-right">Eylemler</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {supportTickets.map((ticket) => (
+                    <TableRow key={ticket.id}>
+                        <TableCell className="font-medium">{ticket.userEmail || ticket.userId}</TableCell>
+                        <TableCell>
+                            {ticket.userPlan ? (
+                                <Badge
+                                    variant={ticket.userPlan === 'pro' ? 'default' : ticket.userPlan === 'premium' ? 'secondary' : 'outline'}
+                                    className={
+                                        ticket.userPlan === 'pro' ? 'bg-purple-600 hover:bg-purple-700 text-white' :
+                                        ticket.userPlan === 'premium' ? 'bg-blue-500 hover:bg-blue-600 text-white' : ''
+                                    }
+                                >
+                                    {ticket.userPlan.charAt(0).toUpperCase() + ticket.userPlan.slice(1)}
+                                </Badge>
+                            ) : <Badge variant="outline">Bilinmiyor</Badge>}
+                        </TableCell>
+                        <TableCell>{formatTicketSubject(ticket.subject)}</TableCell>
+                        <TableCell>
+                        <Badge
+                            variant={ticket.status === 'open' ? 'destructive' : ticket.status === 'answered' ? 'secondary' : 'outline'}
+                            className={ticket.status === 'answered' ? 'bg-green-500 hover:bg-green-600 text-white' : ''}
+                        >
+                            {formatTicketStatus(ticket.status)}
+                        </Badge>
+                        </TableCell>
+                        <TableCell className="max-w-xs truncate">{ticket.lastMessageSnippet || "İlk mesaj bekleniyor..."}</TableCell>
+                        <TableCell>
+                        {ticket.lastMessageAt instanceof FirestoreTimestamp
+                            ? format(ticket.lastMessageAt.toDate(), 'PPpp', { locale: tr })
+                            : 'N/A'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                        <Button variant="outline" size="sm" onClick={() => handleOpenReplyDialog(ticket)}>
+                            <MessageSquareWarning className="mr-2 h-3 w-3"/>
+                            Görüntüle/Yanıtla
+                        </Button>
+                        </TableCell>
+                    </TableRow>
+                    ))}
+                </TableBody>
+                </Table>
+            </ScrollArea>
+          )}
         </CardContent>
       </Card>
 
@@ -773,5 +863,4 @@ export default function AdminPage() {
     </div>
   );
 }
-
     

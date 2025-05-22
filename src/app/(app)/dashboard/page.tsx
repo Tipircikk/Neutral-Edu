@@ -14,7 +14,7 @@ import { differenceInMilliseconds, intervalToDuration, format, isPast, isToday, 
 import { tr } from 'date-fns/locale';
 import { Progress } from "@/components/ui/progress";
 import { Loader2 } from "lucide-react";
-import { getDefaultQuota } from "@/lib/firebase/firestore"; // Added missing import
+import { getDefaultQuota } from "@/lib/firebase/firestore";
 
 const CountdownItem = ({ targetDate, title }: { targetDate: Date | null, title: string }) => {
   const [timeLeft, setTimeLeft] = useState<Duration | null>(null);
@@ -164,15 +164,15 @@ export default function DashboardHomePage() {
             <Activity className="h-6 w-6 text-primary" /> Genel Bakış
           </CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        <CardContent className="space-y-4 md:space-y-6">
           <Card className="bg-background/70">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
                 <CalendarClock size={16} /> YKS Geri Sayım
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {loadingDates ? <Loader2 className="h-5 w-5 animate-spin" /> : (
+            <CardContent className="space-y-2 grid grid-cols-1 sm:grid-cols-2 gap-4 items-center justify-items-center">
+              {loadingDates ? <Loader2 className="h-5 w-5 animate-spin col-span-full" /> : (
                 <>
                   {(tytTargetDate || aytTargetDate) ? (
                     <>
@@ -180,7 +180,7 @@ export default function DashboardHomePage() {
                      {aytTargetDate && <CountdownItem targetDate={aytTargetDate} title="AYT" />}
                     </>
                   ) : (
-                     <p className="text-xs text-muted-foreground flex items-center gap-1"><AlertTriangle size={14}/>Sınav tarihleri ayarlanmamış.</p>
+                     <p className="text-xs text-muted-foreground flex items-center gap-1 col-span-full"><AlertTriangle size={14}/>Sınav tarihleri ayarlanmamış.</p>
                   )}
                 </>
               )}
@@ -310,4 +310,4 @@ export default function DashboardHomePage() {
     </div>
   );
 }
-
+    
