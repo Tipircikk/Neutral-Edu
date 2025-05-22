@@ -7,10 +7,9 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-// import { HarmCategory, HarmBlockThreshold } from '@google/genai-server'; // Removed as not needed and causes module not found
 import type { UserProfile } from '@/types';
 
-// TTS related imports and functions are removed as per previous request.
+// TTS related imports and functions are removed.
 
 const ExplainTopicInputSchema = z.object({
   topicName: z.string().min(3).describe('Açıklanması istenen YKS konu başlığı (örn: "Matematik - Türev ve Uygulamaları", "Edebiyat - Milli Edebiyat Dönemi").'),
@@ -19,7 +18,7 @@ const ExplainTopicInputSchema = z.object({
   customPersonaDescription: z.string().optional().describe("Eğer 'teacherPersona' olarak 'ozel' seçildiyse, kullanıcının istediği hoca kişiliğinin detaylı açıklaması."),
   userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
   customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi."),
-  // generateTts: z.boolean().optional().describe("Sesli anlatım oluşturulup oluşturulmayacağı (sadece adminler için)."), // TTS removed
+  // generateTts: z.boolean().optional(), // TTS removed
 });
 export type ExplainTopicInput = z.infer<typeof ExplainTopicInputSchema>;
 
@@ -30,8 +29,8 @@ const ExplainTopicOutputSchema = z.object({
   commonMistakes: z.array(z.string()).optional().describe("Öğrencilerin bu konuda sık yaptığı hatalar veya karıştırdığı noktalar. HER BİR DİZİ ELEMANI TEK BİR HATA/NOKTA İÇERMELİDİR."),
   yksTips: z.array(z.string()).optional().describe("Bu konunun YKS'deki önemi, hangi soru tiplerinde çıktığı ve çalışırken nelere dikkat edilmesi gerektiği hakkında 2-3 stratejik ipucu. HER BİR DİZİ ELEMANI TEK BİR İPUCU/STRATEJİ İÇERMELİDİR."),
   activeRecallQuestions: z.array(z.string()).optional().describe("Konuyu pekiştirmek ve öğrencinin aktif katılımını sağlamak için AI tarafından sorulan 2-3 çeşitli ve doğrudan konuyla ilgili soru. HER BİR DİZİ ELEMANI TEK BİR SORU İÇERMELİDİR."),
-  // audioDataUri: z.string().optional().describe("Eğer istendiyse, sesli anlatımın base64 data URI'si."), // TTS removed
-  // ttsError: z.string().optional().describe("Sesli anlatım oluşturulurken bir hata oluştuysa, hata mesajı."), // TTS removed
+  // audioDataUri: z.string().optional(), // TTS removed
+  // ttsError: z.string().optional(), // TTS removed
 });
 export type ExplainTopicOutput = z.infer<typeof ExplainTopicOutputSchema>;
 
@@ -45,7 +44,7 @@ const defaultErrorOutput: ExplainTopicOutput = {
 };
 
 export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTopicOutput> {
-  console.log("[ExplainTopic Action - Start] Input received. CustomModelIdentifier:", input.customModelIdentifier, "UserPlan:", input.userPlan, "TopicName:", input.topicName, "explanationLevel:", input.explanationLevel, "teacherPersona:", input.teacherPersona);
+  console.log(`[ExplainTopic Action - Start] Input received. CustomModelIdentifier: ${input.customModelIdentifier}, UserPlan: ${input.userPlan}, TopicName: ${input.topicName}, ExplanationLevel: ${input.explanationLevel}, TeacherPersona: ${input.teacherPersona}`);
 
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
@@ -88,10 +87,8 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
   };
 
   let flowOutput: ExplainTopicOutput;
-  let ttsAudioDataUri: string | null = null;
-  let ttsErrorMessage: string | null = null;
-
   const textGenStartTime = Date.now();
+
   try {
     console.log("[ExplainTopic Action] Calling topicExplainerFlow for text generation with model:", modelToUseForText);
     flowOutput = await topicExplainerFlow(enrichedInputForTextPrompt, modelToUseForText);
@@ -109,15 +106,8 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
         };
     }
 
-    // TTS related logic has been removed.
-    // No audio generation here.
-
     console.log("[ExplainTopic Action] Successfully processed. Returning text-only output to client.");
-    return {
-      ...flowOutput,
-      // audioDataUri: ttsAudioDataUri || undefined, // TTS removed
-      // ttsError: ttsErrorMessage || undefined, // TTS removed
-    };
+    return flowOutput;
 
   } catch (error: any) {
     const textGenEndTime = Date.now();
@@ -129,7 +119,6 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
         errorMessage += ` Detay: ${error.substring(0,200)}`;
     }
     
-    // Ensure all fields of ExplainTopicOutput are present in the return, even in error cases.
     return {
         explanationTitle: `Kritik Sunucu Hatası: ${input.topicName || 'Konu Belirtilmemiş'}`,
         explanation: errorMessage,
@@ -137,8 +126,6 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
         commonMistakes: ["Lütfen daha sonra tekrar deneyin."],
         yksTips: ["Teknik bir sorun yaşandı."],
         activeRecallQuestions: ["AI yanıt üretemedi, bir sorun olabilir."],
-        // audioDataUri: undefined, // TTS removed
-        // ttsError: "Sesli anlatım oluşturulamadı (ana işlem hatası).", // TTS removed
     };
   }
 }
@@ -158,7 +145,7 @@ const TopicExplainerPromptInputSchema = ExplainTopicInputSchema.extend({
 const topicExplainerPrompt = ai.definePrompt({
   name: 'topicExplainerPrompt',
   input: {schema: TopicExplainerPromptInputSchema},
-  output: {schema: ExplainTopicOutputSchema.omit({ audioDataUri: true, ttsError: true })}, // Omit TTS fields from prompt output schema
+  output: {schema: ExplainTopicOutputSchema }, 
   prompt: `Sen, YKS konularını öğrencilere en iyi şekilde öğreten, en karmaşık konuları bile en anlaşılır, en akılda kalıcı ve en kapsamlı şekilde öğreten, pedagojik dehası ve alan hakimiyeti tartışılmaz, son derece deneyimli bir AI YKS Süper Öğretmenisin.
 Görevin, öğrencinin belirttiği "{{{topicName}}}" konusunu, seçtiği "{{{explanationLevel}}}" detay seviyesine ve "{{{teacherPersona}}}" hoca tarzına uygun olarak, adım adım ve YKS stratejileriyle açıklamaktır.
 Matematiksel ifadeleri (örn: x^2, H_2O, √, π, ±, ≤, ≥) metin içinde okunabilir şekilde belirt. Cevapların Türkçe olmalıdır.
@@ -210,7 +197,7 @@ Lütfen bu konuyu aşağıdaki formatta, seçilen "{{{explanationLevel}}}" seviy
 
 İstenen Çıktı Bölümleri (Her bir bölümü şemadaki ilgili alana yerleştir. Örneğin 'keyConcepts' bir dizi string olmalı, ana anlatım 'explanation' alanında olmalı):
 1.  **Anlatım Başlığı (explanationTitle)**: Konuyla ilgili ilgi çekici başlık.
-2.  **Kapsamlı Konu Anlatımı (explanation)**:
+2.  **Kapsamlı Konu Anlatımı (explanation)**: Konuyu, YKS öğrencisinin anlayışını en üst düzeye çıkaracak şekilde, **kısa paragraflar, Markdown formatında ## Alt Başlıklar ve ### Daha Alt Başlıklar kullanarak mantıksal bölümlere ayırarak** ve bol örnekle açıkla. Okunabilirliği artırmak için GEREKTİĞİNDE listeler (örn: * Madde 1) kullan.
     *   Giriş: Konunun YKS'deki yeri ve önemi.
     *   Temel Tanımlar ve İlkeler: Açık ve net ifadeler.
     *   Alt Başlıklar ve Detaylar: Mantıksal alt başlıklarla, bol örnekle açıkla.
@@ -219,7 +206,7 @@ Lütfen bu konuyu aşağıdaki formatta, seçilen "{{{explanationLevel}}}" seviy
     **(Bu bölüm SADECE konunun ana anlatımını içermelidir. Anahtar kavramlar, hatalar, YKS ipuçları ve aktif hatırlama soruları aşağıdaki ayrı bölümlerde Zod şemasına uygun olarak string dizileri şeklinde listelenmelidir. Bu bölümlerin içeriği ana anlatım metninde TEKRAR ETMEMELİDİR.)**
 3.  **Anahtar Kavramlar (keyConcepts) (isteğe bağlı, seviyeye göre)**: YKS için 3-5 kritik YKS kavramını LİSTELE (string dizisi). Her bir dizi elemanı TEK BİR KAVRAM/TERİM içermelidir.
 4.  **Sık Yapılan Hatalar (commonMistakes) (isteğe bağlı, 'orta' ve 'detayli' seviyede)**: 2-3 yaygın hatayı ve kaçınma yollarını LİSTELE (string dizisi). Her bir dizi elemanı TEK BİR HATA/NOKTA içermelidir.
-5.  **YKS İpuçları ve Stratejileri (yksTips) (isteğe bağlı, seviyeye göre)**: Planına göre 1-4 stratejik YKS ipucunu LİSTELE (string dizisi). Her bir dizi elemanı TEK BİR İPUCU/STRATEJİ içermelidir. {{#if isProUser}} (Pro Kullanıcı Notu: Bu Pro seviyesindeki derinlemesine YKS ipuçları ve stratejileri, üyeliğinizin özel bir avantajıdır. En kapsamlı ve uygulanabilir stratejileri, kritik zaman yönetimi tekniklerini ve en sık yapılan hatalardan kaçınma yolları hakkında detaylı tavsiyeler ver. Bu konunun YKS'deki stratejik önemini ve farklı soru formatlarında nasıl karşına çıkabileceğini vurgula.) {{/if}}
+5.  **YKS İpuçları ve Stratejileri (yksTips) (isteğe bağlı, seviyeye göre)**: Planına göre 1-4 stratejik YKS ipucunu LİSTELE (string dizisi). Her bir dizi elemanı TEK BİR İPUCU/STRATEJİ İÇERMELİDİR. {{#if isProUser}} (Pro Kullanıcı Notu: Bu Pro seviyesindeki derinlemesine YKS ipuçları ve stratejileri, üyeliğinizin özel bir avantajıdır. En kapsamlı ve uygulanabilir stratejileri, kritik zaman yönetimi tekniklerini ve en sık yapılan hatalardan kaçınma yolları hakkında detaylı tavsiyeler ver. Bu konunun YKS'deki stratejik önemini ve farklı soru formatlarında nasıl karşına çıkabileceğini vurgula.) {{/if}}
 6.  **Aktif Hatırlama Soruları (activeRecallQuestions)**: Konuyu pekiştirmek için 2-3 çeşitli (kısa cevaplı, boşluk doldurma, doğru/yanlış vb.) ve konuyla ilgili soruyu LİSTELE (string dizisi). Her bir dizi elemanı TEK BİR SORU içermelidir.
 
 Dilbilgisi ve YKS terminolojisine dikkat et. Bilgilerin doğru ve güncel olduğundan emin ol.
@@ -231,7 +218,7 @@ const topicExplainerFlow = ai.defineFlow(
   {
     name: 'topicExplainerFlow',
     inputSchema: TopicExplainerPromptInputSchema,
-    outputSchema: ExplainTopicOutputSchema.omit({ audioDataUri: true, ttsError: true }), // Omit TTS fields from flow output schema
+    outputSchema: ExplainTopicOutputSchema, 
   },
   async (enrichedInputFromAction: z.infer<typeof TopicExplainerPromptInputSchema>, modelToUseForTextParam: string ): Promise<ExplainTopicOutput> => {
     
@@ -258,7 +245,7 @@ const topicExplainerFlow = ai.defineFlow(
 
     let temperature = 0.7;
     if (enrichedInputFromAction.isProUser) {
-        temperature = 0.6; // Slightly lower temperature for Pro for more factual/less overly creative deep dives
+        temperature = 0.6; 
     } else if (enrichedInputFromAction.teacherPersona === 'eglenceli') {
         temperature = 0.8;
     }
@@ -276,7 +263,7 @@ const topicExplainerFlow = ai.defineFlow(
       };
     }
     if(enrichedInputFromAction.isProUser && callOptions.config?.generationConfig) {
-        callOptions.config.generationConfig.maxOutputTokens = 8192; // Ensure Pro always gets max tokens regardless of selected level
+        callOptions.config.generationConfig.maxOutputTokens = 8192; 
     }
 
 
@@ -297,10 +284,7 @@ const topicExplainerFlow = ai.defineFlow(
           };
         }
         console.log(`[Topic Explainer Flow - Text Gen] Successfully generated text explanation for topic: "${enrichedInputFromAction.topicName}"`);
-        return {
-            ...output,
-            // audioDataUri and ttsError are not part of this flow's direct output anymore
-        };
+        return output;
     } catch (error: any) {
         console.error(`[Topic Explainer Flow - Text Gen] CRITICAL error during Genkit prompt execution with model ${finalModelToUse} for topic "${enrichedInputFromAction.topicName}":`, error);
         let errorMessage = `AI modeli (${finalModelToUse}) ile "${enrichedInputFromAction.topicName}" konusu için anlatım oluşturulurken bir Genkit/AI hatası oluştu.`;
@@ -316,7 +300,7 @@ const topicExplainerFlow = ai.defineFlow(
                 errorMessage = `Kritik hata: Model '${finalModelToUse}' bulunamadı veya geçersiz. Lütfen admin panelinden geçerli bir model seçin veya varsayılanı kullanın. Detay: ${error.message.substring(0,150)}`;
             }
         }
-        return { // Ensure all fields of ExplainTopicOutput are present
+        return { 
             explanationTitle: `Kritik Anlatım Hatası: ${enrichedInputFromAction.topicName || 'Bilinmeyen Konu'}`,
             explanation: errorMessage,
             keyConcepts: ["Kritik hata oluştu."],
