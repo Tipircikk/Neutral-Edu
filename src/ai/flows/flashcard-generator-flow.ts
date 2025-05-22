@@ -34,7 +34,7 @@ const GenerateFlashcardsOutputSchema = z.object({
 export type GenerateFlashcardsOutput = z.infer<typeof GenerateFlashcardsOutputSchema>;
 
 export async function generateFlashcards(input: GenerateFlashcardsInput): Promise<GenerateFlashcardsOutput> {
-  console.log(`[Flashcard Generator Action] Received input. Plan: ${input.userPlan}, Admin Model ID: '${input.customModelIdentifier}'`);
+  console.log(`[Flashcard Generator Action] Received input. Plan: ${input.userPlan}, Admin Model ID (raw): '${input.customModelIdentifier}'`);
 
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
@@ -42,7 +42,8 @@ export async function generateFlashcards(input: GenerateFlashcardsInput): Promis
   let modelToUse: string;
 
   if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.trim() !== "") {
-    const customIdLower = input.customModelIdentifier.toLowerCase();
+    const customIdLower = input.customModelIdentifier.toLowerCase().trim();
+    console.log(`[Flashcard Generator Action] Admin specified customModelIdentifier: '${customIdLower}'`);
     switch (customIdLower) {
       case 'default_gemini_flash':
         modelToUse = 'googleai/gemini-2.0-flash';
@@ -54,8 +55,8 @@ export async function generateFlashcards(input: GenerateFlashcardsInput): Promis
         modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
         break;
       default:
-        if (input.customModelIdentifier.startsWith('googleai/')) {
-            modelToUse = input.customModelIdentifier;
+        if (customIdLower.startsWith('googleai/')) {
+            modelToUse = customIdLower;
             console.warn(`[Flashcard Generator Action] Admin specified a direct Genkit model name: '${modelToUse}'. Ensure this model is supported.`);
         } else {
             console.warn(`[Flashcard Generator Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to plan-based default for plan '${input.userPlan}'.`);
@@ -68,7 +69,7 @@ export async function generateFlashcards(input: GenerateFlashcardsInput): Promis
         break;
     }
   } else { 
-    console.log(`[Flashcard Generator Action] No custom model specified by admin, or identifier was invalid. Using plan-based default for plan '${input.userPlan}'.`);
+    console.log(`[Flashcard Generator Action] No custom model specified by admin. Using plan-based default for plan '${input.userPlan}'.`);
     if (isProUser || isPremiumUser) {
       modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
     } else { 
@@ -76,7 +77,6 @@ export async function generateFlashcards(input: GenerateFlashcardsInput): Promis
     }
   }
   
-  // Absolute fallback
   if (typeof modelToUse !== 'string' || !modelToUse.startsWith('googleai/')) { 
       console.error(`[Flashcard Generator Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to gemini-2.0-flash.`);
       modelToUse = 'googleai/gemini-2.0-flash';
@@ -185,11 +185,19 @@ const flashcardGeneratorFlow = ai.defineFlow(
     
     let maxTokensForOutput = (enrichedInput.numFlashcards || 5) * 200; // Base calculation
     if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
-        maxTokensForOutput = Math.max(maxTokensForOutput, 2048); // Ensure higher minimum for paid
+        maxTokensForOutput = Math.max(maxTokensForOutput, 2048); 
     } else {
-        maxTokensForOutput = Math.max(maxTokensForOutput, 1024); // Ensure reasonable minimum for free
+        maxTokensForOutput = Math.max(maxTokensForOutput, 1024); 
     }
-    if (maxTokensForOutput > 8000) maxTokensForOutput = 8000; // Hard cap
+    if (maxTokensForOutput > 8192) maxTokensForOutput = 8192;
+
+    // If the problematic model is selected, try a lower, fixed maxOutputTokens
+    if (finalModelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
+        const testMaxTokens = 1024; // Test with a known safe value
+        console.log(`[Flashcard Generator Flow] Model is ${finalModelToUse}. Overriding maxOutputTokens from ${maxTokensForOutput} to ${testMaxTokens}.`);
+        maxTokensForOutput = testMaxTokens;
+    }
+
 
     const callOptions: { model: string; config?: Record<string, any> } = { 
         model: finalModelToUse,
@@ -221,6 +229,8 @@ const flashcardGeneratorFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${finalModelToUse}. Detay: ${error.message.substring(0, 150)}`;
             } else if (error.name === 'GenkitError' && error.message.includes('Schema validation failed')) {
               errorMessage = `AI modeli (${finalModelToUse}) beklenen yanıta uymayan bir çıktı üretti. Detay: ${error.message.substring(0,250)}`;
+            } else if (error.message.includes('400 Bad Request')) {
+              errorMessage = `AI modeli (${finalModelToUse}) geçersiz bir istek aldığını belirtti (400 Bad Request). İstek parametrelerini (özellikle model konfigürasyonunu) kontrol edin. Detay: ${error.message.substring(0,250)}`;
             }
         }
 
@@ -231,3 +241,4 @@ const flashcardGeneratorFlow = ai.defineFlow(
     }
   }
 );
+
