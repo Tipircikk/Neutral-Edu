@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Gem, CheckCircle, ExternalLink, AlertTriangle, CalendarClock, Ticket } from "lucide-react";
 import Link from "next/link";
-import { getDefaultQuota } from "@/lib/firebase/firestore";
+import { getDefaultQuota, FREE_PLAN_DAILY_QUOTA, PREMIUM_PLAN_DAILY_QUOTA, PRO_PLAN_DAILY_QUOTA } from "@/lib/firebase/firestore";
 import { Badge } from "@/components/ui/badge";
 import { Timestamp } from "firebase/firestore";
 import { format, differenceInDays, isToday, isPast, formatDistanceToNowStrict } from 'date-fns';
