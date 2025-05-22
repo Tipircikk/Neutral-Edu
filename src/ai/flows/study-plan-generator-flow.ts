@@ -147,15 +147,14 @@ const defaultErrorResponse: GenerateStudyPlanOutput = {
 
 export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<GenerateStudyPlanOutput> {
   try {
-    console.log(`[Study Plan Generator Action] Received input. Plan: ${input.userPlan}, Admin Model ID: '${input.customModelIdentifier}'`);
+    console.log(`[Study Plan Generator Action] Received input. User Plan: ${input.userPlan}, Admin Model ID: '${input.customModelIdentifier}'`);
     const currentPlan = input.userPlan || 'free';
-    const isProUser = currentPlan === 'pro';
-    const isPremiumUser = currentPlan === 'premium';
     
     let modelToUse: string;
 
     if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.trim() !== "") {
-      const customIdLower = input.customModelIdentifier.toLowerCase();
+      const customIdLower = input.customModelIdentifier.toLowerCase().trim();
+      console.log(`[Study Plan Generator Action] Admin specified customModelIdentifier: '${customIdLower}'`);
       switch (customIdLower) {
         case 'default_gemini_flash':
           modelToUse = 'googleai/gemini-2.0-flash';
@@ -167,35 +166,29 @@ export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<
           modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
           break;
         default:
-          if (input.customModelIdentifier.startsWith('googleai/')) {
-              modelToUse = input.customModelIdentifier;
+          if (customIdLower.startsWith('googleai/')) {
+              modelToUse = customIdLower;
               console.warn(`[Study Plan Generator Action] Admin specified a direct Genkit model name: '${modelToUse}'. Ensure this model is supported.`);
           } else {
-              console.warn(`[Study Plan Generator Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to plan-based default for plan '${currentPlan}'.`);
-              if (isProUser || isPremiumUser) {
-                  modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-              } else { 
-                  modelToUse = 'googleai/gemini-2.0-flash';
-              }
+              console.warn(`[Study Plan Generator Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to universal default.`);
+              modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default
           }
           break;
       }
     } else { 
-      console.log(`[Study Plan Generator Action] No custom model specified by admin, or identifier was invalid. Using plan-based default for plan '${currentPlan}'.`);
-      if (isProUser || isPremiumUser) {
-        modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-      } else { 
-        modelToUse = 'googleai/gemini-2.0-flash';
-      }
+      console.log(`[Study Plan Generator Action] No custom model specified by admin. Using universal default.`);
+      modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default
     }
     
-    // Absolute fallback
+    // Absolute fallback if modelToUse is somehow still invalid
     if (typeof modelToUse !== 'string' || !modelToUse.startsWith('googleai/')) { 
-        console.error(`[Study Plan Generator Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to gemini-2.0-flash.`);
-        modelToUse = 'googleai/gemini-2.0-flash';
+        console.error(`[Study Plan Generator Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to gemini-2.5-flash-preview-05-20.`);
+        modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
     }
     console.log(`[Study Plan Generator Action] Final model determined for flow: ${modelToUse}`);
     
+    const isProUser = currentPlan === 'pro';
+    const isPremiumUser = currentPlan === 'premium';
     const isGemini25PreviewSelected = modelToUse === 'googleai/gemini-2.5-flash-preview-05-20';
 
 
@@ -233,7 +226,7 @@ export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<
       console.error(`[generateStudyPlan Action] Flow returned invalid structure: ${errorDetail}. Raw output:`, JSON.stringify(flowOutput).substring(0, 500));
       return {
           planTitle: "Plan Oluşturma Başarısız",
-          introduction: flowOutput?.introduction || `AI akışından (${modelToUse}) beklenen yapıda bir yanıt alınamadı (${errorDetail}). Lütfen tekrar deneyin.`,
+          introduction: flowOutput?.introduction || `AI akışından (${finalModelToUse}) beklenen yapıda bir yanıt alınamadı (${errorDetail}). Lütfen tekrar deneyin.`,
           weeklyPlans: [],
           disclaimer: flowOutput?.disclaimer || "Bir hata nedeniyle plan oluşturulamadı."
       };
@@ -304,12 +297,8 @@ const studyPlanGeneratorFlow = ai.defineFlow(
     console.log(`[Study Plan Generator Flow] Initial modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
 
     if (typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
-        console.warn(`[Study Plan Generator Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting based on plan from enrichedInput.`);
-        if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
-            finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-        } else {
-            finalModelToUse = 'googleai/gemini-2.0-flash';
-        }
+        console.warn(`[Study Plan Generator Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting to universal default.`);
+        finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default
         console.log(`[Study Plan Generator Flow] Corrected/Defaulted model INSIDE FLOW to: ${finalModelToUse}`);
     }
 
@@ -331,9 +320,7 @@ const studyPlanGeneratorFlow = ai.defineFlow(
         config: {
           temperature: standardTemperature,
           safetySettings: standardSafetySettings,
-          generationConfig: {
-            maxOutputTokens: standardMaxOutputTokens,
-          }
+          maxOutputTokens: standardMaxOutputTokens,
         }
       };
       
@@ -399,7 +386,7 @@ const studyPlanGeneratorFlow = ai.defineFlow(
       return output;
 
     } catch (flowError: any) {
-      console.error(`[Study Plan Generator Flow (Genkit)] CRITICAL ERROR in Genkit flow with model ${finalModelToUse}:`, flowError, "Input (main part):", { userField: enrichedInput.userField, customSubjectsInput: enrichedInput.customSubjectsInput, studyDuration: enrichedInput.studyDuration, hoursPerDay: enrichedInput.hoursPerDay, userPlan: enrichedInput.userPlan, customModelIdentifier: enrichedInput.customModelIdentifier });
+      console.error(`[Study Plan Generator Flow (Genkit)] CRITICAL ERROR in Genkit flow with model ${finalModelToUse}. Error details:`, JSON.stringify(flowError, Object.getOwnPropertyNames(flowError), 2), "Input (main part):", { userField: enrichedInput.userField, customSubjectsInput: enrichedInput.customSubjectsInput, studyDuration: enrichedInput.studyDuration, hoursPerDay: enrichedInput.hoursPerDay, userPlan: enrichedInput.userPlan, customModelIdentifier: enrichedInput.customModelIdentifier });
       let errorMessage = `AI Eğitim Koçu (${finalModelToUse}) ile çalışma planı oluşturulurken bir Genkit/AI hatası oluştu.`;
       if (flowError instanceof Error) {
         errorMessage += ` Detay: ${flowError.message.substring(0, 300)}`;
@@ -445,7 +432,7 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 {{/if}}
 
 {{#if isGemini25PreviewSelected}}
-(Gemini 2.5 Flash Preview 05-20 Modeli Notu: Yanıtların ÖZ ama ANLAŞILIR ve YKS öğrencisine doğrudan fayda sağlayacak şekilde olsun. HIZLI yanıt vermeye odaklan. {{#if isProUser}}Pro kullanıcı için gereken derinliği ve stratejik bilgileri koruyarak{{else if isPremiumUser}}Premium kullanıcı için gereken detayları ve pratik ipuçlarını sağlayarak{{/if}} gereksiz uzun açıklamalardan ve süslemelerden kaçın, doğrudan konuya girerek en kritik bilgileri vurgula. JSON formatına HARFİYEN uy! Özellikle 'week' alanı her haftalık planda bir SAYI olarak bulunmalıdır. 'dailyTasks' içindeki her bir görevde 'focusTopics' MUTLAKA en az bir eleman içeren bir dizi olmalıdır.)
+(Gemini 2.5 Flash Preview 05-20 Modeli Notu: JSON ŞEMASINA HARFİYEN UY! Yanıtların ÖZ ama ANLAŞILIR ve YKS öğrencisine doğrudan fayda sağlayacak şekilde olsun. HIZLI yanıt vermeye odaklan. {{#if isProUser}}Pro kullanıcı için gereken derinliği ve stratejik bilgileri koruyarak{{else if isPremiumUser}}Premium kullanıcı için gereken detayları ve pratik ipuçlarını sağlayarak{{/if}} gereksiz uzun açıklamalardan ve süslemelerden kaçın, doğrudan konuya girerek en kritik bilgileri vurgula. JSON formatına HARFİYEN uy! Özellikle 'week' alanı her haftalık planda bir SAYI olarak bulunmalıdır. 'dailyTasks' içindeki her bir görevde 'focusTopics' MUTLAKA en az bir eleman içeren bir dizi olmalıdır.)
 {{/if}}
 
 Öğrencinin Girdileri:
@@ -484,3 +471,4 @@ Planlama İlkeleri:
 *   ŞEMADAKİ 'required' OLARAK İŞARETLENMİŞ TÜM ALANLARIN ÇIKTIDA BULUNDUĞUNDAN EMİN OL. ÖZELLİKLE 'weeklyPlans' İÇİNDEKİ HER BİR HAFTANIN 'week' NUMARASININ (SAYI OLARAK) VE 'dailyTasks' İÇİNDEKİ 'focusTopics'İN DOLU OLDUĞUNDAN MUTLAKA EMİN OL. AI, BU ŞARTLARA HARFİYEN UYMALIDIR. 'week' alanı her zaman bir sayı olmalıdır. Yanıtın ÖZ ama ANLAŞILIR olsun.
 `,
 });
+    

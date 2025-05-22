@@ -31,15 +31,13 @@ const SummarizeTopicOutputSchema = z.object({
 export type SummarizeTopicOutput = z.infer<typeof SummarizeTopicOutputSchema>;
 
 export async function summarizeTopic(input: SummarizeTopicInput): Promise<SummarizeTopicOutput> {
-  console.log(`[Topic Summarizer Action] Received input. Plan: ${input.userPlan}, Admin Model ID: '${input.customModelIdentifier}'`);
+  console.log(`[Topic Summarizer Action] Received input. User Plan: ${input.userPlan}, Admin Model ID: '${input.customModelIdentifier}'`);
 
-  const isProUser = input.userPlan === 'pro';
-  const isPremiumUser = input.userPlan === 'premium';
-  
   let modelToUse: string;
 
   if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.trim() !== "") {
-    const customIdLower = input.customModelIdentifier.toLowerCase();
+    const customIdLower = input.customModelIdentifier.toLowerCase().trim();
+    console.log(`[Topic Summarizer Action] Admin specified customModelIdentifier: '${customIdLower}'`);
     switch (customIdLower) {
       case 'default_gemini_flash':
         modelToUse = 'googleai/gemini-2.0-flash';
@@ -51,35 +49,29 @@ export async function summarizeTopic(input: SummarizeTopicInput): Promise<Summar
         modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
         break;
       default:
-        if (input.customModelIdentifier.startsWith('googleai/')) {
-            modelToUse = input.customModelIdentifier;
+        if (customIdLower.startsWith('googleai/')) {
+            modelToUse = customIdLower;
             console.warn(`[Topic Summarizer Action] Admin specified a direct Genkit model name: '${modelToUse}'. Ensure this model is supported.`);
         } else {
-            console.warn(`[Topic Summarizer Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to plan-based default for plan '${input.userPlan}'.`);
-            if (isProUser || isPremiumUser) {
-                modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-            } else { 
-                modelToUse = 'googleai/gemini-2.0-flash';
-            }
+            console.warn(`[Topic Summarizer Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to universal default.`);
+            modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default
         }
         break;
     }
   } else { 
-    console.log(`[Topic Summarizer Action] No custom model specified by admin, or identifier was invalid. Using plan-based default for plan '${input.userPlan}'.`);
-    if (isProUser || isPremiumUser) {
-      modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-    } else { 
-      modelToUse = 'googleai/gemini-2.0-flash';
-    }
+    console.log(`[Topic Summarizer Action] No custom model specified by admin. Using universal default.`);
+    modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default
   }
   
-  // Absolute fallback
+  // Absolute fallback if modelToUse is somehow still invalid
   if (typeof modelToUse !== 'string' || !modelToUse.startsWith('googleai/')) { 
-      console.error(`[Topic Summarizer Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to gemini-2.0-flash.`);
-      modelToUse = 'googleai/gemini-2.0-flash';
+      console.error(`[Topic Summarizer Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to gemini-2.5-flash-preview-05-20.`);
+      modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
   }
   console.log(`[Topic Summarizer Action] Final model determined for flow: ${modelToUse}`);
   
+  const isProUser = input.userPlan === 'pro';
+  const isPremiumUser = input.userPlan === 'premium';
   const isGemini25PreviewSelected = modelToUse === 'googleai/gemini-2.5-flash-preview-05-20';
 
   const enrichedInput = {
@@ -145,12 +137,8 @@ const topicSummarizerFlow = ai.defineFlow(
     console.log(`[Topic Summarizer Flow] Initial modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
 
     if (typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
-        console.warn(`[Topic Summarizer Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting based on plan from enrichedInput.`);
-        if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
-            finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-        } else {
-            finalModelToUse = 'googleai/gemini-2.0-flash';
-        }
+        console.warn(`[Topic Summarizer Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting to universal default.`);
+        finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default
         console.log(`[Topic Summarizer Flow] Corrected/Defaulted model INSIDE FLOW to: ${finalModelToUse}`);
     }
     
@@ -162,13 +150,13 @@ const topicSummarizerFlow = ai.defineFlow(
         { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
     ];
     
-    let maxTokensForOutput = 2048; // Default for medium
+    let maxTokensForOutput = 2048; 
     if (enrichedInput.summaryLength === 'detailed') maxTokensForOutput = 8192;
     else if (enrichedInput.summaryLength === 'short') maxTokensForOutput = 1024;
      if ((enrichedInput.isProUser || enrichedInput.isPremiumUser) && enrichedInput.summaryLength === 'detailed') {
-        maxTokensForOutput = 8192; // Ensure Pro/Premium detailed gets max
+        maxTokensForOutput = 8192; 
     } else if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
-        maxTokensForOutput = Math.max(maxTokensForOutput, 4096); // Higher default for Pro/Premium
+        maxTokensForOutput = Math.max(maxTokensForOutput, 4096); 
     }
 
 
@@ -177,9 +165,7 @@ const topicSummarizerFlow = ai.defineFlow(
         config: {
             temperature: standardTemperature,
             safetySettings: standardSafetySettings,
-            generationConfig: {
-              maxOutputTokens: maxTokensForOutput,
-            }
+            maxOutputTokens: maxTokensForOutput,
         }
     };
 
@@ -194,14 +180,14 @@ const topicSummarizerFlow = ai.defineFlow(
         }
         return output;
     } catch (error: any) {
-        console.error(`[Topic Summarizer Flow] Error during generation with model ${finalModelToUse}:`, error);
+        console.error(`[Topic Summarizer Flow] Error during generation with model ${finalModelToUse}. Error details:`, JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
         let errorMessage = `AI modeli (${finalModelToUse}) ile konu özeti oluşturulurken bir hata oluştu.`;
         if (error.message) {
-            errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
+            errorMessage += ` Detay: ${error.message.substring(0, 300)}`;
              if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${finalModelToUse}. Detay: ${error.message.substring(0, 150)}`;
             } else if (error.name === 'GenkitError' && error.message.includes('Schema validation failed')) {
-              errorMessage = `AI modeli (${finalModelToUse}) beklenen yanıta uymayan bir çıktı üretti. Detay: ${error.message.substring(0,250)}`;
+              errorMessage = `AI modeli (${finalModelToUse}) beklenen yanıta uymayan bir çıktı üretti (Schema validation failed). Detay: ${error.message.substring(0,350)}`;
             }
         }
 
@@ -214,3 +200,4 @@ const topicSummarizerFlow = ai.defineFlow(
     }
   }
 );
+    

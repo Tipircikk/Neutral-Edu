@@ -39,15 +39,13 @@ const GenerateTestOutputSchema = z.object({
 export type GenerateTestOutput = z.infer<typeof GenerateTestOutputSchema>;
 
 export async function generateTest(input: GenerateTestInput): Promise<GenerateTestOutput> {
-  console.log(`[Test Generator Action] Received input. Plan: ${input.userPlan}, Admin Model ID: '${input.customModelIdentifier}'`);
+  console.log(`[Test Generator Action] Received input. User Plan: ${input.userPlan}, Admin Model ID: '${input.customModelIdentifier}'`);
 
-  const isProUser = input.userPlan === 'pro';
-  const isPremiumUser = input.userPlan === 'premium';
-  
   let modelToUse: string;
 
   if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.trim() !== "") {
-    const customIdLower = input.customModelIdentifier.toLowerCase();
+    const customIdLower = input.customModelIdentifier.toLowerCase().trim();
+    console.log(`[Test Generator Action] Admin specified customModelIdentifier: '${customIdLower}'`);
     switch (customIdLower) {
       case 'default_gemini_flash':
         modelToUse = 'googleai/gemini-2.0-flash';
@@ -59,40 +57,34 @@ export async function generateTest(input: GenerateTestInput): Promise<GenerateTe
         modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
         break;
       default:
-        if (input.customModelIdentifier.startsWith('googleai/')) {
-            modelToUse = input.customModelIdentifier;
+        if (customIdLower.startsWith('googleai/')) {
+            modelToUse = customIdLower;
             console.warn(`[Test Generator Action] Admin specified a direct Genkit model name: '${modelToUse}'. Ensure this model is supported.`);
         } else {
-            console.warn(`[Test Generator Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to plan-based default for plan '${input.userPlan}'.`);
-            if (isProUser || isPremiumUser) {
-                modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-            } else { 
-                modelToUse = 'googleai/gemini-2.0-flash';
-            }
+            console.warn(`[Test Generator Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to universal default.`);
+            modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default
         }
         break;
     }
   } else { 
-    console.log(`[Test Generator Action] No custom model specified by admin, or identifier was invalid. Using plan-based default for plan '${input.userPlan}'.`);
-    if (isProUser || isPremiumUser) {
-      modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-    } else { 
-      modelToUse = 'googleai/gemini-2.0-flash';
-    }
+    console.log(`[Test Generator Action] No custom model specified by admin. Using universal default.`);
+    modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default
   }
   
-  // Absolute fallback
+  // Absolute fallback if modelToUse is somehow still invalid
   if (typeof modelToUse !== 'string' || !modelToUse.startsWith('googleai/')) { 
-      console.error(`[Test Generator Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to gemini-2.0-flash.`);
-      modelToUse = 'googleai/gemini-2.0-flash';
+      console.error(`[Test Generator Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to gemini-2.5-flash-preview-05-20.`);
+      modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
   }
   console.log(`[Test Generator Action] Final model determined for flow: ${modelToUse}`);
   
+  const isProUser = input.userPlan === 'pro';
+  const isPremiumUser = input.userPlan === 'premium';
   const isGemini25PreviewSelected = modelToUse === 'googleai/gemini-2.5-flash-preview-05-20';
 
   const enrichedInput = {
       ...input,
-      questionTypes: ["multiple_choice"] as Array<"multiple_choice" | "true_false" | "short_answer">, // Forcing to multiple_choice
+      questionTypes: ["multiple_choice"] as Array<"multiple_choice" | "true_false" | "short_answer">, 
       isProUser,
       isPremiumUser,
       isCustomModelSelected: !!input.customModelIdentifier,
@@ -169,12 +161,8 @@ const testGeneratorFlow = ai.defineFlow(
     console.log(`[Test Generator Flow] Initial modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
 
     if (typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
-        console.warn(`[Test Generator Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting based on plan from enrichedInput.`);
-        if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
-            finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-        } else {
-            finalModelToUse = 'googleai/gemini-2.0-flash';
-        }
+        console.warn(`[Test Generator Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting to universal default.`);
+        finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default
         console.log(`[Test Generator Flow] Corrected/Defaulted model INSIDE FLOW to: ${finalModelToUse}`);
     }
     
@@ -186,22 +174,20 @@ const testGeneratorFlow = ai.defineFlow(
         { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
     ];
     
-    let maxTokensForOutput = enrichedInput.numQuestions * 500; // Base calculation
-    if (enrichedInput.isProUser || enrichedInput.isPremiumUser) { // Higher token limits for paid users
+    let maxTokensForOutput = enrichedInput.numQuestions * 500; 
+    if (enrichedInput.isProUser || enrichedInput.isPremiumUser) { 
         maxTokensForOutput = Math.max(maxTokensForOutput, 4096); 
     } else {
         maxTokensForOutput = Math.max(maxTokensForOutput, 2048); 
     }
-    if (maxTokensForOutput > 8192) maxTokensForOutput = 8192; // Absolute cap
+    if (maxTokensForOutput > 8192) maxTokensForOutput = 8192; 
 
     const callOptions: { model: string; config?: Record<string, any> } = { 
         model: finalModelToUse,
         config: {
             temperature: standardTemperature,
             safetySettings: standardSafetySettings,
-            generationConfig: {
-              maxOutputTokens: maxTokensForOutput,
-            }
+            maxOutputTokens: maxTokensForOutput,
         }
     };
 
@@ -215,21 +201,21 @@ const testGeneratorFlow = ai.defineFlow(
         throw new Error(`AI YKS Test Uzmanı (${finalModelToUse}), belirtilen konu için YKS standartlarında bir test oluşturamadı. Lütfen konu ve ayarları kontrol edin.`);
         }
         output.questions.forEach(q => {
-          q.questionType = "multiple_choice"; // Ensure questionType is set
+          q.questionType = "multiple_choice"; 
           if (!q.options || q.options.length !== 5) {
               console.warn(`[Test Generator Flow] Multiple choice question "${q.questionText.substring(0,50)}..." for topic "${enrichedInput.topic}" was expected to have 5 options, but received ${q.options?.length || 0}. Prompt may need adjustment.`);
           }
         });
         return output;
     } catch (error: any) {
-        console.error(`[Test Generator Flow] Error during generation with model ${finalModelToUse}:`, error);
+        console.error(`[Test Generator Flow] Error during generation with model ${finalModelToUse}. Error details:`, JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
         let errorMessage = `AI modeli (${finalModelToUse}) ile test oluşturulurken bir hata oluştu.`;
         if (error.message) {
-            errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
+            errorMessage += ` Detay: ${error.message.substring(0, 300)}`;
             if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${finalModelToUse}. Detay: ${error.message.substring(0, 150)}`;
             } else if (error.name === 'GenkitError' && error.message.includes('Schema validation failed')) {
-              errorMessage = `AI modeli (${finalModelToUse}) beklenen yanıta uymayan bir çıktı üretti. Detay: ${error.message.substring(0,250)}`;
+              errorMessage = `AI modeli (${finalModelToUse}) beklenen yanıta uymayan bir çıktı üretti (Schema validation failed). Detay: ${error.message.substring(0,350)}`;
             }
         }
 
@@ -240,3 +226,4 @@ const testGeneratorFlow = ai.defineFlow(
     }
   }
 );
+    

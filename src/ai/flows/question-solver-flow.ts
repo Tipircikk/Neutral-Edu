@@ -28,7 +28,7 @@ const SolveQuestionOutputSchema = z.object({
 export type SolveQuestionOutput = z.infer<typeof SolveQuestionOutputSchema>;
 
 export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQuestionOutput> {
-  console.log(`[Question Solver Action] Received input. Plan: ${input.userPlan}, Admin Model ID: '${input.customModelIdentifier}', HasText: ${!!input.questionText}, HasImage: ${!!input.imageDataUri}`);
+  console.log(`[Question Solver Action] Received input. User Plan: ${input.userPlan}, Admin Model ID: '${input.customModelIdentifier}', HasText: ${!!input.questionText}, HasImage: ${!!input.imageDataUri}`);
 
   if (!input.questionText && !input.imageDataUri) {
     return {
@@ -38,13 +38,11 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
     };
   }
   
-  const isProUser = input.userPlan === 'pro';
-  const isPremiumUser = input.userPlan === 'premium';
-  
   let modelToUse: string;
 
   if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.trim() !== "") {
-    const customIdLower = input.customModelIdentifier.toLowerCase();
+    const customIdLower = input.customModelIdentifier.toLowerCase().trim();
+    console.log(`[Question Solver Action] Admin specified customModelIdentifier: '${customIdLower}'`);
     switch (customIdLower) {
       case 'default_gemini_flash':
         modelToUse = 'googleai/gemini-2.0-flash';
@@ -56,35 +54,29 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
         modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
         break;
       default:
-        if (input.customModelIdentifier.startsWith('googleai/')) {
-            modelToUse = input.customModelIdentifier;
+        if (customIdLower.startsWith('googleai/')) {
+            modelToUse = customIdLower;
             console.warn(`[Question Solver Action] Admin specified a direct Genkit model name: '${modelToUse}'. Ensure this model is supported.`);
         } else {
-            console.warn(`[Question Solver Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to plan-based default for plan '${input.userPlan}'.`);
-            if (isProUser || isPremiumUser) {
-                modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-            } else { 
-                modelToUse = 'googleai/gemini-2.0-flash';
-            }
+            console.warn(`[Question Solver Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to universal default.`);
+            modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default
         }
         break;
     }
   } else { 
-    console.log(`[Question Solver Action] No custom model specified by admin, or identifier was invalid. Using plan-based default for plan '${input.userPlan}'.`);
-    if (isProUser || isPremiumUser) {
-      modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-    } else { 
-      modelToUse = 'googleai/gemini-2.0-flash';
-    }
+    console.log(`[Question Solver Action] No custom model specified by admin. Using universal default.`);
+    modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default
   }
   
-  // Absolute fallback
+  // Absolute fallback if modelToUse is somehow still invalid
   if (typeof modelToUse !== 'string' || !modelToUse.startsWith('googleai/')) { 
-      console.error(`[Question Solver Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to gemini-2.0-flash.`);
-      modelToUse = 'googleai/gemini-2.0-flash';
+      console.error(`[Question Solver Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to gemini-2.5-flash-preview-05-20.`);
+      modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
   }
   console.log(`[Question Solver Action] Final model determined for flow: ${modelToUse}`);
   
+  const isProUser = input.userPlan === 'pro';
+  const isPremiumUser = input.userPlan === 'premium';
   const isGemini25PreviewSelected = modelToUse === 'googleai/gemini-2.5-flash-preview-05-20';
 
   const enrichedInput = {
@@ -101,7 +93,7 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
     if (!result || typeof result.solution !== 'string' || !Array.isArray(result.relatedConcepts) || !Array.isArray(result.examStrategyTips)) {
       console.error("[Question Solver Action] Flow returned invalid, null, or malformed result. Raw result:", JSON.stringify(result).substring(0, 500));
       return {
-        solution: `AI akışından (${modelToUse}) geçersiz veya eksik bir yanıt alındı. Lütfen tekrar deneyin veya farklı bir soru sorun.`,
+        solution: `AI akışından (${finalModelToUse}) geçersiz veya eksik bir yanıt alındı. Lütfen tekrar deneyin veya farklı bir soru sorun.`,
         relatedConcepts: result?.relatedConcepts || ["Hata"],
         examStrategyTips: result?.examStrategyTips || ["Tekrar deneyin"],
       };
@@ -117,7 +109,7 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
         errorMessage = error;
     }
     return {
-      solution: `Sunucu tarafında kritik bir hata oluştu (${modelToUse}): ${errorMessage.substring(0,200)}.`,
+      solution: `Sunucu tarafında kritik bir hata oluştu (${finalModelToUse || 'belirlenemeyen model'}): ${errorMessage.substring(0,200)}.`,
       relatedConcepts: ["Kritik Hata"],
       examStrategyTips: ["Tekrar deneyin"],
     };
@@ -209,12 +201,8 @@ const questionSolverFlow = ai.defineFlow(
     console.log(`[Question Solver Flow] Initial modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
 
     if (typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
-        console.warn(`[Question Solver Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting based on plan from enrichedInput.`);
-        if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
-            finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-        } else {
-            finalModelToUse = 'googleai/gemini-2.0-flash';
-        }
+        console.warn(`[Question Solver Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting to universal default.`);
+        finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default
         console.log(`[Question Solver Flow] Corrected/Defaulted model INSIDE FLOW to: ${finalModelToUse}`);
     }
     
@@ -233,9 +221,7 @@ const questionSolverFlow = ai.defineFlow(
       config: {
         temperature: standardTemperature,
         safetySettings: standardSafetySettings,
-        generationConfig: {
-          maxOutputTokens: standardMaxOutputTokens, 
-        }
+        maxOutputTokens: standardMaxOutputTokens, 
       }
     };
     
@@ -261,7 +247,7 @@ const questionSolverFlow = ai.defineFlow(
       };
 
     } catch (promptError: any) {
-      console.error(`[Question Solver Flow] CRITICAL ERROR during prompt execution with model ${finalModelToUse}:`, promptError);
+      console.error(`[Question Solver Flow] CRITICAL ERROR during prompt execution with model ${finalModelToUse}. Error details:`, JSON.stringify(promptError, Object.getOwnPropertyNames(promptError), 2));
       let errorMessage = `AI modeli (${finalModelToUse}) ile iletişimde bir hata oluştu.`;
       if (promptError?.message) {
           if (promptError.message.includes('400 Bad Request') && (promptError.message.includes('generationConfig') || promptError.message.includes('generation_config'))) {
@@ -273,9 +259,9 @@ const questionSolverFlow = ai.defineFlow(
           } else if (promptError.message.includes('500 Internal Server Error') || promptError.message.includes('internal error has occurred') || promptError.message.includes('Deadline exceeded') || promptError.message.includes('504 Gateway Timeout')) {
               errorMessage = `AI modeli (${finalModelToUse}) yanıt vermesi çok uzun sürdü veya dahili bir sunucu hatasıyla karşılaştı. Lütfen daha sonra tekrar deneyin veya farklı bir soru/model deneyin. Detay: ${promptError.message.substring(0,150)}`;
           } else if (promptError.name === 'GenkitError' && promptError.message.includes('Schema validation failed')){
-              errorMessage = `AI modeli (${finalModelToUse}) beklenen yanıt şemasına uymayan bir çıktı üretti. Lütfen farklı bir soru deneyin veya modelin yanıtını kontrol edin. Detay: ${promptError.message.substring(0,150)}`;
+              errorMessage = `AI modeli (${finalModelToUse}) beklenen yanıt şemasına uymayan bir çıktı üretti (Schema validation failed). Lütfen farklı bir soru deneyin veya modelin yanıtını kontrol edin. Detay: ${promptError.message.substring(0,350)}`;
           } else {
-             errorMessage += ` Detay: ${promptError.message.substring(0,200)}`;
+             errorMessage += ` Detay: ${promptError.message.substring(0,300)}`;
           }
       }
       return {
@@ -286,3 +272,4 @@ const questionSolverFlow = ai.defineFlow(
     }
   }
 );
+    

@@ -42,15 +42,13 @@ const SummarizePdfForStudentOutputSchema = z.object({
 export type SummarizePdfForStudentOutput = z.infer<typeof SummarizePdfForStudentOutputSchema>;
 
 export async function summarizePdfForStudent(input: SummarizePdfForStudentInput): Promise<SummarizePdfForStudentOutput> {
-  console.log(`[Summarize PDF Action] Received input. Plan: ${input.userPlan}, Admin Model ID: '${input.customModelIdentifier}'`);
-  
-  const isProUser = input.userPlan === 'pro';
-  const isPremiumUser = input.userPlan === 'premium';
+  console.log(`[Summarize PDF Action] Received input. User Plan: ${input.userPlan}, Admin Model ID: '${input.customModelIdentifier}'`);
   
   let modelToUse: string;
 
   if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.trim() !== "") {
-    const customIdLower = input.customModelIdentifier.toLowerCase();
+    const customIdLower = input.customModelIdentifier.toLowerCase().trim();
+    console.log(`[Summarize PDF Action] Admin specified customModelIdentifier: '${customIdLower}'`);
     switch (customIdLower) {
       case 'default_gemini_flash':
         modelToUse = 'googleai/gemini-2.0-flash';
@@ -62,35 +60,29 @@ export async function summarizePdfForStudent(input: SummarizePdfForStudentInput)
         modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
         break;
       default:
-        if (input.customModelIdentifier.startsWith('googleai/')) {
-            modelToUse = input.customModelIdentifier;
+        if (customIdLower.startsWith('googleai/')) {
+            modelToUse = customIdLower;
             console.warn(`[Summarize PDF Action] Admin specified a direct Genkit model name: '${modelToUse}'. Ensure this model is supported.`);
         } else {
-            console.warn(`[Summarize PDF Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to plan-based default for plan '${input.userPlan}'.`);
-            if (isProUser || isPremiumUser) {
-                modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-            } else { 
-                modelToUse = 'googleai/gemini-2.0-flash';
-            }
+            console.warn(`[Summarize PDF Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to universal default.`);
+            modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default
         }
         break;
     }
   } else { 
-    console.log(`[Summarize PDF Action] No custom model specified by admin, or identifier was invalid. Using plan-based default for plan '${input.userPlan}'.`);
-    if (isProUser || isPremiumUser) {
-      modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-    } else { 
-      modelToUse = 'googleai/gemini-2.0-flash';
-    }
+    console.log(`[Summarize PDF Action] No custom model specified by admin. Using universal default.`);
+    modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default
   }
   
-  // Absolute fallback
+  // Absolute fallback if modelToUse is somehow still invalid
   if (typeof modelToUse !== 'string' || !modelToUse.startsWith('googleai/')) { 
-      console.error(`[Summarize PDF Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to gemini-2.0-flash.`);
-      modelToUse = 'googleai/gemini-2.0-flash';
+      console.error(`[Summarize PDF Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to gemini-2.5-flash-preview-05-20.`);
+      modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
   }
   console.log(`[Summarize PDF Action] Final model determined for flow: ${modelToUse}`);
   
+  const isProUser = input.userPlan === 'pro';
+  const isPremiumUser = input.userPlan === 'premium';
   const isGemini25PreviewSelected = modelToUse === 'googleai/gemini-2.5-flash-preview-05-20';
 
   const enrichedInput = {
@@ -171,12 +163,8 @@ const summarizePdfForStudentFlow = ai.defineFlow(
     console.log(`[Summarize PDF Flow] Initial modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
 
     if (typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
-        console.warn(`[Summarize PDF Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting based on plan from enrichedInput.`);
-        if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
-            finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-        } else {
-            finalModelToUse = 'googleai/gemini-2.0-flash';
-        }
+        console.warn(`[Summarize PDF Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting to universal default.`);
+        finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default
         console.log(`[Summarize PDF Flow] Corrected/Defaulted model INSIDE FLOW to: ${finalModelToUse}`);
     }
     
@@ -191,16 +179,14 @@ const summarizePdfForStudentFlow = ai.defineFlow(
     let maxTokensForOutput = 2048; // Default for medium
     if (enrichedInput.summaryLength === 'detailed') maxTokensForOutput = 8192;
     else if (enrichedInput.summaryLength === 'short') maxTokensForOutput = 1024;
-    if (enrichedInput.isProUser && enrichedInput.summaryLength === 'detailed') maxTokensForOutput = 8192; // Max for Pro detailed
+    if (enrichedInput.isProUser && enrichedInput.summaryLength === 'detailed') maxTokensForOutput = 8192; 
 
     const callOptions: { model: string; config?: Record<string, any> } = { 
       model: finalModelToUse,
       config: {
         temperature: standardTemperature,
         safetySettings: standardSafetySettings,
-        generationConfig: {
-          maxOutputTokens: maxTokensForOutput,
-        }
+        maxOutputTokens: maxTokensForOutput,
       }
     };
     
@@ -247,14 +233,14 @@ const summarizePdfForStudentFlow = ai.defineFlow(
 
       return output;
     } catch (error: any) {
-        console.error(`[Summarize PDF Flow] Error during generation with model ${finalModelToUse}:`, error);
+        console.error(`[Summarize PDF Flow] Error during generation with model ${finalModelToUse}. Error details:`, JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
         let errorMessage = `AI modeli (${finalModelToUse}) ile PDF özeti oluşturulurken bir hata oluştu.`;
         if (error.message) {
-            errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
+            errorMessage += ` Detay: ${error.message.substring(0, 300)}`;
              if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen PDF içeriğini kontrol edin. Model: ${finalModelToUse}. Detay: ${error.message.substring(0, 150)}`;
             } else if (error.name === 'GenkitError' && error.message.includes('Schema validation failed')) {
-              errorMessage = `AI modeli (${finalModelToUse}) beklenen yanıta uymayan bir çıktı üretti. Detay: ${error.message.substring(0,250)}`;
+              errorMessage = `AI modeli (${finalModelToUse}) beklenen yanıta uymayan bir çıktı üretti (Schema validation failed). Detay: ${error.message.substring(0,350)}`;
             }
         }
         return {
@@ -268,3 +254,4 @@ const summarizePdfForStudentFlow = ai.defineFlow(
     }
   }
 );
+    
