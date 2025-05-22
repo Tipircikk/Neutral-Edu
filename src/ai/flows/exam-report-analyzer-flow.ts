@@ -35,14 +35,16 @@ const ExamReportAnalyzerOutputSchema = z.object({
 export type ExamReportAnalyzerOutput = z.infer<typeof ExamReportAnalyzerOutputSchema>;
 
 export async function analyzeExamReport(input: ExamReportAnalyzerInput): Promise<ExamReportAnalyzerOutput> {
+  console.log(`[Exam Report Analyzer Action] Received input. customModelIdentifier (raw): '${input.customModelIdentifier}', userPlan: '${input.userPlan}'`);
 
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
-  const isCustomModelSelected = !!input.customModelIdentifier;
   
   let modelToUse = '';
-  if (input.customModelIdentifier) {
-    switch (input.customModelIdentifier) {
+
+  if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.trim() !== "") {
+    const customIdLower = input.customModelIdentifier.toLowerCase();
+    switch (customIdLower) {
       case 'default_gemini_flash':
         modelToUse = 'googleai/gemini-2.0-flash';
         break;
@@ -53,41 +55,56 @@ export async function analyzeExamReport(input: ExamReportAnalyzerInput): Promise
         modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
         break;
       default:
-        console.warn(`[Exam Report Analyzer Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting based on plan.`);
-        if (isProUser || isPremiumUser) {
-          modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-        } else { 
-          modelToUse = 'googleai/gemini-2.0-flash';
+        if (input.customModelIdentifier.startsWith('googleai/')) {
+            modelToUse = input.customModelIdentifier;
+            console.warn(`[Exam Report Analyzer Action] Admin specified a direct Genkit model name: '${modelToUse}'. Ensure this model is supported.`);
+        } else {
+            console.warn(`[Exam Report Analyzer Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to plan-based default for plan '${input.userPlan}'.`);
+            if (isProUser || isPremiumUser) {
+                modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+            } else { 
+                modelToUse = 'googleai/gemini-2.0-flash';
+            }
         }
         break;
     }
   } else { 
+    console.log(`[Exam Report Analyzer Action] No custom model specified by admin, or identifier was invalid. Using plan-based default for plan '${input.userPlan}'.`);
     if (isProUser || isPremiumUser) {
       modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
     } else { 
       modelToUse = 'googleai/gemini-2.0-flash';
     }
   }
+  
+  if (typeof modelToUse !== 'string' || !modelToUse.startsWith('googleai/')) { 
+      console.error(`[Exam Report Analyzer Action] CRITICAL FALLBACK: modelToUse became invalid ('${modelToUse}', type: ${typeof modelToUse}) after selection logic. Forcing to default gemini-2.0-flash.`);
+      modelToUse = 'googleai/gemini-2.0-flash';
+  }
+  console.log(`[Exam Report Analyzer Action] Final model determined for flow: ${modelToUse}`);
+  
   const isGemini25PreviewSelected = modelToUse === 'googleai/gemini-2.5-flash-preview-05-20';
 
   const enrichedInput = {
     ...input,
     isProUser,
     isPremiumUser,
-    isCustomModelSelected,
+    isCustomModelSelected: !!input.customModelIdentifier,
     isGemini25PreviewSelected,
   };
   return examReportAnalyzerFlow(enrichedInput, modelToUse);
 }
 
-const prompt = ai.definePrompt({
-  name: 'examReportAnalyzerPrompt',
-  input: {schema: ExamReportAnalyzerInputSchema.extend({
+const promptInputSchema = ExamReportAnalyzerInputSchema.extend({
     isProUser: z.boolean().optional(),
     isPremiumUser: z.boolean().optional(),
     isCustomModelSelected: z.boolean().optional(),
     isGemini25PreviewSelected: z.boolean().optional(),
-  })},
+});
+
+const prompt = ai.definePrompt({
+  name: 'examReportAnalyzerPrompt',
+  input: {schema: promptInputSchema},
   output: {schema: ExamReportAnalyzerOutputSchema},
   prompt: `Sen, YKS sınav raporlarını analiz eden ve öğrencilere özel geri bildirimler sunan bir AI YKS danışmanısın. Amacın, raporu değerlendirip öğrencinin YKS başarısını artırmasına yardımcı olmaktır. Cevapların Türkçe olmalıdır.
 
@@ -101,7 +118,7 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 {{/if}}
 
 {{#if isCustomModelSelected}}
-(Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
+(Admin Notu: Özel model '{{{customModelIdentifier}}}' seçildi.)
 {{/if}}
 
 {{#if isGemini25PreviewSelected}}
@@ -133,19 +150,27 @@ Analiz İlkeleri:
 const examReportAnalyzerFlow = ai.defineFlow(
   {
     name: 'examReportAnalyzerFlow',
-    inputSchema: ExamReportAnalyzerInputSchema.extend({
-        isProUser: z.boolean().optional(),
-        isPremiumUser: z.boolean().optional(),
-        isCustomModelSelected: z.boolean().optional(),
-        isGemini25PreviewSelected: z.boolean().optional(),
-    }),
+    inputSchema: promptInputSchema,
     outputSchema: ExamReportAnalyzerOutputSchema,
   },
-  async (enrichedInput: z.infer<typeof ExamReportAnalyzerInputSchema> & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean}, modelToUse: string ): Promise<ExamReportAnalyzerOutput> => {
+  async (enrichedInput: z.infer<typeof promptInputSchema>, modelToUseParam: string ): Promise<ExamReportAnalyzerOutput> => {
     
-    let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
+    let finalModelToUse = modelToUseParam;
+    console.log(`[Exam Report Analyzer Flow] Received modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
 
-    if (modelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
+    if (typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
+        console.warn(`[Exam Report Analyzer Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting based on plan from enrichedInput.`);
+        if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
+            finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+        } else {
+            finalModelToUse = 'googleai/gemini-2.0-flash';
+        }
+        console.log(`[Exam Report Analyzer Flow] Corrected/Defaulted model INSIDE FLOW to: ${finalModelToUse}`);
+    }
+    
+    let callOptions: { model: string; config?: Record<string, any> } = { model: finalModelToUse };
+
+    if (finalModelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
       callOptions.config = {}; 
     } else {
        callOptions.config = {
@@ -155,21 +180,25 @@ const examReportAnalyzerFlow = ai.defineFlow(
       };
     }
 
-    console.log(`[Exam Report Analyzer Flow] Using model: ${modelToUse} for plan: ${enrichedInput.userPlan}, customModel: ${enrichedInput.customModelIdentifier}`);
+    const promptInputForLog = { ...enrichedInput, resolvedModelUsed: finalModelToUse }; // Log the actually used model
+    console.log(`[Exam Report Analyzer Flow] Using Genkit model: ${finalModelToUse} for plan: ${enrichedInput.userPlan}, customModel (raw): ${enrichedInput.customModelIdentifier}, with config: ${JSON.stringify(callOptions.config)}`);
 
     try {
-        const {output} = await prompt(enrichedInput, callOptions);
+        const {output} = await prompt(promptInputForLog, callOptions);
         if (!output || !output.identifiedTopics || output.identifiedTopics.length === 0) {
-        throw new Error("AI Sınav Analisti, bu rapor için detaylı bir analiz ve öneri üretemedi. Lütfen rapor metninin yeterli ve anlaşılır olduğundan emin olun.");
+        console.error(`[Exam Report Analyzer Flow] AI did not produce valid analysis. Model: ${finalModelToUse}. Input text length: ${enrichedInput.reportTextContent.length}. Output:`, JSON.stringify(output).substring(0,300));
+        throw new Error(`AI Sınav Analisti (${finalModelToUse}), bu rapor için detaylı bir analiz ve öneri üretemedi. Lütfen rapor metninin yeterli ve anlaşılır olduğundan emin olun.`);
         }
         return output;
     } catch (error: any) {
-        console.error(`[Exam Report Analyzer Flow] Error during generation with model ${modelToUse}:`, error);
-        let errorMessage = `AI modeli (${modelToUse}) ile sınav raporu analizi yapılırken bir hata oluştu.`;
+        console.error(`[Exam Report Analyzer Flow] Error during generation with model ${finalModelToUse}:`, error);
+        let errorMessage = `AI modeli (${finalModelToUse}) ile sınav raporu analizi yapılırken bir hata oluştu.`;
         if (error.message) {
             errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
              if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
-              errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen rapor metnini kontrol edin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
+              errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen rapor metnini kontrol edin. Model: ${finalModelToUse}. Detay: ${error.message.substring(0, 150)}`;
+            } else if (error.name === 'GenkitError' && error.message.includes('Schema validation failed')) {
+              errorMessage = `AI modeli (${finalModelToUse}) beklenen yanıta uymayan bir çıktı üretti. Lütfen girdinizi veya modelin yanıt formatını kontrol edin. Detay: ${error.message.substring(0,250)}`;
             }
         }
 
@@ -182,3 +211,4 @@ const examReportAnalyzerFlow = ai.defineFlow(
     }
   }
 );
+

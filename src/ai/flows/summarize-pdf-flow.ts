@@ -42,13 +42,16 @@ const SummarizePdfForStudentOutputSchema = z.object({
 export type SummarizePdfForStudentOutput = z.infer<typeof SummarizePdfForStudentOutputSchema>;
 
 export async function summarizePdfForStudent(input: SummarizePdfForStudentInput): Promise<SummarizePdfForStudentOutput> {
+  console.log(`[Summarize PDF Action] Received input. customModelIdentifier (raw): '${input.customModelIdentifier}', userPlan: '${input.userPlan}'`);
+  
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
-  const isCustomModelSelected = !!input.customModelIdentifier;
-
+  
   let modelToUse = '';
-  if (input.customModelIdentifier) {
-    switch (input.customModelIdentifier) {
+
+  if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.trim() !== "") {
+    const customIdLower = input.customModelIdentifier.toLowerCase();
+    switch (customIdLower) {
       case 'default_gemini_flash':
         modelToUse = 'googleai/gemini-2.0-flash';
         break;
@@ -59,41 +62,56 @@ export async function summarizePdfForStudent(input: SummarizePdfForStudentInput)
         modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
         break;
       default:
-        console.warn(`[Summarize PDF Flow] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting based on plan.`);
-        if (isProUser || isPremiumUser) {
-          modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-        } else { 
-          modelToUse = 'googleai/gemini-2.0-flash';
+        if (input.customModelIdentifier.startsWith('googleai/')) {
+            modelToUse = input.customModelIdentifier;
+            console.warn(`[Summarize PDF Action] Admin specified a direct Genkit model name: '${modelToUse}'. Ensure this model is supported.`);
+        } else {
+            console.warn(`[Summarize PDF Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to plan-based default for plan '${input.userPlan}'.`);
+            if (isProUser || isPremiumUser) {
+                modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+            } else { 
+                modelToUse = 'googleai/gemini-2.0-flash';
+            }
         }
         break;
     }
   } else { 
+    console.log(`[Summarize PDF Action] No custom model specified by admin, or identifier was invalid. Using plan-based default for plan '${input.userPlan}'.`);
     if (isProUser || isPremiumUser) {
       modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
     } else { 
       modelToUse = 'googleai/gemini-2.0-flash';
     }
   }
+  
+  if (typeof modelToUse !== 'string' || !modelToUse.startsWith('googleai/')) { 
+      console.error(`[Summarize PDF Action] CRITICAL FALLBACK: modelToUse became invalid ('${modelToUse}', type: ${typeof modelToUse}) after selection logic. Forcing to default gemini-2.0-flash.`);
+      modelToUse = 'googleai/gemini-2.0-flash';
+  }
+  console.log(`[Summarize PDF Action] Final model determined for flow: ${modelToUse}`);
+  
   const isGemini25PreviewSelected = modelToUse === 'googleai/gemini-2.5-flash-preview-05-20';
 
   const enrichedInput = {
     ...input,
     isProUser,
     isPremiumUser,
-    isCustomModelSelected,
+    isCustomModelSelected: !!input.customModelIdentifier,
     isGemini25PreviewSelected,
   };
   return summarizePdfForStudentFlow(enrichedInput, modelToUse);
 }
 
-const prompt = ai.definePrompt({
-  name: 'detailedTopicExplainerFromPdfPrompt',
-  input: {schema: SummarizePdfForStudentInputSchema.extend({
+const promptInputSchema = SummarizePdfForStudentInputSchema.extend({
     isProUser: z.boolean().optional(),
     isPremiumUser: z.boolean().optional(),
     isCustomModelSelected: z.boolean().optional(),
     isGemini25PreviewSelected: z.boolean().optional(),
-  })},
+});
+
+const prompt = ai.definePrompt({
+  name: 'detailedTopicExplainerFromPdfPrompt',
+  input: {schema: promptInputSchema},
   output: {schema: SummarizePdfForStudentOutputSchema},
   prompt: `Sen, sana sunulan akademik metinlerdeki konuları detaylı, kapsamlı ve anlaşılır bir şekilde açıklayan, alanında otorite sahibi bir AI konu uzmanısın. Amacın, metindeki bilgileri öğretmek, temel kavramları ve prensipleri sunmaktır. Cevapların Türkçe olmalıdır.
 
@@ -107,7 +125,7 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 {{/if}}
 
 {{#if isCustomModelSelected}}
-(Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
+(Admin Notu: Özel model '{{{customModelIdentifier}}}' seçildi.)
 {{/if}}
 
 {{#if isGemini25PreviewSelected}}
@@ -143,19 +161,27 @@ Hedefin öğrencinin konuyu derinlemesine anlamasına yardımcı olmak. {{{summa
 const summarizePdfForStudentFlow = ai.defineFlow(
   {
     name: 'summarizePdfForStudentFlow',
-    inputSchema: SummarizePdfForStudentInputSchema.extend({
-        isProUser: z.boolean().optional(),
-        isPremiumUser: z.boolean().optional(),
-        isCustomModelSelected: z.boolean().optional(),
-        isGemini25PreviewSelected: z.boolean().optional(),
-    }),
+    inputSchema: promptInputSchema,
     outputSchema: SummarizePdfForStudentOutputSchema,
   },
-  async (enrichedInput: z.infer<typeof SummarizePdfForStudentInputSchema> & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean}, modelToUse: string ): Promise<SummarizePdfForStudentOutput> => {
+  async (enrichedInput: z.infer<typeof promptInputSchema>, modelToUseParam: string ): Promise<SummarizePdfForStudentOutput> => {
     
-    let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
+    let finalModelToUse = modelToUseParam;
+    console.log(`[Summarize PDF Flow] Received modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
 
-    if (modelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
+    if (typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
+        console.warn(`[Summarize PDF Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting based on plan from enrichedInput.`);
+        if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
+            finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+        } else {
+            finalModelToUse = 'googleai/gemini-2.0-flash';
+        }
+        console.log(`[Summarize PDF Flow] Corrected/Defaulted model INSIDE FLOW to: ${finalModelToUse}`);
+    }
+    
+    let callOptions: { model: string; config?: Record<string, any> } = { model: finalModelToUse };
+
+    if (finalModelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
        callOptions.config = {}; 
     } else {
       callOptions.config = {
@@ -165,12 +191,13 @@ const summarizePdfForStudentFlow = ai.defineFlow(
       };
     }
 
-    console.log(`[Summarize PDF Flow] Using model: ${modelToUse} with input:`, { summaryLength: enrichedInput.summaryLength, outputDetail: enrichedInput.outputDetail, keywords: !!enrichedInput.keywords, pageRange: !!enrichedInput.pageRange, userPlan: enrichedInput.userPlan, customModel: enrichedInput.customModelIdentifier });
+    const promptInputForLog = { ...enrichedInput, resolvedModelUsed: finalModelToUse };
+    console.log(`[Summarize PDF Flow] Using Genkit model: ${finalModelToUse} for plan: ${enrichedInput.userPlan}, customModel (raw): ${enrichedInput.customModelIdentifier}, with config: ${JSON.stringify(callOptions.config)}`);
 
     try {
-      const {output} = await prompt(enrichedInput, callOptions);
+      const {output} = await prompt(promptInputForLog, callOptions);
       if (!output) {
-        throw new Error("AI, PDF içeriği için şemaya uygun bir açıklama üretemedi.");
+        throw new Error(`AI (${finalModelToUse}), PDF içeriği için şemaya uygun bir açıklama üretemedi.`);
       }
 
       const shouldHaveQuestions = enrichedInput.outputDetail === 'full' || enrichedInput.outputDetail === 'questions_only';
@@ -199,20 +226,22 @@ const summarizePdfForStudentFlow = ai.defineFlow(
           if(enrichedInput.outputDetail !== 'full' && !output.mainIdea) output.mainIdea = "Sadece istenen bölüm üretildi.";
       }
 
-      if(!output.summary) output.summary = "Bu içerik için bir anlatım üretilemedi. Lütfen PDF'i kontrol edin veya farklı bir çıktı detayı deneyin.";
+      if(!output.summary) output.summary = `Bu içerik için bir anlatım üretilemedi (${finalModelToUse}). Lütfen PDF'i kontrol edin veya farklı bir çıktı detayı deneyin.`;
       if(!output.mainIdea) output.mainIdea = "Ana fikir belirlenemedi.";
       if(!output.keyPoints) output.keyPoints = ["Anahtar noktalar belirlenemedi."];
-      if(!output.formattedStudyOutput) output.formattedStudyOutput = `## Hata\n\nİstenen detayda bir çıktı oluşturulamadı. Lütfen PDF içeriğinizi ve seçtiğiniz ayarları kontrol edin.`;
+      if(!output.formattedStudyOutput) output.formattedStudyOutput = `## Hata\n\nİstenen detayda bir çıktı oluşturulamadı (${finalModelToUse}). Lütfen PDF içeriğinizi ve seçtiğiniz ayarları kontrol edin.`;
 
 
       return output;
     } catch (error: any) {
-        console.error(`[Summarize PDF Flow] Error during generation with model ${modelToUse}:`, error);
-        let errorMessage = `AI modeli (${modelToUse}) ile PDF özeti oluşturulurken bir hata oluştu.`;
+        console.error(`[Summarize PDF Flow] Error during generation with model ${finalModelToUse}:`, error);
+        let errorMessage = `AI modeli (${finalModelToUse}) ile PDF özeti oluşturulurken bir hata oluştu.`;
         if (error.message) {
             errorMessage += ` Detay: ${error.message.substring(0, 200)}`;
              if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
-              errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen PDF içeriğini kontrol edin. Model: ${modelToUse}. Detay: ${error.message.substring(0, 150)}`;
+              errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen PDF içeriğini kontrol edin. Model: ${finalModelToUse}. Detay: ${error.message.substring(0, 150)}`;
+            } else if (error.name === 'GenkitError' && error.message.includes('Schema validation failed')) {
+              errorMessage = `AI modeli (${finalModelToUse}) beklenen yanıta uymayan bir çıktı üretti. Detay: ${error.message.substring(0,250)}`;
             }
         }
         return {
@@ -226,3 +255,4 @@ const summarizePdfForStudentFlow = ai.defineFlow(
     }
   }
 );
+

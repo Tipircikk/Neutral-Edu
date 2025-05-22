@@ -9,7 +9,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import type { UserProfile } from '@/types';
 
-// TTS related imports and functions are removed.
+// TTS related imports and functions are removed as requested by the user.
 
 const ExplainTopicInputSchema = z.object({
   topicName: z.string().min(3).describe('Açıklanması istenen YKS konu başlığı (örn: "Matematik - Türev ve Uygulamaları", "Edebiyat - Milli Edebiyat Dönemi").'),
@@ -44,42 +44,48 @@ const defaultErrorOutput: ExplainTopicOutput = {
 };
 
 export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTopicOutput> {
-  console.log(`[ExplainTopic Action - Start] Input received. CustomModelIdentifier: ${input.customModelIdentifier}, UserPlan: ${input.userPlan}, TopicName: ${input.topicName}, ExplanationLevel: ${input.explanationLevel}, TeacherPersona: ${input.teacherPersona}`);
+  console.log(`[ExplainTopic Action] Received input. customModelIdentifier (raw): '${input.customModelIdentifier}', userPlan: '${input.userPlan}', TopicName: ${input.topicName}`);
 
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
   
-  let modelToUseForText = '';
+  let modelToUse = '';
   
   if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.trim() !== "") {
     const customIdLower = input.customModelIdentifier.toLowerCase();
     switch (customIdLower) {
-      case 'default_gemini_flash': modelToUseForText = 'googleai/gemini-2.0-flash'; break;
-      case 'experimental_gemini_1_5_flash': modelToUseForText = 'googleai/gemini-1.5-flash-latest'; break;
-      case 'experimental_gemini_2_5_flash_preview_05_20': modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20'; break;
+      case 'default_gemini_flash': modelToUse = 'googleai/gemini-2.0-flash'; break;
+      case 'experimental_gemini_1_5_flash': modelToUse = 'googleai/gemini-1.5-flash-latest'; break;
+      case 'experimental_gemini_2_5_flash_preview_05_20': modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; break;
       default:
-        console.warn(`[ExplainTopic Action] Unknown or invalid customModelIdentifier: '${input.customModelIdentifier}'. Defaulting based on plan '${input.userPlan}'.`);
-        if (isProUser || isPremiumUser) modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20';
-        else modelToUseForText = 'googleai/gemini-2.0-flash';
+        if (input.customModelIdentifier.startsWith('googleai/')) {
+            modelToUse = input.customModelIdentifier;
+            console.warn(`[ExplainTopic Action] Admin specified a direct Genkit model name: '${modelToUse}'. Ensure this model is supported.`);
+        } else {
+            console.warn(`[ExplainTopic Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to plan-based default for plan '${input.userPlan}'.`);
+            if (isProUser || isPremiumUser) modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+            else modelToUse = 'googleai/gemini-2.0-flash';
+        }
         break;
     }
   } else {
-    if (isProUser || isPremiumUser) modelToUseForText = 'googleai/gemini-2.5-flash-preview-05-20';
-    else modelToUseForText = 'googleai/gemini-2.0-flash';
+    console.log(`[ExplainTopic Action] No custom model specified by admin, or identifier was invalid. Using plan-based default for plan '${input.userPlan}'.`);
+    if (isProUser || isPremiumUser) modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+    else modelToUse = 'googleai/gemini-2.0-flash';
   }
   
-  if (!modelToUseForText || typeof modelToUseForText !== 'string' || !modelToUseForText.startsWith('googleai/')) {
-    console.error(`[ExplainTopic Action] CRITICAL FALLBACK: modelToUseForText became invalid ('${modelToUseForText}'). Forcing to default gemini-2.0-flash.`);
-    modelToUseForText = 'googleai/gemini-2.0-flash';
+  if (!modelToUse || typeof modelToUse !== 'string' || !modelToUse.startsWith('googleai/')) {
+    console.error(`[ExplainTopic Action] CRITICAL FALLBACK: modelToUse became invalid ('${modelToUse}', type: ${typeof modelToUse}) after selection logic. Forcing to default gemini-2.0-flash.`);
+    modelToUse = 'googleai/gemini-2.0-flash';
   }
-  console.log(`[ExplainTopic Action] Determined final modelToUseForText for Genkit flow: ${modelToUseForText}`);
+  console.log(`[ExplainTopic Action] Final model determined for flow: ${modelToUse}`);
   
   const enrichedInputForTextPrompt = {
     ...input,
     isProUser,
     isPremiumUser,
     isCustomModelSelected: !!input.customModelIdentifier,
-    isGemini25PreviewSelected: modelToUseForText === 'googleai/gemini-2.5-flash-preview-05-20',
+    isGemini25PreviewSelected: modelToUse === 'googleai/gemini-2.5-flash-preview-05-20',
     isPersonaSamimi: input.teacherPersona === 'samimi',
     isPersonaEglenceli: input.teacherPersona === 'eglenceli',
     isPersonaCiddi: input.teacherPersona === 'ciddi',
@@ -90,8 +96,8 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
   const textGenStartTime = Date.now();
 
   try {
-    console.log("[ExplainTopic Action] Calling topicExplainerFlow for text generation with model:", modelToUseForText);
-    flowOutput = await topicExplainerFlow(enrichedInputForTextPrompt, modelToUseForText);
+    console.log("[ExplainTopic Action] Calling topicExplainerFlow for text generation with model:", modelToUse);
+    flowOutput = await topicExplainerFlow(enrichedInputForTextPrompt, modelToUse);
     const textGenEndTime = Date.now();
     console.log(`[ExplainTopic Action] Text generation took ${textGenEndTime - textGenStartTime}ms`);
 
@@ -100,7 +106,7 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
        const errorTitle = flowOutput?.explanationTitle || `Hata: ${input.topicName || 'Bilinmeyen Konu'}`;
        const errorExplanation = flowOutput?.explanation || "Yapay zeka geçerli bir konu anlatımı üretemedi.";
        return {
-            ...defaultErrorOutput,
+            ...defaultErrorOutput, // Ensure all fields are present even in error
             explanationTitle: errorTitle,
             explanation: errorExplanation,
         };
@@ -112,14 +118,14 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
   } catch (error: any) {
     const textGenEndTime = Date.now();
     console.error(`[ExplainTopic Action] CRITICAL Unhandled error in explainTopic (Text Gen Duration: ${textGenEndTime - textGenStartTime}ms):`, error, "Input was:", JSON.stringify(input));
-    let errorMessage = `Konu anlatımı oluşturulurken sunucuda kritik bir hata oluştu.`;
+    let errorMessage = `Konu anlatımı oluşturulurken sunucuda kritik bir hata oluştu. Model: ${modelToUse}`;
     if (error instanceof Error && error.message) {
         errorMessage += ` Detay: ${error.message.substring(0,200)}`;
     } else if (typeof error === 'string') {
         errorMessage += ` Detay: ${error.substring(0,200)}`;
     }
     
-    return {
+    return { // Ensure all fields from ExplainTopicOutputSchema are returned
         explanationTitle: `Kritik Sunucu Hatası: ${input.topicName || 'Konu Belirtilmemiş'}`,
         explanation: errorMessage,
         keyConcepts: ["Kritik hata oluştu."],
@@ -130,7 +136,7 @@ export async function explainTopic(input: ExplainTopicInput): Promise<ExplainTop
   }
 }
 
-const TopicExplainerPromptInputSchema = ExplainTopicInputSchema.extend({
+const promptInputSchema = ExplainTopicInputSchema.extend({
     isProUser: z.boolean().optional(),
     isPremiumUser: z.boolean().optional(),
     isCustomModelSelected: z.boolean().optional(),
@@ -144,7 +150,7 @@ const TopicExplainerPromptInputSchema = ExplainTopicInputSchema.extend({
 
 const topicExplainerPrompt = ai.definePrompt({
   name: 'topicExplainerPrompt',
-  input: {schema: TopicExplainerPromptInputSchema},
+  input: {schema: promptInputSchema},
   output: {schema: ExplainTopicOutputSchema }, 
   prompt: `Sen, YKS konularını öğrencilere en iyi şekilde öğreten, en karmaşık konuları bile en anlaşılır, en akılda kalıcı ve en kapsamlı şekilde öğreten, pedagojik dehası ve alan hakimiyeti tartışılmaz, son derece deneyimli bir AI YKS Süper Öğretmenisin.
 Görevin, öğrencinin belirttiği "{{{topicName}}}" konusunu, seçtiği "{{{explanationLevel}}}" detay seviyesine ve "{{{teacherPersona}}}" hoca tarzına uygun olarak, adım adım ve YKS stratejileriyle açıklamaktır.
@@ -160,7 +166,7 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 {{/if}}
 
 {{#if isCustomModelSelected}}
-(Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
+(Admin Notu: Özel model '{{{customModelIdentifier}}}' seçildi.)
 {{/if}}
 
 {{#if isGemini25PreviewSelected}}
@@ -217,15 +223,16 @@ Dilbilgisi ve YKS terminolojisine dikkat et. Bilgilerin doğru ve güncel olduğ
 const topicExplainerFlow = ai.defineFlow(
   {
     name: 'topicExplainerFlow',
-    inputSchema: TopicExplainerPromptInputSchema,
+    inputSchema: promptInputSchema,
     outputSchema: ExplainTopicOutputSchema, 
   },
-  async (enrichedInputFromAction: z.infer<typeof TopicExplainerPromptInputSchema>, modelToUseForTextParam: string ): Promise<ExplainTopicOutput> => {
+  async (enrichedInputFromAction: z.infer<typeof promptInputSchema>, modelToUseParam: string ): Promise<ExplainTopicOutput> => {
     
-    let finalModelToUse = modelToUseForTextParam;
-    // Defensive check for modelToUseForTextParam validity inside the flow
-    if (!finalModelToUse || typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
-        console.warn(`[Topic Explainer Flow] Invalid or unexpected modelToUseForTextParam ('${finalModelToUse}') received in flow. Defaulting based on plan.`);
+    let finalModelToUse = modelToUseParam;
+    console.log(`[Topic Explainer Flow] Received modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
+
+    if (typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
+        console.warn(`[Topic Explainer Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting based on plan from enrichedInput.`);
         if (enrichedInputFromAction.isProUser || enrichedInputFromAction.isPremiumUser) {
             finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
         } else {
@@ -266,15 +273,15 @@ const topicExplainerFlow = ai.defineFlow(
         callOptions.config.generationConfig.maxOutputTokens = 8192; 
     }
 
-
-    console.log(`[Topic Explainer Flow - Text Gen] Using Genkit model: ${finalModelToUse} with config: ${JSON.stringify(callOptions.config)} for plan: ${enrichedInputFromAction.userPlan}, customModel (resolved for prompt): ${finalModelToUse}, level: ${enrichedInputFromAction.explanationLevel}, persona: ${enrichedInputFromAction.teacherPersona}`);
+    const promptInputForLog = { ...enrichedInputFromAction, resolvedModelUsed: finalModelToUse };
+    console.log(`[Topic Explainer Flow - Text Gen] Using Genkit model: ${finalModelToUse} with config: ${JSON.stringify(callOptions.config)} for plan: ${enrichedInputFromAction.userPlan}, customModel (raw): ${enrichedInputFromAction.customModelIdentifier}, level: ${enrichedInputFromAction.explanationLevel}, persona: ${enrichedInputFromAction.teacherPersona}`);
 
     try {
-        const {output} = await topicExplainerPrompt(enrichedInputFromAction, callOptions);
+        const {output} = await topicExplainerPrompt(promptInputForLog, callOptions);
         if (!output || !output.explanation) {
-          const errorMsg = `AI YKS Süper Öğretmeniniz, belirtilen konu ("${enrichedInputFromAction.topicName}") için bir anlatım oluşturamadı. Kullanılan Model: ${finalModelToUse}. Lütfen konuyu ve ayarları kontrol edin veya farklı bir model deneyin.`;
+          const errorMsg = `AI YKS Süper Öğretmeniniz (${finalModelToUse}), belirtilen konu ("${enrichedInputFromAction.topicName}") için bir anlatım oluşturamadı. Lütfen konuyu ve ayarları kontrol edin veya farklı bir model deneyin.`;
           console.error("[Topic Explainer Flow - Text Gen] AI did not produce a valid explanation. Output:", JSON.stringify(output).substring(0,500));
-          return {
+          return { // Ensure all fields from ExplainTopicOutputSchema are returned
             explanationTitle: `Anlatım Hatası: ${enrichedInputFromAction.topicName || 'Bilinmeyen Konu'}`,
             explanation: errorMsg,
             keyConcepts: ["Hata oluştu."],
@@ -293,14 +300,14 @@ const topicExplainerFlow = ai.defineFlow(
             if (error.message.includes('SAFETY') || error.message.includes('block_reason') || (error.cause as any)?.message?.includes('SAFETY')) {
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${finalModelToUse}. Detay: ${error.message.substring(0, 150)}`;
             } else if (error.message.includes('400 Bad Request') && (error.message.includes('generationConfig') || error.message.includes('generation_config'))) {
-               errorMessage = `Seçilen model (${finalModelToUse}) bazı yapılandırma ayarlarını desteklemiyor olabilir. Model: ${finalModelToUse}. Detay: ${error.message.substring(0,150)}`;
+               errorMessage = `Seçilen model (${finalModelToUse}) bazı yapılandırma ayarlarını desteklemiyor olabilir. Detay: ${error.message.substring(0,150)}`;
             } else if (error.message.includes('Handlebars')) {
                errorMessage = `AI şablonunda bir hata oluştu. Geliştiriciye bildirin. Model: ${finalModelToUse}. Detay: ${error.message.substring(0,150)}`;
-            } else if (error.message.includes('NOT_FOUND') || error.message.includes('sentinelNoopStreamingCallback')) { 
-                errorMessage = `Kritik hata: Model '${finalModelToUse}' bulunamadı veya geçersiz. Lütfen admin panelinden geçerli bir model seçin veya varsayılanı kullanın. Detay: ${error.message.substring(0,150)}`;
+            } else if (error.name === 'GenkitError' && error.message.includes('Schema validation failed')) {
+               errorMessage = `AI modeli (${finalModelToUse}) beklenen yanıt şemasına uymayan bir çıktı üretti. Detay: ${error.message.substring(0,250)}`;
             }
         }
-        return { 
+        return { // Ensure all fields from ExplainTopicOutputSchema are returned
             explanationTitle: `Kritik Anlatım Hatası: ${enrichedInputFromAction.topicName || 'Bilinmeyen Konu'}`,
             explanation: errorMessage,
             keyConcepts: ["Kritik hata oluştu."],
@@ -311,3 +318,4 @@ const topicExplainerFlow = ai.defineFlow(
     }
   }
 );
+

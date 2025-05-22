@@ -34,14 +34,16 @@ const GenerateFlashcardsOutputSchema = z.object({
 export type GenerateFlashcardsOutput = z.infer<typeof GenerateFlashcardsOutputSchema>;
 
 export async function generateFlashcards(input: GenerateFlashcardsInput): Promise<GenerateFlashcardsOutput> {
-  console.log(`[Flashcard Generator Action] Received input. customModelIdentifier: ${input.customModelIdentifier}, userPlan: ${input.userPlan}`);
+  console.log(`[Flashcard Generator Action] Received input. customModelIdentifier (raw): '${input.customModelIdentifier}', userPlan: '${input.userPlan}'`);
 
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
   
   let modelToUse = '';
-  if (input.customModelIdentifier) {
-    switch (input.customModelIdentifier) {
+
+  if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.trim() !== "") {
+    const customIdLower = input.customModelIdentifier.toLowerCase();
+    switch (customIdLower) {
       case 'default_gemini_flash':
         modelToUse = 'googleai/gemini-2.0-flash';
         break;
@@ -52,34 +54,34 @@ export async function generateFlashcards(input: GenerateFlashcardsInput): Promis
         modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
         break;
       default:
-        // If customModelIdentifier is a direct genkit model name (e.g. from an old admin setting)
-        if (typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.startsWith('googleai/')) {
+        if (input.customModelIdentifier.startsWith('googleai/')) {
             modelToUse = input.customModelIdentifier;
+            console.warn(`[Flashcard Generator Action] Admin specified a direct Genkit model name: '${modelToUse}'. Ensure this model is supported.`);
         } else {
-            console.warn(`[Flashcard Generator Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to plan-based default.`);
+            console.warn(`[Flashcard Generator Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to plan-based default for plan '${input.userPlan}'.`);
             if (isProUser || isPremiumUser) {
-            modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-            } else {
-            modelToUse = 'googleai/gemini-2.0-flash';
+                modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+            } else { 
+                modelToUse = 'googleai/gemini-2.0-flash';
             }
         }
         break;
     }
-  } else { // No custom model ID specified by admin, or it was empty
+  } else { 
+    console.log(`[Flashcard Generator Action] No custom model specified by admin, or identifier was invalid. Using plan-based default for plan '${input.userPlan}'.`);
     if (isProUser || isPremiumUser) {
       modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-    } else {
+    } else { 
       modelToUse = 'googleai/gemini-2.0-flash';
     }
   }
   
-  // Final check to ensure modelToUse is a valid string
   if (typeof modelToUse !== 'string' || !modelToUse.startsWith('googleai/')) { 
-      console.error(`[Flashcard Generator Action] CRITICAL FALLBACK: modelToUse became invalid ('${modelToUse}', type: ${typeof modelToUse}). Forcing to default gemini-2.0-flash.`);
+      console.error(`[Flashcard Generator Action] CRITICAL FALLBACK: modelToUse became invalid ('${modelToUse}', type: ${typeof modelToUse}) after selection logic. Forcing to default gemini-2.0-flash.`);
       modelToUse = 'googleai/gemini-2.0-flash';
   }
   console.log(`[Flashcard Generator Action] Final model determined for flow: ${modelToUse}`);
-
+  
   const isGemini25PreviewSelected = modelToUse === 'googleai/gemini-2.5-flash-preview-05-20';
 
   const enrichedInput = {
@@ -92,14 +94,16 @@ export async function generateFlashcards(input: GenerateFlashcardsInput): Promis
   return flashcardGeneratorFlow(enrichedInput, modelToUse);
 }
 
-const prompt = ai.definePrompt({
-  name: 'flashcardGeneratorPrompt',
-  input: {schema: GenerateFlashcardsInputSchema.extend({
+const promptInputSchema = GenerateFlashcardsInputSchema.extend({
     isProUser: z.boolean().optional(),
     isPremiumUser: z.boolean().optional(),
     isCustomModelSelected: z.boolean().optional(),
     isGemini25PreviewSelected: z.boolean().optional(),
-  })},
+});
+
+const prompt = ai.definePrompt({
+  name: 'flashcardGeneratorPrompt',
+  input: {schema: promptInputSchema },
   output: {schema: GenerateFlashcardsOutputSchema},
   prompt: `Sen, YKS'ye hazırlanan öğrenciler için verilen metinlerden kaliteli bilgi kartları (flashcards) oluşturan bir AI eğitim materyali geliştiricisisin. Amacın, metindeki önemli bilgileri soru-cevap formatında kartlara dönüştürmektir. Kartlar net ve akılda kalıcı olmalıdır. Cevapların Türkçe olmalıdır.
 
@@ -113,7 +117,7 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 {{/if}}
 
 {{#if isCustomModelSelected}}
-(Admin Notu: Özel model '{{{customModelIdentifier}}}' seçildi, sonuçta '{{modelToUse}}' kullanılacak.)
+(Admin Notu: Özel model '{{{customModelIdentifier}}}' seçildi.)
 {{/if}}
 
 {{#if isGemini25PreviewSelected}}
@@ -152,21 +156,16 @@ Genel Prensipler:
 const flashcardGeneratorFlow = ai.defineFlow(
   {
     name: 'flashcardGeneratorFlow',
-    inputSchema: GenerateFlashcardsInputSchema.extend({
-        isProUser: z.boolean().optional(),
-        isPremiumUser: z.boolean().optional(),
-        isCustomModelSelected: z.boolean().optional(),
-        isGemini25PreviewSelected: z.boolean().optional(),
-    }),
+    inputSchema: promptInputSchema,
     outputSchema: GenerateFlashcardsOutputSchema,
   },
-  async (enrichedInput: z.infer<typeof GenerateFlashcardsInputSchema> & {isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean}, modelToUseParam: string ): Promise<GenerateFlashcardsOutput> => {
+  async (enrichedInput: z.infer<typeof promptInputSchema>, modelToUseParam: string ): Promise<GenerateFlashcardsOutput> => {
     
     let finalModelToUse = modelToUseParam;
-    console.log(`[Flashcard Generator Flow] Received modelToUseParam: '${modelToUseParam}', type: ${typeof modelToUseParam}`);
+    console.log(`[Flashcard Generator Flow] Received modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
 
     if (typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
-        console.warn(`[Flashcard Generator Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting based on plan.`);
+        console.warn(`[Flashcard Generator Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting based on plan from enrichedInput.`);
         if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
             finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
         } else {
@@ -191,7 +190,7 @@ const flashcardGeneratorFlow = ai.defineFlow(
       };
     }
 
-    const promptInputForLog = { ...enrichedInput, modelToUse: finalModelToUse };
+    const promptInputForLog = { ...enrichedInput, resolvedModelUsed: finalModelToUse };
     console.log(`[Flashcard Generator Flow] Using Genkit model: ${finalModelToUse} for plan: ${enrichedInput.userPlan}, customModel (raw): ${enrichedInput.customModelIdentifier}, with config: ${JSON.stringify(callOptions.config)}`);
 
     try {
@@ -210,8 +209,6 @@ const flashcardGeneratorFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${finalModelToUse}. Detay: ${error.message.substring(0, 150)}`;
             } else if (error.name === 'GenkitError' && error.message.includes('Schema validation failed')) {
               errorMessage = `AI modeli (${finalModelToUse}) beklenen yanıta uymayan bir çıktı üretti. Detay: ${error.message.substring(0,250)}`;
-            } else if (error.message.includes('startsWith is not a function')) {
-                errorMessage = `Model belirleme hatası (startsWith). Lütfen admin ile iletişime geçin. Detay: ${error.message.substring(0,150)}`;
             }
         }
 

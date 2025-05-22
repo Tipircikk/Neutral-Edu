@@ -147,14 +147,16 @@ const defaultErrorResponse: GenerateStudyPlanOutput = {
 
 export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<GenerateStudyPlanOutput> {
   try {
+    console.log(`[Study Plan Generator Action] Received input. customModelIdentifier (raw): '${input.customModelIdentifier}', userPlan: '${input.userPlan}'`);
     const currentPlan = input.userPlan || 'free';
     const isProUser = currentPlan === 'pro';
     const isPremiumUser = currentPlan === 'premium';
-    const isCustomModelSelected = !!input.customModelIdentifier;
     
     let modelToUse = '';
-    if (input.customModelIdentifier) {
-      switch (input.customModelIdentifier) {
+
+    if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.trim() !== "") {
+      const customIdLower = input.customModelIdentifier.toLowerCase();
+      switch (customIdLower) {
         case 'default_gemini_flash':
           modelToUse = 'googleai/gemini-2.0-flash';
           break;
@@ -165,21 +167,34 @@ export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<
           modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
           break;
         default:
-          console.warn(`[Study Plan Generator Flow (Action)] Unknown customModelIdentifier: ${input.customModelIdentifier}. Defaulting based on plan ${currentPlan}`);
-          if (isProUser || isPremiumUser) {
-             modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
-          } else { 
-             modelToUse = 'googleai/gemini-2.0-flash';
+          if (input.customModelIdentifier.startsWith('googleai/')) {
+              modelToUse = input.customModelIdentifier;
+              console.warn(`[Study Plan Generator Action] Admin specified a direct Genkit model name: '${modelToUse}'. Ensure this model is supported.`);
+          } else {
+              console.warn(`[Study Plan Generator Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to plan-based default for plan '${currentPlan}'.`);
+              if (isProUser || isPremiumUser) {
+                  modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+              } else { 
+                  modelToUse = 'googleai/gemini-2.0-flash';
+              }
           }
           break;
       }
     } else { 
+      console.log(`[Study Plan Generator Action] No custom model specified by admin, or identifier was invalid. Using plan-based default for plan '${currentPlan}'.`);
       if (isProUser || isPremiumUser) {
-         modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+        modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
       } else { 
-         modelToUse = 'googleai/gemini-2.0-flash';
+        modelToUse = 'googleai/gemini-2.0-flash';
       }
     }
+    
+    if (typeof modelToUse !== 'string' || !modelToUse.startsWith('googleai/')) { 
+        console.error(`[Study Plan Generator Action] CRITICAL FALLBACK: modelToUse became invalid ('${modelToUse}', type: ${typeof modelToUse}) after selection logic. Forcing to default gemini-2.0-flash.`);
+        modelToUse = 'googleai/gemini-2.0-flash';
+    }
+    console.log(`[Study Plan Generator Action] Final model determined for flow: ${modelToUse}`);
+    
     const isGemini25PreviewSelected = modelToUse === 'googleai/gemini-2.5-flash-preview-05-20';
 
 
@@ -192,7 +207,7 @@ export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<
       subjectsToFocus = "Genel YKS konuları (TYT ve AYT tüm dersler)";
     }
 
-    console.log(`[generateStudyPlan Action] Input received:`, { userField: input.userField, customSubjectsInput: !!input.customSubjectsInput, studyDuration: input.studyDuration, hoursPerDay: input.hoursPerDay, userPlan: currentPlan, customModelIdentifier: input.customModelIdentifier, pdfContextTextProvided: !!input.pdfContextText });
+    console.log(`[generateStudyPlan Action] Input for flow:`, { userField: input.userField, customSubjectsInput: !!input.customSubjectsInput, studyDuration: input.studyDuration, hoursPerDay: input.hoursPerDay, userPlan: currentPlan, customModelIdentifier: input.customModelIdentifier, pdfContextTextProvided: !!input.pdfContextText });
     console.log(`[generateStudyPlan Action] Subjects to focus for AI: ${subjectsToFocus.substring(0, 200)}...`);
 
 
@@ -202,7 +217,7 @@ export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<
       subjects: subjectsToFocus,
       isProUser,
       isPremiumUser,
-      isCustomModelSelected,
+      isCustomModelSelected: !!input.customModelIdentifier,
       isGemini25PreviewSelected,
     };
 
@@ -217,7 +232,7 @@ export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<
       console.error(`[generateStudyPlan Action] Flow returned invalid structure: ${errorDetail}. Raw output:`, JSON.stringify(flowOutput).substring(0, 500));
       return {
           planTitle: "Plan Oluşturma Başarısız",
-          introduction: flowOutput?.introduction || `AI akışından beklenen yapıda bir yanıt alınamadı (${errorDetail}). Lütfen tekrar deneyin.`,
+          introduction: flowOutput?.introduction || `AI akışından (${modelToUse}) beklenen yapıda bir yanıt alınamadı (${errorDetail}). Lütfen tekrar deneyin.`,
           weeklyPlans: [],
           disclaimer: flowOutput?.disclaimer || "Bir hata nedeniyle plan oluşturulamadı."
       };
@@ -260,39 +275,48 @@ export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<
         errorMessage = error.message;
     } else if (typeof error === 'string') {
         errorMessage = error;
-    } else {
-        try {
-            errorMessage = JSON.stringify(error).substring(0, 200);
-        } catch (stringifyError) {
-            errorMessage = 'Serileştirilemeyen sunucu hata nesnesi.';
-        }
     }
     return {
         ...defaultErrorResponse,
-        introduction: `Sunucu tarafında kritik bir hata oluştu: ${errorMessage}. Lütfen daha sonra tekrar deneyin veya bir sorun olduğunu düşünüyorsanız destek ile iletişime geçin.`
+        introduction: `Sunucu tarafında kritik bir hata oluştu: ${errorMessage.substring(0,200)}. Lütfen daha sonra tekrar deneyin veya bir sorun olduğunu düşünüyorsanız destek ile iletişime geçin.`
     };
   }
 }
 
+const promptInputSchema = GenerateStudyPlanInputSchema.extend({
+    subjects: z.string().optional().describe("Çalışılması planlanan dersler ve ana konular."),
+    isProUser: z.boolean().optional(),
+    isPremiumUser: z.boolean().optional(),
+    isCustomModelSelected: z.boolean().optional(),
+    isGemini25PreviewSelected: z.boolean().optional(),
+});
+
 const studyPlanGeneratorFlow = ai.defineFlow(
   {
     name: 'studyPlanGeneratorFlow',
-    inputSchema: GenerateStudyPlanInputSchema.extend({
-        subjects: z.string().optional(),
-        isProUser: z.boolean().optional(),
-        isPremiumUser: z.boolean().optional(),
-        isCustomModelSelected: z.boolean().optional(),
-        isGemini25PreviewSelected: z.boolean().optional(),
-    }),
+    inputSchema: promptInputSchema,
     outputSchema: GenerateStudyPlanOutputSchema,
   },
-  async (enrichedInput: z.infer<typeof GenerateStudyPlanInputSchema> & {subjects?: string; isProUser?: boolean; isPremiumUser?: boolean; isCustomModelSelected?: boolean; isGemini25PreviewSelected?: boolean}, modelToUse: string ): Promise<GenerateStudyPlanOutput> => {
+  async (enrichedInput: z.infer<typeof promptInputSchema>, modelToUseParam: string ): Promise<GenerateStudyPlanOutput> => {
     
+    let finalModelToUse = modelToUseParam;
+    console.log(`[Study Plan Generator Flow] Received modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
+
+    if (typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
+        console.warn(`[Study Plan Generator Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting based on plan from enrichedInput.`);
+        if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
+            finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+        } else {
+            finalModelToUse = 'googleai/gemini-2.0-flash';
+        }
+        console.log(`[Study Plan Generator Flow] Corrected/Defaulted model INSIDE FLOW to: ${finalModelToUse}`);
+    }
+
     try {
       console.log(`[Study Plan Generator Flow (Genkit)] Starting flow with input:`, { userPlan: enrichedInput.userPlan, customModel: enrichedInput.customModelIdentifier, studyDuration: enrichedInput.studyDuration, hoursPerDay: enrichedInput.hoursPerDay, subjects: enrichedInput.subjects?.substring(0,100) + "...", pdfContextProvided: !!enrichedInput.pdfContextText });
 
-      let callOptions: { model: string; config?: Record<string, any> } = { model: modelToUse };
-      if (modelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
+      let callOptions: { model: string; config?: Record<string, any> } = { model: finalModelToUse };
+      if (finalModelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
           callOptions.config = {}; 
       } else {
         callOptions.config = {
@@ -302,8 +326,9 @@ const studyPlanGeneratorFlow = ai.defineFlow(
         };
       }
 
-      console.log(`[Study Plan Generator Flow (Genkit)] Using model: ${modelToUse} with options:`, JSON.stringify(callOptions.config), `for plan: ${enrichedInput.userPlan}`);
-      const result = await studyPlanGeneratorPrompt(enrichedInput, callOptions);
+      const promptInputForLog = { ...enrichedInput, resolvedModelUsed: finalModelToUse };
+      console.log(`[Study Plan Generator Flow (Genkit)] Using model: ${finalModelToUse} with options:`, JSON.stringify(callOptions.config), `for plan: ${enrichedInput.userPlan}`);
+      const result = await studyPlanGeneratorPrompt(promptInputForLog, callOptions);
       let output = result.output;
 
       if (!output || typeof output.planTitle !== 'string' || typeof output.introduction !== 'string' || !Array.isArray(output.weeklyPlans) ) {
@@ -313,7 +338,7 @@ const studyPlanGeneratorFlow = ai.defineFlow(
                             !Array.isArray(output.weeklyPlans) ? "Haftalık planlar (weeklyPlans) bir dizi değil veya boş." :
                             "Bilinmeyen yapısal hata.";
           console.error(`[Study Plan Generator Flow (Genkit)] AI output is missing critical fields or has invalid structure: ${errorDetail}. Raw Output:`, JSON.stringify(output).substring(0,500));
-          throw new Error(`AI, beklenen temel plan yapısını (${errorDetail}) oluşturamadı. Model: ${modelToUse}.`);
+          throw new Error(`AI, beklenen temel plan yapısını (${errorDetail}) oluşturamadı. Model: ${finalModelToUse}.`);
       }
        if (output.weeklyPlans.length === 0 && enrichedInput.studyDuration !== "0_gun") { 
          console.warn(`[Study Plan Generator Flow (Genkit)] AI returned an empty weeklyPlans array for duration ${enrichedInput.studyDuration}. This might be an issue.`);
@@ -363,8 +388,8 @@ const studyPlanGeneratorFlow = ai.defineFlow(
       return output;
 
     } catch (flowError: any) {
-      console.error(`[Study Plan Generator Flow (Genkit)] CRITICAL ERROR in Genkit flow with model ${modelToUse}:`, flowError, "Input (main part):", { userField: enrichedInput.userField, customSubjectsInput: enrichedInput.customSubjectsInput, studyDuration: enrichedInput.studyDuration, hoursPerDay: enrichedInput.hoursPerDay, userPlan: enrichedInput.userPlan, customModelIdentifier: enrichedInput.customModelIdentifier });
-      let errorMessage = `AI Eğitim Koçu ile çalışma planı oluşturulurken bir Genkit/AI hatası oluştu. Kullanılan Model: ${modelToUse}.`;
+      console.error(`[Study Plan Generator Flow (Genkit)] CRITICAL ERROR in Genkit flow with model ${finalModelToUse}:`, flowError, "Input (main part):", { userField: enrichedInput.userField, customSubjectsInput: enrichedInput.customSubjectsInput, studyDuration: enrichedInput.studyDuration, hoursPerDay: enrichedInput.hoursPerDay, userPlan: enrichedInput.userPlan, customModelIdentifier: enrichedInput.customModelIdentifier });
+      let errorMessage = `AI Eğitim Koçu (${finalModelToUse}) ile çalışma planı oluşturulurken bir Genkit/AI hatası oluştu.`;
       if (flowError instanceof Error) {
         errorMessage += ` Detay: ${flowError.message.substring(0, 300)}`;
          if (flowError.name === 'GenkitError' && flowError.message.includes('Schema validation failed')) {
@@ -372,11 +397,11 @@ const studyPlanGeneratorFlow = ai.defineFlow(
             if (flowError.details && Array.isArray(flowError.details)) {
                 zodErrors = flowError.details.map((detail: any) => `[${detail.path.join('.') || 'root'}]: ${detail.message}`).join('; ');
             }
-            errorMessage = `AI modelinden gelen yanıt beklenen şemayla uyuşmuyor: ${zodErrors.substring(0, 400)}. Model: ${modelToUse}.`;
+            errorMessage = `AI modeli (${finalModelToUse}) gelen yanıt beklenen şemayla uyuşmuyor: ${zodErrors.substring(0, 400)}.`;
         } else if (flowError.message.includes('Invalid JSON payload') || flowError.message.includes('Unknown name "config"')) {
-             errorMessage = `AI modeli (${modelToUse}) ile iletişimde bir yapılandırma sorunu oluştu (Invalid JSON payload or unknown config).`;
+             errorMessage = `AI modeli (${finalModelToUse}) ile iletişimde bir yapılandırma sorunu oluştu (Invalid JSON payload or unknown config).`;
         } else if (flowError.message.includes('SAFETY') || flowError.message.includes('block_reason')) {
-          errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen girdilerinizi gözden geçirin. Model: ${modelToUse}. Detay: ${flowError.message.substring(0, 150)}`;
+          errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen girdilerinizi gözden geçirin. Model: ${finalModelToUse}. Detay: ${flowError.message.substring(0, 150)}`;
         }
       } else if (typeof flowError === 'string') {
         errorMessage += ` Detay: ${flowError.substring(0, 300)}`;
@@ -391,13 +416,7 @@ const studyPlanGeneratorFlow = ai.defineFlow(
 
 const studyPlanGeneratorPrompt = ai.definePrompt({
   name: 'studyPlanGeneratorPrompt',
-  input: {schema: GenerateStudyPlanInputSchema.extend({
-    subjects: z.string().optional().describe("Çalışılması planlanan dersler ve ana konular."),
-    isProUser: z.boolean().optional(),
-    isPremiumUser: z.boolean().optional(),
-    isCustomModelSelected: z.boolean().optional(),
-    isGemini25PreviewSelected: z.boolean().optional(),
-  })},
+  input: {schema: promptInputSchema},
   output: {schema: GenerateStudyPlanOutputSchema},
   prompt: `Sen, YKS öğrencilerine kişiselleştirilmiş, haftalık ve günlük bazda yapılandırılmış, gerçekçi ve motive edici YKS çalışma planları tasarlayan uzman bir AI eğitim koçusun. Cevapların daima Türkçe olmalıdır. Amacın, öğrencinin hedeflerine ulaşmasına yardımcı olacak en etkili planı sunmaktır.
 
@@ -411,7 +430,7 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 {{/if}}
 
 {{#if isCustomModelSelected}}
-(Admin Notu: Özel model '{{{customModelIdentifier}}}' kullanılıyor.)
+(Admin Notu: Özel model '{{{customModelIdentifier}}}' seçildi.)
 {{/if}}
 
 {{#if isGemini25PreviewSelected}}
@@ -444,7 +463,7 @@ Lütfen bu bilgilere göre, aşağıdaki JSON formatına HARFİYEN uyan bir çal
         *   **Tahmini Süre (estimatedTime) (isteğe bağlı)**: Tahmini çalışma süresi.
         *   **Aktiviteler (activities) (isteğe bağlı)**: Konu çalışma, soru çözümü, tekrar.
         *   **Notlar (notes) (isteğe bağlı)**: O güne özel notlar veya ipuçları.
-    Bu 'weeklyPlans' dizisi ZORUNLUDUR ve her elemanın şemaya uyduğundan, özellikle 'week' SAYISININ ve 'dailyTasks' içindeki 'focusTopics'İN DOLU OLDUĞUNDAN MUTLAKA EMİN OL. AI, BU ŞARTLARA HARFİYEN UYMALIDIR. 'week' alanı her zaman bir sayı olmalıdır.
+    Bu 'weeklyPlans' dizisi ZORUNLUDUR ve her elemanın şemaya uyduğundan, özellikle 'week' SAYISININ ve 'dailyTasks' içindeki 'focusTopics'İN DOLU OLDUĞUNDAN MUTLAKA EMİN OL. AI, BU ŞARTLARA HARFİYEN UYMALIDIR. 'week' alanı her zaman bir sayı olmalıdır. Yanıtın ÖZ ama ANLAŞILIR olsun.
 4.  **Sorumluluk Reddi (disclaimer)**: Standart uyarı.
 
 Planlama İlkeleri:
@@ -454,3 +473,4 @@ Planlama İlkeleri:
 *   ŞEMADAKİ 'required' OLARAK İŞARETLENMİŞ TÜM ALANLARIN ÇIKTIDA BULUNDUĞUNDAN EMİN OL. ÖZELLİKLE 'weeklyPlans' İÇİNDEKİ HER BİR HAFTANIN 'week' NUMARASININ (SAYI OLARAK) VE 'dailyTasks' İÇİNDEKİ 'focusTopics'İN DOLU OLDUĞUNDAN MUTLAKA EMİN OL. AI, BU ŞARTLARA HARFİYEN UYMALIDIR. 'week' alanı her zaman bir sayı olmalıdır. Yanıtın ÖZ ama ANLAŞILIR olsun.
 `,
 });
+
