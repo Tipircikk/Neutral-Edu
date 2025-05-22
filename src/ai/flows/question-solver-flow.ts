@@ -28,7 +28,7 @@ const SolveQuestionOutputSchema = z.object({
 export type SolveQuestionOutput = z.infer<typeof SolveQuestionOutputSchema>;
 
 export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQuestionOutput> {
-  console.log(`[Question Solver Action] Received input. User Plan: ${input.userPlan}, Admin Model ID: '${input.customModelIdentifier}', HasText: ${!!input.questionText}, HasImage: ${!!input.imageDataUri}`);
+  console.log(`[Question Solver Action] Received input. User Plan: ${input.userPlan}, Admin Model ID (raw): '${input.customModelIdentifier}', HasText: ${!!input.questionText}, HasImage: ${!!input.imageDataUri}`);
 
   if (!input.questionText && !input.imageDataUri) {
     return {
@@ -58,14 +58,14 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
             modelToUse = customIdLower;
             console.warn(`[Question Solver Action] Admin specified a direct Genkit model name: '${modelToUse}'. Ensure this model is supported.`);
         } else {
-            console.warn(`[Question Solver Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to universal default.`);
-            modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default
+            console.warn(`[Question Solver Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to universal default for all users.`);
+            modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default for all users
         }
         break;
     }
   } else { 
-    console.log(`[Question Solver Action] No custom model specified by admin. Using universal default.`);
-    modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default
+    console.log(`[Question Solver Action] No custom model specified by admin. Using universal default for all users.`);
+    modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default for all users
   }
   
   // Absolute fallback if modelToUse is somehow still invalid
@@ -93,7 +93,7 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
     if (!result || typeof result.solution !== 'string' || !Array.isArray(result.relatedConcepts) || !Array.isArray(result.examStrategyTips)) {
       console.error("[Question Solver Action] Flow returned invalid, null, or malformed result. Raw result:", JSON.stringify(result).substring(0, 500));
       return {
-        solution: `AI akışından (${finalModelToUse}) geçersiz veya eksik bir yanıt alındı. Lütfen tekrar deneyin veya farklı bir soru sorun.`,
+        solution: `AI akışından (${modelToUse}) geçersiz veya eksik bir yanıt alındı. Lütfen tekrar deneyin veya farklı bir soru sorun.`,
         relatedConcepts: result?.relatedConcepts || ["Hata"],
         examStrategyTips: result?.examStrategyTips || ["Tekrar deneyin"],
       };
@@ -109,7 +109,7 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
         errorMessage = error;
     }
     return {
-      solution: `Sunucu tarafında kritik bir hata oluştu (${finalModelToUse || 'belirlenemeyen model'}): ${errorMessage.substring(0,200)}.`,
+      solution: `Sunucu tarafında kritik bir hata oluştu (${modelToUse || 'belirlenemeyen model'}): ${errorMessage.substring(0,200)}.`,
       relatedConcepts: ["Kritik Hata"],
       examStrategyTips: ["Tekrar deneyin"],
     };
@@ -147,7 +147,7 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 {{/if}}
 
 {{#if isGemini25PreviewSelected}}
-(Gemini 2.5 Flash Preview 05-20 Modeli Notu: Çözümü ana adımları ve kilit mantıksal çıkarımları vurgulayarak, olabildiğince ÖZ ama ANLAŞILIR olmalıdır. {{#if isProUser}}Pro kullanıcı için gereken derinliği ve stratejik bilgileri koruyarak{{else if isPremiumUser}}Premium kullanıcı için gereken detayları ve pratik ipuçlarını sağlayarak{{/if}} aşırı detaydan kaçın, doğrudan ve net bir çözüm sun. HIZLI YANIT VERMESİ ÖNEMLİDİR.)
+(Gemini 2.5 Flash Preview 05-20 Modeli Notu: Çözümü ana adımları ve kilit mantıksal çıkarımları vurgulayarak, olabildiğince ÖZ ama ANLAŞILIR olmalıdır. Adım adım çözüm bölümünde, gereksiz ara hesaplamaları özetle veya atla, sadece kilit adımlara odaklan. {{#if isProUser}}Pro kullanıcı için gereken derinliği ve stratejik bilgileri koruyarak{{else if isPremiumUser}}Premium kullanıcı için gereken detayları ve pratik ipuçlarını sağlayarak{{/if}} aşırı detaydan kaçın, doğrudan ve net bir çözüm sun. HIZLI YANIT VERMESİ ÖNEMLİDİR.)
 {{else}}
 (Diğer Model Notu: Çözümü ayrıntılı ve SATIR SATIR açıkla.)
 {{/if}}
@@ -201,12 +201,12 @@ const questionSolverFlow = ai.defineFlow(
     console.log(`[Question Solver Flow] Initial modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
 
     if (typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
-        console.warn(`[Question Solver Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting to universal default.`);
-        finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default
+        console.warn(`[Question Solver Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting to universal default for all users.`);
+        finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default for all users
         console.log(`[Question Solver Flow] Corrected/Defaulted model INSIDE FLOW to: ${finalModelToUse}`);
     }
     
-    const standardTemperature = 0.5; // Slightly lower for more deterministic solutions
+    const standardTemperature = 0.5; 
     const standardSafetySettings = [
         { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
         { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },

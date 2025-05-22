@@ -32,7 +32,7 @@ const parseInlineFormatting = (line: string | undefined | null): React.ReactNode
   const regex = /(\S+?)\^(\S+?)|\*\*([^*]+)\*\*|`([^`]+)`|(\S+?)_(\S+?)/g; // Adjusted regex order
   let lastIndex = 0;
   let keyIndex = 0;
-  let match; // Declare match here
+  let match; 
 
   while ((match = regex.exec(line)) !== null) {
     if (match.index > lastIndex) {
@@ -345,12 +345,12 @@ export default function QuestionSolverPage() {
                   disabled={isModelSelectDisabled}
                 >
                   <SelectTrigger id="adminModelSelectSolver">
-                    <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
+                    <SelectValue placeholder="Varsayılan Modeli Kullan (Tüm Üyelikler: Gemini 2.5 Flash Preview)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
-                    <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
-                    <SelectItem value="experimental_gemini_2_5_flash_preview_05_20">Deneysel (Gemini 2.5 Flash Preview 05-20)</SelectItem>
+                    <SelectItem value="experimental_gemini_2_5_flash_preview_05_20">Gemini 2.5 Flash Preview (Varsayılan)</SelectItem>
+                    <SelectItem value="default_gemini_flash">Gemini 2.0 Flash</SelectItem>
+                    <SelectItem value="experimental_gemini_1_5_flash">Gemini 1.5 Flash</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground"> Farklı AI modellerini test edebilirsiniz. </p>
@@ -400,7 +400,7 @@ export default function QuestionSolverPage() {
         <Card className="mt-6">
           <CardHeader> <CardTitle className="text-xl">Neutral Edu AI Çözümü</CardTitle> </CardHeader>
           <CardContent>
-            <ScrollArea className="h-auto max-h-[600px] w-full rounded-md border p-4 bg-muted/30">
+            <ScrollArea className="h-[600px] w-full rounded-md border p-4 bg-muted/30">
               <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
                 {parsedSolution.answerValue && (
                   <div className="mb-4 p-3 border-b border-border">
@@ -457,4 +457,5 @@ export default function QuestionSolverPage() {
     </div>
   );
 }
+
     
