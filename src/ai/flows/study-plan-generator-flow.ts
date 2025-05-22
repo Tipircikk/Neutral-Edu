@@ -147,12 +147,12 @@ const defaultErrorResponse: GenerateStudyPlanOutput = {
 
 export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<GenerateStudyPlanOutput> {
   try {
-    console.log(`[Study Plan Generator Action] Received input. customModelIdentifier (raw): '${input.customModelIdentifier}', userPlan: '${input.userPlan}'`);
+    console.log(`[Study Plan Generator Action] Received input. Plan: ${input.userPlan}, Admin Model ID: '${input.customModelIdentifier}'`);
     const currentPlan = input.userPlan || 'free';
     const isProUser = currentPlan === 'pro';
     const isPremiumUser = currentPlan === 'premium';
     
-    let modelToUse = '';
+    let modelToUse: string;
 
     if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.trim() !== "") {
       const customIdLower = input.customModelIdentifier.toLowerCase();
@@ -189,8 +189,9 @@ export async function generateStudyPlan(input: GenerateStudyPlanInput): Promise<
       }
     }
     
+    // Absolute fallback
     if (typeof modelToUse !== 'string' || !modelToUse.startsWith('googleai/')) { 
-        console.error(`[Study Plan Generator Action] CRITICAL FALLBACK: modelToUse became invalid ('${modelToUse}', type: ${typeof modelToUse}) after selection logic. Forcing to default gemini-2.0-flash.`);
+        console.error(`[Study Plan Generator Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to gemini-2.0-flash.`);
         modelToUse = 'googleai/gemini-2.0-flash';
     }
     console.log(`[Study Plan Generator Action] Final model determined for flow: ${modelToUse}`);
@@ -300,7 +301,7 @@ const studyPlanGeneratorFlow = ai.defineFlow(
   async (enrichedInput: z.infer<typeof promptInputSchema>, modelToUseParam: string ): Promise<GenerateStudyPlanOutput> => {
     
     let finalModelToUse = modelToUseParam;
-    console.log(`[Study Plan Generator Flow] Received modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
+    console.log(`[Study Plan Generator Flow] Initial modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
 
     if (typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
         console.warn(`[Study Plan Generator Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting based on plan from enrichedInput.`);
@@ -315,17 +316,27 @@ const studyPlanGeneratorFlow = ai.defineFlow(
     try {
       console.log(`[Study Plan Generator Flow (Genkit)] Starting flow with input:`, { userPlan: enrichedInput.userPlan, customModel: enrichedInput.customModelIdentifier, studyDuration: enrichedInput.studyDuration, hoursPerDay: enrichedInput.hoursPerDay, subjects: enrichedInput.subjects?.substring(0,100) + "...", pdfContextProvided: !!enrichedInput.pdfContextText });
 
-      let callOptions: { model: string; config?: Record<string, any> } = { model: finalModelToUse };
-      if (finalModelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
-          callOptions.config = {}; 
-      } else {
-        callOptions.config = {
-          generationConfig: {
-            maxOutputTokens: 8000, 
-          }
-        };
-      }
+      const standardTemperature = 0.7;
+      const standardSafetySettings = [
+          { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+          { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+      ];
+      const standardMaxOutputTokens = (enrichedInput.isProUser || enrichedInput.isPremiumUser) ? 8192 : 4096;
 
+
+      const callOptions: { model: string; config?: Record<string, any> } = { 
+        model: finalModelToUse,
+        config: {
+          temperature: standardTemperature,
+          safetySettings: standardSafetySettings,
+          generationConfig: {
+            maxOutputTokens: standardMaxOutputTokens,
+          }
+        }
+      };
+      
       const promptInputForLog = { ...enrichedInput, resolvedModelUsed: finalModelToUse };
       console.log(`[Study Plan Generator Flow (Genkit)] Using model: ${finalModelToUse} with options:`, JSON.stringify(callOptions.config), `for plan: ${enrichedInput.userPlan}`);
       const result = await studyPlanGeneratorPrompt(promptInputForLog, callOptions);
@@ -473,4 +484,3 @@ Planlama İlkeleri:
 *   ŞEMADAKİ 'required' OLARAK İŞARETLENMİŞ TÜM ALANLARIN ÇIKTIDA BULUNDUĞUNDAN EMİN OL. ÖZELLİKLE 'weeklyPlans' İÇİNDEKİ HER BİR HAFTANIN 'week' NUMARASININ (SAYI OLARAK) VE 'dailyTasks' İÇİNDEKİ 'focusTopics'İN DOLU OLDUĞUNDAN MUTLAKA EMİN OL. AI, BU ŞARTLARA HARFİYEN UYMALIDIR. 'week' alanı her zaman bir sayı olmalıdır. Yanıtın ÖZ ama ANLAŞILIR olsun.
 `,
 });
-

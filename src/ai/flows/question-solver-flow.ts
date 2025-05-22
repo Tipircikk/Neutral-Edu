@@ -28,7 +28,7 @@ const SolveQuestionOutputSchema = z.object({
 export type SolveQuestionOutput = z.infer<typeof SolveQuestionOutputSchema>;
 
 export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQuestionOutput> {
-  console.log(`[Question Solver Action] Received input. customModelIdentifier (raw): '${input.customModelIdentifier}', userPlan: '${input.userPlan}', hasQuestionText: ${!!input.questionText}, hasImageData: ${!!input.imageDataUri}`);
+  console.log(`[Question Solver Action] Received input. Plan: ${input.userPlan}, Admin Model ID: '${input.customModelIdentifier}', HasText: ${!!input.questionText}, HasImage: ${!!input.imageDataUri}`);
 
   if (!input.questionText && !input.imageDataUri) {
     return {
@@ -41,7 +41,7 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
   
-  let modelToUse = '';
+  let modelToUse: string;
 
   if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.trim() !== "") {
     const customIdLower = input.customModelIdentifier.toLowerCase();
@@ -78,8 +78,9 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
     }
   }
   
+  // Absolute fallback
   if (typeof modelToUse !== 'string' || !modelToUse.startsWith('googleai/')) { 
-      console.error(`[Question Solver Action] CRITICAL FALLBACK: modelToUse became invalid ('${modelToUse}', type: ${typeof modelToUse}) after selection logic. Forcing to default gemini-2.0-flash.`);
+      console.error(`[Question Solver Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to gemini-2.0-flash.`);
       modelToUse = 'googleai/gemini-2.0-flash';
   }
   console.log(`[Question Solver Action] Final model determined for flow: ${modelToUse}`);
@@ -205,7 +206,7 @@ const questionSolverFlow = ai.defineFlow(
   async (enrichedInput: z.infer<typeof promptInputSchema>, modelToUseParam: string): Promise<SolveQuestionOutput> => {
     
     let finalModelToUse = modelToUseParam;
-    console.log(`[Question Solver Flow] Received modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
+    console.log(`[Question Solver Flow] Initial modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
 
     if (typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
         console.warn(`[Question Solver Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting based on plan from enrichedInput.`);
@@ -217,17 +218,26 @@ const questionSolverFlow = ai.defineFlow(
         console.log(`[Question Solver Flow] Corrected/Defaulted model INSIDE FLOW to: ${finalModelToUse}`);
     }
     
-    let callOptions: { model: string; config?: Record<string, any> } = { model: finalModelToUse };
+    const standardTemperature = 0.5; // Slightly lower for more deterministic solutions
+    const standardSafetySettings = [
+        { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+        { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+        { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+        { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+    ];
+    const standardMaxOutputTokens = (enrichedInput.isProUser || enrichedInput.isPremiumUser) ? 8000 : 4096;
 
-    if (finalModelToUse === 'googleai/gemini-2.5-flash-preview-05-20') { 
-      callOptions.config = {}; 
-    } else {
-       callOptions.config = {
+
+    const callOptions: { model: string; config?: Record<string, any> } = { 
+      model: finalModelToUse,
+      config: {
+        temperature: standardTemperature,
+        safetySettings: standardSafetySettings,
         generationConfig: {
-          maxOutputTokens: 4096, 
+          maxOutputTokens: standardMaxOutputTokens, 
         }
-      };
-    }
+      }
+    };
     
     const promptInputForLog = { ...enrichedInput, resolvedModelUsed: finalModelToUse };
     console.log(`[Question Solver Flow] Calling prompt with model: ${finalModelToUse} and options:`, JSON.stringify(callOptions.config), `for plan: ${enrichedInput.userPlan}, customModel (raw): ${enrichedInput.customModelIdentifier}`);
@@ -276,4 +286,3 @@ const questionSolverFlow = ai.defineFlow(
     }
   }
 );
-

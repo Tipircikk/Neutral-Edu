@@ -35,12 +35,12 @@ const ExamReportAnalyzerOutputSchema = z.object({
 export type ExamReportAnalyzerOutput = z.infer<typeof ExamReportAnalyzerOutputSchema>;
 
 export async function analyzeExamReport(input: ExamReportAnalyzerInput): Promise<ExamReportAnalyzerOutput> {
-  console.log(`[Exam Report Analyzer Action] Received input. customModelIdentifier (raw): '${input.customModelIdentifier}', userPlan: '${input.userPlan}'`);
+  console.log(`[Exam Report Analyzer Action] Received input. Plan: ${input.userPlan}, Admin Model ID: '${input.customModelIdentifier}'`);
 
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
   
-  let modelToUse = '';
+  let modelToUse: string;
 
   if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.trim() !== "") {
     const customIdLower = input.customModelIdentifier.toLowerCase();
@@ -77,8 +77,9 @@ export async function analyzeExamReport(input: ExamReportAnalyzerInput): Promise
     }
   }
   
+  // Absolute fallback
   if (typeof modelToUse !== 'string' || !modelToUse.startsWith('googleai/')) { 
-      console.error(`[Exam Report Analyzer Action] CRITICAL FALLBACK: modelToUse became invalid ('${modelToUse}', type: ${typeof modelToUse}) after selection logic. Forcing to default gemini-2.0-flash.`);
+      console.error(`[Exam Report Analyzer Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to gemini-2.0-flash.`);
       modelToUse = 'googleai/gemini-2.0-flash';
   }
   console.log(`[Exam Report Analyzer Action] Final model determined for flow: ${modelToUse}`);
@@ -156,7 +157,7 @@ const examReportAnalyzerFlow = ai.defineFlow(
   async (enrichedInput: z.infer<typeof promptInputSchema>, modelToUseParam: string ): Promise<ExamReportAnalyzerOutput> => {
     
     let finalModelToUse = modelToUseParam;
-    console.log(`[Exam Report Analyzer Flow] Received modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
+    console.log(`[Exam Report Analyzer Flow] Initial modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
 
     if (typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
         console.warn(`[Exam Report Analyzer Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting based on plan from enrichedInput.`);
@@ -168,19 +169,27 @@ const examReportAnalyzerFlow = ai.defineFlow(
         console.log(`[Exam Report Analyzer Flow] Corrected/Defaulted model INSIDE FLOW to: ${finalModelToUse}`);
     }
     
-    let callOptions: { model: string; config?: Record<string, any> } = { model: finalModelToUse };
+    const standardTemperature = 0.6;
+    const standardSafetySettings = [
+        { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+        { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+        { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+        { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+    ];
+    const standardMaxOutputTokens = (enrichedInput.isProUser || enrichedInput.isPremiumUser) ? 8000 : 4096;
 
-    if (finalModelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
-      callOptions.config = {}; 
-    } else {
-       callOptions.config = {
+    const callOptions: { model: string; config?: Record<string, any> } = { 
+      model: finalModelToUse,
+      config: {
+        temperature: standardTemperature,
+        safetySettings: standardSafetySettings,
         generationConfig: {
-          maxOutputTokens: 4096, 
+          maxOutputTokens: standardMaxOutputTokens, 
         }
-      };
-    }
-
-    const promptInputForLog = { ...enrichedInput, resolvedModelUsed: finalModelToUse }; // Log the actually used model
+      }
+    };
+    
+    const promptInputForLog = { ...enrichedInput, resolvedModelUsed: finalModelToUse };
     console.log(`[Exam Report Analyzer Flow] Using Genkit model: ${finalModelToUse} for plan: ${enrichedInput.userPlan}, customModel (raw): ${enrichedInput.customModelIdentifier}, with config: ${JSON.stringify(callOptions.config)}`);
 
     try {
@@ -211,4 +220,3 @@ const examReportAnalyzerFlow = ai.defineFlow(
     }
   }
 );
-

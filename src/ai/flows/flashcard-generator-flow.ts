@@ -34,12 +34,12 @@ const GenerateFlashcardsOutputSchema = z.object({
 export type GenerateFlashcardsOutput = z.infer<typeof GenerateFlashcardsOutputSchema>;
 
 export async function generateFlashcards(input: GenerateFlashcardsInput): Promise<GenerateFlashcardsOutput> {
-  console.log(`[Flashcard Generator Action] Received input. customModelIdentifier (raw): '${input.customModelIdentifier}', userPlan: '${input.userPlan}'`);
+  console.log(`[Flashcard Generator Action] Received input. Plan: ${input.userPlan}, Admin Model ID: '${input.customModelIdentifier}'`);
 
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
   
-  let modelToUse = '';
+  let modelToUse: string;
 
   if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.trim() !== "") {
     const customIdLower = input.customModelIdentifier.toLowerCase();
@@ -76,8 +76,9 @@ export async function generateFlashcards(input: GenerateFlashcardsInput): Promis
     }
   }
   
+  // Absolute fallback
   if (typeof modelToUse !== 'string' || !modelToUse.startsWith('googleai/')) { 
-      console.error(`[Flashcard Generator Action] CRITICAL FALLBACK: modelToUse became invalid ('${modelToUse}', type: ${typeof modelToUse}) after selection logic. Forcing to default gemini-2.0-flash.`);
+      console.error(`[Flashcard Generator Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to gemini-2.0-flash.`);
       modelToUse = 'googleai/gemini-2.0-flash';
   }
   console.log(`[Flashcard Generator Action] Final model determined for flow: ${modelToUse}`);
@@ -162,7 +163,7 @@ const flashcardGeneratorFlow = ai.defineFlow(
   async (enrichedInput: z.infer<typeof promptInputSchema>, modelToUseParam: string ): Promise<GenerateFlashcardsOutput> => {
     
     let finalModelToUse = modelToUseParam;
-    console.log(`[Flashcard Generator Flow] Received modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
+    console.log(`[Flashcard Generator Flow] Initial modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
 
     if (typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
         console.warn(`[Flashcard Generator Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting based on plan from enrichedInput.`);
@@ -174,21 +175,32 @@ const flashcardGeneratorFlow = ai.defineFlow(
         console.log(`[Flashcard Generator Flow] Corrected/Defaulted model INSIDE FLOW to: ${finalModelToUse}`);
     }
     
-    let callOptions: { model: string; config?: Record<string, any> } = { model: finalModelToUse };
-
-    let maxTokensForOutput = (enrichedInput.numFlashcards || 5) * 200;
-    if (maxTokensForOutput > 8000) maxTokensForOutput = 8000;
-    if (maxTokensForOutput < 1024) maxTokensForOutput = 1024;
-
-    if (finalModelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
-        callOptions.config = {};
+    const standardTemperature = 0.7;
+    const standardSafetySettings = [
+        { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+        { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+        { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+        { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+    ];
+    
+    let maxTokensForOutput = (enrichedInput.numFlashcards || 5) * 200; // Base calculation
+    if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
+        maxTokensForOutput = Math.max(maxTokensForOutput, 2048); // Ensure higher minimum for paid
     } else {
-      callOptions.config = {
-        generationConfig: {
-          maxOutputTokens: maxTokensForOutput,
-        }
-      };
+        maxTokensForOutput = Math.max(maxTokensForOutput, 1024); // Ensure reasonable minimum for free
     }
+    if (maxTokensForOutput > 8000) maxTokensForOutput = 8000; // Hard cap
+
+    const callOptions: { model: string; config?: Record<string, any> } = { 
+        model: finalModelToUse,
+        config: {
+            temperature: standardTemperature,
+            safetySettings: standardSafetySettings,
+            generationConfig: {
+              maxOutputTokens: maxTokensForOutput,
+            }
+        }
+    };
 
     const promptInputForLog = { ...enrichedInput, resolvedModelUsed: finalModelToUse };
     console.log(`[Flashcard Generator Flow] Using Genkit model: ${finalModelToUse} for plan: ${enrichedInput.userPlan}, customModel (raw): ${enrichedInput.customModelIdentifier}, with config: ${JSON.stringify(callOptions.config)}`);
@@ -219,4 +231,3 @@ const flashcardGeneratorFlow = ai.defineFlow(
     }
   }
 );
-

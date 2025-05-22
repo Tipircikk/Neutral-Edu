@@ -39,12 +39,12 @@ const GenerateTestOutputSchema = z.object({
 export type GenerateTestOutput = z.infer<typeof GenerateTestOutputSchema>;
 
 export async function generateTest(input: GenerateTestInput): Promise<GenerateTestOutput> {
-  console.log(`[Test Generator Action] Received input. customModelIdentifier (raw): '${input.customModelIdentifier}', userPlan: '${input.userPlan}'`);
+  console.log(`[Test Generator Action] Received input. Plan: ${input.userPlan}, Admin Model ID: '${input.customModelIdentifier}'`);
 
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
   
-  let modelToUse = '';
+  let modelToUse: string;
 
   if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.trim() !== "") {
     const customIdLower = input.customModelIdentifier.toLowerCase();
@@ -81,8 +81,9 @@ export async function generateTest(input: GenerateTestInput): Promise<GenerateTe
     }
   }
   
+  // Absolute fallback
   if (typeof modelToUse !== 'string' || !modelToUse.startsWith('googleai/')) { 
-      console.error(`[Test Generator Action] CRITICAL FALLBACK: modelToUse became invalid ('${modelToUse}', type: ${typeof modelToUse}) after selection logic. Forcing to default gemini-2.0-flash.`);
+      console.error(`[Test Generator Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to gemini-2.0-flash.`);
       modelToUse = 'googleai/gemini-2.0-flash';
   }
   console.log(`[Test Generator Action] Final model determined for flow: ${modelToUse}`);
@@ -105,7 +106,6 @@ const promptInputSchema = GenerateTestInputSchema.extend({
     isPremiumUser: z.boolean().optional(),
     isCustomModelSelected: z.boolean().optional(),
     isGemini25PreviewSelected: z.boolean().optional(),
-    // questionTypes forced to multiple_choice, so not needed here if prompt is aware
 });
 
 const prompt = ai.definePrompt({
@@ -166,7 +166,7 @@ const testGeneratorFlow = ai.defineFlow(
   async (enrichedInput: z.infer<typeof promptInputSchema>, modelToUseParam: string ): Promise<GenerateTestOutput> => {
     
     let finalModelToUse = modelToUseParam;
-    console.log(`[Test Generator Flow] Received modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
+    console.log(`[Test Generator Flow] Initial modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
 
     if (typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
         console.warn(`[Test Generator Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting based on plan from enrichedInput.`);
@@ -178,22 +178,32 @@ const testGeneratorFlow = ai.defineFlow(
         console.log(`[Test Generator Flow] Corrected/Defaulted model INSIDE FLOW to: ${finalModelToUse}`);
     }
     
-    let callOptions: { model: string; config?: Record<string, any> } = { model: finalModelToUse };
-
-    let maxTokensForOutput = enrichedInput.numQuestions * 500;
-    if (maxTokensForOutput > 8000) maxTokensForOutput = 8000;
-    if (maxTokensForOutput < 2048) maxTokensForOutput = 2048;
-
-    if (finalModelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
-       callOptions.config = { temperature: 0.7 };
+    const standardTemperature = 0.7;
+    const standardSafetySettings = [
+        { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+        { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+        { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+        { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+    ];
+    
+    let maxTokensForOutput = enrichedInput.numQuestions * 500; // Base calculation
+    if (enrichedInput.isProUser || enrichedInput.isPremiumUser) { // Higher token limits for paid users
+        maxTokensForOutput = Math.max(maxTokensForOutput, 4096); 
     } else {
-       callOptions.config = {
-         temperature: 0.7,
-         generationConfig: {
-           maxOutputTokens: maxTokensForOutput
-          }
-        };
+        maxTokensForOutput = Math.max(maxTokensForOutput, 2048); 
     }
+    if (maxTokensForOutput > 8192) maxTokensForOutput = 8192; // Absolute cap
+
+    const callOptions: { model: string; config?: Record<string, any> } = { 
+        model: finalModelToUse,
+        config: {
+            temperature: standardTemperature,
+            safetySettings: standardSafetySettings,
+            generationConfig: {
+              maxOutputTokens: maxTokensForOutput,
+            }
+        }
+    };
 
     const promptInputForLog = { ...enrichedInput, resolvedModelUsed: finalModelToUse };
     console.log(`[Test Generator Flow] Using Genkit model: ${finalModelToUse} for plan: ${enrichedInput.userPlan}, customModel (raw): ${enrichedInput.customModelIdentifier}, with config: ${JSON.stringify(callOptions.config)}`);
@@ -230,4 +240,3 @@ const testGeneratorFlow = ai.defineFlow(
     }
   }
 );
-

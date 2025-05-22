@@ -31,12 +31,12 @@ const SummarizeTopicOutputSchema = z.object({
 export type SummarizeTopicOutput = z.infer<typeof SummarizeTopicOutputSchema>;
 
 export async function summarizeTopic(input: SummarizeTopicInput): Promise<SummarizeTopicOutput> {
-  console.log(`[Topic Summarizer Action] Received input. customModelIdentifier (raw): '${input.customModelIdentifier}', userPlan: '${input.userPlan}'`);
+  console.log(`[Topic Summarizer Action] Received input. Plan: ${input.userPlan}, Admin Model ID: '${input.customModelIdentifier}'`);
 
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
   
-  let modelToUse = '';
+  let modelToUse: string;
 
   if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.trim() !== "") {
     const customIdLower = input.customModelIdentifier.toLowerCase();
@@ -73,8 +73,9 @@ export async function summarizeTopic(input: SummarizeTopicInput): Promise<Summar
     }
   }
   
+  // Absolute fallback
   if (typeof modelToUse !== 'string' || !modelToUse.startsWith('googleai/')) { 
-      console.error(`[Topic Summarizer Action] CRITICAL FALLBACK: modelToUse became invalid ('${modelToUse}', type: ${typeof modelToUse}) after selection logic. Forcing to default gemini-2.0-flash.`);
+      console.error(`[Topic Summarizer Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to gemini-2.0-flash.`);
       modelToUse = 'googleai/gemini-2.0-flash';
   }
   console.log(`[Topic Summarizer Action] Final model determined for flow: ${modelToUse}`);
@@ -141,7 +142,7 @@ const topicSummarizerFlow = ai.defineFlow(
   async (enrichedInput: z.infer<typeof promptInputSchema>, modelToUseParam: string ): Promise<SummarizeTopicOutput> => {
     
     let finalModelToUse = modelToUseParam;
-    console.log(`[Topic Summarizer Flow] Received modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
+    console.log(`[Topic Summarizer Flow] Initial modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
 
     if (typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
         console.warn(`[Topic Summarizer Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting based on plan from enrichedInput.`);
@@ -153,21 +154,34 @@ const topicSummarizerFlow = ai.defineFlow(
         console.log(`[Topic Summarizer Flow] Corrected/Defaulted model INSIDE FLOW to: ${finalModelToUse}`);
     }
     
-    let callOptions: { model: string; config?: Record<string, any> } = { model: finalModelToUse };
-
+    const standardTemperature = 0.6;
+    const standardSafetySettings = [
+        { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+        { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+        { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+        { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+    ];
+    
     let maxTokensForOutput = 2048; // Default for medium
-    if (enrichedInput.summaryLength === 'detailed') maxTokensForOutput = 8000;
+    if (enrichedInput.summaryLength === 'detailed') maxTokensForOutput = 8192;
     else if (enrichedInput.summaryLength === 'short') maxTokensForOutput = 1024;
-
-    if (finalModelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
-        callOptions.config = {};
-    } else {
-      callOptions.config = {
-        generationConfig: {
-          maxOutputTokens: maxTokensForOutput,
-        }
-      };
+     if ((enrichedInput.isProUser || enrichedInput.isPremiumUser) && enrichedInput.summaryLength === 'detailed') {
+        maxTokensForOutput = 8192; // Ensure Pro/Premium detailed gets max
+    } else if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
+        maxTokensForOutput = Math.max(maxTokensForOutput, 4096); // Higher default for Pro/Premium
     }
+
+
+    const callOptions: { model: string; config?: Record<string, any> } = { 
+        model: finalModelToUse,
+        config: {
+            temperature: standardTemperature,
+            safetySettings: standardSafetySettings,
+            generationConfig: {
+              maxOutputTokens: maxTokensForOutput,
+            }
+        }
+    };
 
     const promptInputForLog = { ...enrichedInput, resolvedModelUsed: finalModelToUse };
     console.log(`[Topic Summarizer Flow] Using Genkit model: ${finalModelToUse} for plan: ${enrichedInput.userPlan}, customModel (raw): ${enrichedInput.customModelIdentifier}, with config: ${JSON.stringify(callOptions.config)}`);
@@ -200,4 +214,3 @@ const topicSummarizerFlow = ai.defineFlow(
     }
   }
 );
-
