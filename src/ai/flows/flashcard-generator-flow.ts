@@ -29,7 +29,7 @@ const FlashcardSchema = z.object({
 
 const GenerateFlashcardsOutputSchema = z.object({
   flashcards: z.array(FlashcardSchema).describe('Oluşturulan bilgi kartlarının listesi.'),
-  summaryTitle: z.string().optional().describe('Bilgi kartlarının dayandığı metin için kısa bir başlık veya konu özeti.'),
+  summaryTitle: z.string().optional().describe('Bilgi kartlarının dayandığı metin için kısa bir başlık veya konu özeti. Eğer istenen sayıda kart üretilemediyse, nedenini buraya ekleyebilirsin.'),
 });
 export type GenerateFlashcardsOutput = z.infer<typeof GenerateFlashcardsOutputSchema>;
 
@@ -62,8 +62,8 @@ export async function generateFlashcards(input: GenerateFlashcardsInput): Promis
         break;
     }
   } else {
-    console.log(`[Flashcard Generator Action] No custom model specified by admin. Using universal default.`);
-    modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default
+    console.log(`[Flashcard Generator Action] No custom model specified by admin. Using universal default for all users.`);
+    modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default for all users
   }
 
   // Absolute fallback if modelToUse is somehow still invalid
@@ -114,7 +114,7 @@ Kullanıcının üyelik planı: {{{userPlan}}}.
 {{/if}}
 
 {{#if isGemini25PreviewSelected}}
-(Gemini 2.5 Flash Preview 05-20 Modeli Notu: JSON ŞEMASINA HARFİYEN UY! Yanıtların ÖZ ama ANLAŞILIR ve YKS öğrencisine doğrudan fayda sağlayacak şekilde olsun. HIZLI yanıt vermeye odaklan. {{#if isProUser}}Pro kullanıcı için gereken derinliği ve analitik sorgulamayı koruyarak{{else if isPremiumUser}}Premium kullanıcı için gereken zenginleştirilmiş içeriği sağlayarak{{/if}} gereksiz uzun açıklamalardan ve süslemelerden kaçın, doğrudan konuya girerek en kritik bilgileri vurgula. Çıktın HER ZAMAN geçerli bir JSON nesnesi olmalıdır ve "flashcards" adlı bir dizi içermelidir.)
+(Gemini 2.5 Flash Preview 05-20 Modeli Notu: JSON ŞEMASINA HARFİYEN UY! Yanıtların ÖZ ama ANLAŞILIR ve YKS öğrencisine doğrudan fayda sağlayacak şekilde olsun. HIZLI yanıt vermeye odaklan. {{#if isProUser}}Pro kullanıcı için gereken derinliği ve analitik sorgulamayı koruyarak{{else if isPremiumUser}}Premium kullanıcı için gereken zenginleştirilmiş içeriği sağlayarak{{/if}} gereksiz uzun açıklamalardan ve süslemelerden kaçın, doğrudan konuya girerek en kritik bilgileri vurgula. Çıktın HER ZAMAN geçerli bir JSON nesnesi olmalıdır ve "flashcards" adlı bir dizi içermelidir. Tam olarak istenen sayıda ({{{numFlashcards}}}) kartı JSON dizisine eklemeye özen göster.)
 {{/if}}
 
 Kullanıcının Girdileri:
@@ -124,13 +124,13 @@ Metin İçeriği:
 İstenen Bilgi Kartı Sayısı: {{{numFlashcards}}}
 YKS Zorluk Seviyesi: {{{difficulty}}}
 
-Lütfen bu bilgilere dayanarak, aşağıdaki formatta {{numFlashcards}} adet YKS odaklı bilgi kartı oluştur:
+Lütfen bu bilgilere dayanarak, aşağıdaki formatta TAM OLARAK {{{numFlashcards}}} adet YKS odaklı bilgi kartı oluştur. Eğer bu mümkün değilse, mümkün olan en fazla sayıda (en fazla {{{numFlashcards}}} adet) kartı oluştur ve neden daha az oluşturulduğunu (örneğin, 'Metin X adet kart için yeterli değildi.') 'summaryTitle' alanının sonuna kısa bir not olarak ekleyebilirsin.
 
 1.  **Bilgi Kartları (flashcards)**: Her kart için:
     *   **Ön Yüz (front)**: Soru, kavram veya terim.
     *   **Arka Yüz (back)**: Cevap, tanım veya açıklama.
     *   **Konu (topic) (isteğe bağlı)**: İlgili ana konu.
-2.  **Özet Başlık (summaryTitle) (isteğe bağlı)**: Metin için kısa başlık.
+2.  **Özet Başlık (summaryTitle) (isteğe bağlı)**: Metin için kısa başlık. Eğer istenen sayıda kart üretilemediyse, nedenini buraya ekleyebilirsin.
 
 Zorluk Seviyesi Ayarı ({{{difficulty}}}):
 *   'easy': Temel tanımlar, basit olgular.
@@ -142,8 +142,8 @@ Genel Prensipler:
 *   Ön ve arka yüz arasında net mantıksal bağlantı olsun.
 *   Tekrarlayan veya çok bariz bilgilerden kaçın.
 *   Dilbilgisi ve YKS terminolojisi doğru olsun.
-*   Metin yetersizse, üretebildiğin kadar kaliteli kart üret.
-*   ÇIKTININ İSTENEN JSON ŞEMASINA TAM OLARAK UYDUĞUNDAN EMİN OL. "flashcards" alanı bir dizi olmalıdır.
+*   Metin yetersizse, üretebildiğin kadar kaliteli kart üret ve bu durumu 'summaryTitle' sonunda belirt.
+*   ÇIKTININ İSTENEN JSON ŞEMASINA TAM OLARAK UYDUĞUNDAN EMİN OL. "flashcards" alanı bir dizi olmalıdır ve mümkünse {{{numFlashcards}}} eleman içermelidir.
 `,
 });
 
@@ -172,18 +172,25 @@ const flashcardGeneratorFlow = ai.defineFlow(
         { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
     ];
     
-    // Max tokens calculation (adjust based on model capabilities if needed)
-    let maxTokensForOutput = (enrichedInput.numFlashcards || 5) * 250; // Increased slightly
+    // Max tokens calculation
+    let maxTokensForOutput = (enrichedInput.numFlashcards || 5) * 250; // Estimate per card
     if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
         maxTokensForOutput = Math.max(maxTokensForOutput, 2048); 
     } else {
         maxTokensForOutput = Math.max(maxTokensForOutput, 1024); 
     }
-    if (maxTokensForOutput > 8192 && finalModelToUse !== 'googleai/gemini-2.5-flash-preview-05-20') maxTokensForOutput = 8192;
+
+    // Specific model adjustments
     if (finalModelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
-        // This model might have specific token limits or behavior
-        maxTokensForOutput = Math.min(maxTokensForOutput, 2048); // Cap for preview model
+        maxTokensForOutput = Math.min(maxTokensForOutput, 2048); 
         console.log(`[Flashcard Generator Flow] Model is ${finalModelToUse}. Capping maxOutputTokens to ${maxTokensForOutput}.`);
+    } else if (finalModelToUse === 'googleai/gemini-1.5-flash-latest' || finalModelToUse === 'googleai/gemini-2.0-flash' ) {
+         // These models might handle larger token outputs more gracefully or have different limits.
+         // Ensure it doesn't exceed their absolute max token output. For now, let's cap at 8192 for safety.
+         maxTokensForOutput = Math.min(maxTokensForOutput, 8192);
+    } else {
+        // For any other or future models, cap at a general high value if not specifically handled.
+        maxTokensForOutput = Math.min(maxTokensForOutput, 8192);
     }
 
 
@@ -192,7 +199,9 @@ const flashcardGeneratorFlow = ai.defineFlow(
         config: {
             temperature: standardTemperature,
             safetySettings: standardSafetySettings,
+            // generationConfig: { // This key is NOT for Genkit's config for Google AI plugin
             maxOutputTokens: maxTokensForOutput,
+            // }
         }
     };
 
@@ -201,13 +210,16 @@ const flashcardGeneratorFlow = ai.defineFlow(
 
     try {
         const {output} = await prompt(promptInputForLog, callOptions);
-        if (!output || !output.flashcards || !Array.isArray(output.flashcards)) { // Added Array.isArray check
-          console.error(`[Flashcard Generator Flow] AI did not produce valid flashcards or flashcards is not an array. Model: ${finalModelToUse}. Input text length: ${enrichedInput.textContent.length}. Num cards: ${enrichedInput.numFlashcards}. Output:`, JSON.stringify(output, null, 2).substring(0,500));
-          // More detailed error log for schema validation failure
+        if (!output || !output.flashcards || !Array.isArray(output.flashcards)) { 
+          console.error(`[Flashcard Generator Flow] AI did not produce valid flashcards or flashcards is not an array. Model: ${finalModelToUse}. Input text length: ${enrichedInput.textContent.length}. Num cards requested: ${enrichedInput.numFlashcards}. Output:`, JSON.stringify(output, null, 2).substring(0,500));
           if (output === null) {
              throw new Error(`AI YKS Bilgi Kartı Uzmanı (${finalModelToUse}), belirtilen metin için 'null' yanıt döndürdü. Bu genellikle modelin JSON şemasını üretemediği anlamına gelir.`);
           }
           throw new Error(`AI YKS Bilgi Kartı Uzmanı (${finalModelToUse}), belirtilen metin için bilgi kartı oluşturamadı veya 'flashcards' alanı bir dizi değil. Lütfen metni ve ayarları kontrol edin.`);
+        }
+        // Log if the number of cards generated is less than requested
+        if (output.flashcards.length < (enrichedInput.numFlashcards || 0)) {
+            console.warn(`[Flashcard Generator Flow] AI generated ${output.flashcards.length} flashcards, but ${enrichedInput.numFlashcards} were requested. Model: ${finalModelToUse}. Text length: ${enrichedInput.textContent.length}.`);
         }
         return output;
     } catch (error: any) {
@@ -219,6 +231,8 @@ const flashcardGeneratorFlow = ai.defineFlow(
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${finalModelToUse}. Detay: ${error.message.substring(0, 150)}`;
             } else if (error.name === 'GenkitError' && error.message.includes('Schema validation failed')) {
               errorMessage = `AI modeli (${finalModelToUse}) beklenen yanıta uymayan bir çıktı üretti (Schema validation failed). Detay: ${error.message.substring(0,350)}`;
+            } else if (error.message.includes('400 Bad Request') && error.message.includes("Unknown name \"generationConfig\"")) {
+              errorMessage = `AI modeli (${finalModelToUse}) yapılandırmada 'generationConfig' anahtarını tanımadı. MaxOutputTokens doğrudan config altında olmalı. Detay: ${error.message.substring(0,250)}`;
             } else if (error.message.includes('400 Bad Request')) { 
               errorMessage = `AI modeli (${finalModelToUse}) geçersiz bir istek aldığını belirtti (400 Bad Request). İstek parametrelerini kontrol edin. Detay: ${error.message.substring(0,250)}`;
             }
