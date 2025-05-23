@@ -1,44 +1,59 @@
 
 {
   "rules": {
-    "users": {
-      "$uid": {
-        ".read": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('isAdmin').val() == true)",
-        ".write": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('isAdmin').val() == true)"
-      },
-      ".read": "auth != null && root.child('users').child(auth.uid).child('isAdmin').val() == true" 
-    },
-    "supportTickets": {
-      "$ticketId": {
-        ".read": "auth != null && (data.child('userId').val() == auth.uid || root.child('users').child(auth.uid).child('isAdmin').val() == true)",
-        ".write": "auth != null && ( (data.exists() && data.child('userId').val() == auth.uid) || (!data.exists() && newData.child('userId').val() == auth.uid) || root.child('users').child(auth.uid).child('isAdmin').val() == true)",
-        "messages": {
-          "$messageId": {
-            ".read": "auth != null && (root.child('supportTickets').child($ticketId).child('userId').val() == auth.uid || root.child('users').child(auth.uid).child('isAdmin').val() == true)",
-            ".write": "auth != null && ( (newData.child('senderId').val() == auth.uid && newData.child('senderType').val() == 'user' && root.child('supportTickets').child($ticketId).child('userId').val() == auth.uid) || (newData.child('senderId').val() == auth.uid && newData.child('senderType').val() == 'admin' && root.child('users').child(auth.uid).child('isAdmin').val() == true) )"
+    "databases": {
+      "match": "/databases/{database}/documents" {
+
+        // Users can manage their own profile. Admins can manage any profile.
+        "match": "/users/{userId}" {
+          "allow": "read: if request.auth != null;", // Any authenticated user can read any user profile for now
+          "allow": "create: if request.auth.uid == userId;", // User can create their own profile
+          "allow": "update: if request.auth.uid == userId || (request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);", // User can update their own, admin can update any
+          "allow": "delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;" // Only admins can delete
+        },
+
+        // Support Tickets: User can manage their own, Admin can manage all.
+        "match": "/supportTickets/{ticketId}" {
+          "allow": "read: if request.auth != null && (request.auth.uid == resource.data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);",
+          "allow": "list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;", // Only admins can list all tickets for the admin panel
+          "allow": "create: if request.auth != null && request.resource.data.userId == request.auth.uid;", // User can create their own ticket
+          "allow": "update: if request.auth != null && (request.auth.uid == resource.data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);", // User can update their own (e.g., close), Admin can update any (status, etc.)
+          "allow": "delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;", // Only admins can delete tickets
+
+          // Messages subcollection for Support Tickets
+          "match": "/messages/{messageId}" {
+            "allow": "read, list: if request.auth != null && (request.auth.uid == get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);",
+            "allow": "create: if request.auth != null && ((request.auth.uid == get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId && request.resource.data.senderId == request.auth.uid && request.resource.data.senderType == \"user\") || (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true && request.resource.data.senderId == request.auth.uid && request.resource.data.senderType == \"admin\"));"
+            // No update/delete for individual messages for now to keep history intact.
           }
+        },
+
+        // Pricing Configuration: Everyone can read, only admins can write.
+        "match": "/pricingConfig/currentPrices" {
+          "allow": "get: if true;", 
+          "allow": "list: if false;", 
+          "allow": "create, update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;"
+        },
+
+        // App Configuration (like Exam Dates): Everyone can read, only admins can write.
+        "match": "/appConfig/examDates" {
+          "allow": "get: if true;",
+          "allow": "list: if false;", 
+          "allow": "create, update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;"
+        },
+        
+        // Coupon Codes: Only admins can manage coupon codes.
+        "match": "/coupons/{couponId}" {
+          "allow": "read, list, create, update, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;"
+        },
+
+        // Default deny all other paths if not explicitly allowed
+        "match": "/{document=**}" {
+          "allow": "read, write: if false;"
         }
-      },
-      ".read": "auth != null && root.child('users').child(auth.uid).child('isAdmin').val() == true" 
-    },
-    "pricingConfig": {
-      "currentPrices": {
-        ".read": true,
-        ".write": "auth != null && root.child('users').child(auth.uid).child('isAdmin').val() == true"
       }
-    },
-    "appConfig": {
-      "examDates": {
-        ".read": true,
-        ".write": "auth != null && root.child('users').child(auth.uid).child('isAdmin').val() == true"
-      }
-    },
-    "coupons": {
-      "$couponId": {
-        ".read": "auth != null && root.child('users').child(auth.uid).child('isAdmin').val() == true",
-        ".write": "auth != null && root.child('users').child(auth.uid).child('isAdmin').val() == true"
-      },
-      ".read": "auth != null && root.child('users').child(auth.uid).child('isAdmin').val() == true" 
     }
   }
 }
+
+    
