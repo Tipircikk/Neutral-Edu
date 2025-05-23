@@ -21,9 +21,9 @@ const SolveQuestionInputSchema = z.object({
 export type SolveQuestionInput = z.infer<typeof SolveQuestionInputSchema>;
 
 const SolveQuestionOutputSchema = z.object({
-  solution: z.string().describe('Sorunun YKS öğrencisinin anlayacağı dilde, adım adım çözümü ve kavramsal açıklaması.'),
-  relatedConcepts: z.array(z.string()).optional().describe('Çözümle ilgili veya sorunun ait olduğu konudaki YKS için önemli 2-3 anahtar akademik kavram veya konu başlığı.'),
-  examStrategyTips: z.array(z.string()).optional().describe("Bu tür soruları YKS'de çözerken kullanılabilecek stratejiler veya dikkat edilmesi gereken noktalar."),
+  solution: z.string().describe('Sorunun YKS öğrencisinin anlayacağı dilde, adım adım çözümü ve kavramsal açıklaması. Eğer çözüm üretilemiyorsa, nedenini belirten bir mesaj içermelidir.'),
+  relatedConcepts: z.array(z.string()).optional().describe('Çözümle ilgili veya sorunun ait olduğu konudaki YKS için önemli 2-3 anahtar akademik kavram veya konu başlığı. Boş olabilir.'),
+  examStrategyTips: z.array(z.string()).optional().describe("Bu tür soruları YKS'de çözerken kullanılabilecek stratejiler veya dikkat edilmesi gereken noktalar. Boş olabilir."),
 });
 export type SolveQuestionOutput = z.infer<typeof SolveQuestionOutputSchema>;
 
@@ -58,20 +58,19 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
             modelToUse = customIdLower;
             console.warn(`[Question Solver Action] Admin specified a direct Genkit model name: '${modelToUse}'. Ensure this model is supported.`);
         } else {
-            console.warn(`[Question Solver Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to universal default for all users.`);
-            modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default for all users
+            console.warn(`[Question Solver Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to universal default for ALL users.`);
+            modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; 
         }
         break;
     }
   } else { 
-    console.log(`[Question Solver Action] No custom model specified by admin. Using universal default for all users.`);
+    console.log(`[Question Solver Action] No custom model specified by admin. Falling back to universal default for ALL users.`);
     modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default for all users
   }
   
-  // Absolute fallback if modelToUse is somehow still invalid
   if (typeof modelToUse !== 'string' || !modelToUse.startsWith('googleai/')) { 
-      console.error(`[Question Solver Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to gemini-2.5-flash-preview-05-20.`);
-      modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+      console.error(`[Question Solver Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to googleai/gemini-2.0-flash.`);
+      modelToUse = 'googleai/gemini-2.0-flash'; // Absolute fallback
   }
   console.log(`[Question Solver Action] Final model determined for flow: ${modelToUse}`);
   
@@ -91,9 +90,14 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
     const result = await questionSolverFlow(enrichedInput, modelToUse);
 
     if (!result || typeof result.solution !== 'string' || !Array.isArray(result.relatedConcepts) || !Array.isArray(result.examStrategyTips)) {
-      console.error("[Question Solver Action] Flow returned invalid, null, or malformed result. Raw result:", JSON.stringify(result).substring(0, 500));
+      const errorDetail = !result ? "AI akışından tanımsız yanıt alındı." : 
+                          typeof result.solution !== 'string' ? "Çözüm metni (solution) eksik veya geçersiz." :
+                          !Array.isArray(result.relatedConcepts) ? "İlgili kavramlar (relatedConcepts) bir dizi değil." :
+                          !Array.isArray(result.examStrategyTips) ? "Sınav ipuçları (examStrategyTips) bir dizi değil." :
+                          "Bilinmeyen yapısal hata.";
+      console.error(`[Question Solver Action] Flow returned invalid, null, or malformed result. Model: ${modelToUse}. Details: ${errorDetail}. Raw result:`, JSON.stringify(result).substring(0, 500));
       return {
-        solution: `AI akışından (${modelToUse}) geçersiz veya eksik bir yanıt alındı. Lütfen tekrar deneyin veya farklı bir soru sorun.`,
+        solution: `AI akışından (${modelToUse}) geçersiz veya eksik bir yanıt alındı. ${errorDetail}. Lütfen tekrar deneyin veya farklı bir soru sorun.`,
         relatedConcepts: result?.relatedConcepts || ["Hata"],
         examStrategyTips: result?.examStrategyTips || ["Tekrar deneyin"],
       };
@@ -163,29 +167,27 @@ Metinsel Soru/Açıklama:
 {{{questionText}}}
 {{/if}}
 
-Lütfen bu soruyu/soruları analiz et ve aşağıdaki formatta, ÖĞRETİCİ ve ADIM ADIM bir yanıt hazırla:
+Lütfen bu soruyu/soruları analiz et ve aşağıdaki JSON formatına HARFİYEN uyacak şekilde, ÖĞRETİCİ ve ADIM ADIM bir yanıt hazırla:
+Çıktın HER ZAMAN geçerli bir JSON nesnesi olmalıdır ve "solution" (string), "relatedConcepts" (string dizisi, boş olabilir) ve "examStrategyTips" (string dizisi, boş olabilir) alanlarını içermelidir.
+Eğer soru çözülemiyorsa veya girdi yetersizse, "solution" alanına nedenini açıklayan bir mesaj yaz ve diğer alanları boş dizi ([]) olarak bırak. ASLA null veya tanımsız bir yanıt döndürme.
 
-Soru Analizi:
-*   Sorunun hangi YKS dersi ve ana konusuna ait olduğunu KISACA belirt.
-*   Çözüm için gerekli TEMEL BİLGİLERİ (ana formül veya kavram) listele.
-
-Çözüm Yolu (Adım Adım):
-*   Soruyu ana adımları mantığıyla birlikte, AÇIKLAYARAK çöz.
-*   Her bir önemli matematiksel işlemi veya mantıksal çıkarımı net bir şekilde belirt.
-
-Sonuç:
-*   Elde edilen sonucu net bir şekilde belirt (örn: Cevap B).
-
-İlgili Kavramlar (isteğe bağlı, planına göre 1-3 adet):
-*   Çözümde kullanılan veya soruyla yakından ilişkili, YKS'de bilinmesi gereken temel kavramları listele.
-
-YKS Strateji İpuçları (isteğe bağlı, planına göre 1-3 adet):
-*   Bu tür sorularla ilgili pratik YKS stratejileri veya ipuçları ver.
+İstenen Çıktı Bölümleri (bu JSON formatına uy):
+1.  **solution (string, zorunlu)**:
+    *   Sorunun hangi YKS dersi ve ana konusuna ait olduğunu KISACA belirt.
+    *   Çözüm için gerekli TEMEL BİLGİLERİ (ana formül veya kavram) listele.
+    *   Soruyu ana adımları mantığıyla birlikte, AÇIKLAYARAK çöz.
+    *   Her bir önemli matematiksel işlemi veya mantıksal çıkarımı net bir şekilde belirt.
+    *   Elde edilen sonucu net bir şekilde belirt (örn: Cevap B).
+    *   Eğer girdi yetersiz, anlamsız veya YKS standartlarında çözülemeyecek kadar belirsizse, bu alana "Bu soruyu çözebilmek için daha fazla bilgiye/netliğe veya görseldeki ifadenin metin olarak yazılmasına ihtiyacım var." gibi bir geri bildirim yaz.
+2.  **relatedConcepts (string dizisi, isteğe bağlı, boş olabilir)**:
+    *   Çözümde kullanılan veya soruyla yakından ilişkili, YKS'de bilinmesi gereken temel kavramları LİSTELE.
+3.  **examStrategyTips (string dizisi, isteğe bağlı, boş olabilir)**:
+    *   Bu tür sorularla ilgili pratik YKS stratejileri veya ipuçlarını LİSTELE.
 
 Davranış Kuralları:
 *   Eğer hem görsel hem de metin girdisi varsa, bunları birbiriyle ilişkili kabul et.
-*   Girdi yetersiz, anlamsız veya YKS standartlarında çözülemeyecek kadar belirsizse, bunu net bir şekilde belirt. Örneğin, "Bu soruyu çözebilmek için daha fazla bilgiye/netliğe veya görseldeki ifadenin metin olarak yazılmasına ihtiyacım var." gibi bir geri bildirim ver. Kesin olmayan veya kalitesiz çözümler sunmaktan kaçın.
 *   Yanıtını öğrencinin kolayca anlayabileceği, teşvik edici ve eğitici bir dille yaz.
+*   ÇIKTININ İSTENEN JSON ŞEMASINA TAM OLARAK UYDUĞUNDAN EMİN OL. "solution" bir string, "relatedConcepts" ve "examStrategyTips" ise string dizileri (boş olabilirler) olmalıdır.
 `,
 });
 
@@ -201,10 +203,11 @@ const questionSolverFlow = ai.defineFlow(
     console.log(`[Question Solver Flow] Initial modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
 
     if (typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
-        console.warn(`[Question Solver Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting to universal default for all users.`);
-        finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default for all users
-        console.log(`[Question Solver Flow] Corrected/Defaulted model INSIDE FLOW to: ${finalModelToUse}`);
+        const fallbackModel = enrichedInput.isProUser || enrichedInput.isPremiumUser ? 'googleai/gemini-2.5-flash-preview-05-20' : 'googleai/gemini-2.0-flash';
+        console.warn(`[Question Solver Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting to ${fallbackModel} based on plan.`);
+        finalModelToUse = fallbackModel;
     }
+    console.log(`[Question Solver Flow] Corrected/Final model INSIDE FLOW to: ${finalModelToUse}`);
     
     const standardTemperature = 0.5; 
     const standardSafetySettings = [
@@ -231,10 +234,18 @@ const questionSolverFlow = ai.defineFlow(
     try {
       const { output } = await questionSolverPrompt(promptInputForLog, callOptions);
 
-      if (!output || typeof output.solution !== 'string') {
-        console.error(`[Question Solver Flow] AI did not produce a valid solution matching the schema. Model: ${finalModelToUse}. Output received:`, JSON.stringify(output).substring(0,300)+"...");
+      if (!output) {
+        console.error(`[Question Solver Flow] AI returned null output. Model: ${finalModelToUse}. Input text: ${enrichedInput.questionText?.substring(0,100)}, Image provided: ${!!enrichedInput.imageDataUri}`);
         return {
-            solution: `AI YKS Uzmanı (${finalModelToUse}), bu soru için bir çözüm ve detaylı açıklama üretemedi veya yanıt formatı beklenmedik. Lütfen girdilerinizi kontrol edin veya farklı bir soru deneyin.`,
+            solution: `AI YKS Uzmanı (${finalModelToUse}) bu soru için bir çözüm üretemedi (null yanıt). Lütfen girdilerinizi kontrol edin veya farklı bir soru deneyin.`,
+            relatedConcepts: ["Yanıt Yok Hatası"],
+            examStrategyTips: [],
+        };
+      }
+      if (typeof output.solution !== 'string' || !Array.isArray(output.relatedConcepts) || !Array.isArray(output.examStrategyTips)) {
+        console.error(`[Question Solver Flow] AI did not produce a valid output matching the schema. Model: ${finalModelToUse}. Output received:`, JSON.stringify(output).substring(0,300)+"...");
+        return {
+            solution: `AI YKS Uzmanı (${finalModelToUse}), bu soru için beklenen formatta bir çözüm üretemedi. Yanıt formatı hatalı. Lütfen girdilerinizi kontrol edin veya farklı bir soru deneyin.`,
             relatedConcepts: output?.relatedConcepts || ["Yanıt Formatı Hatası"],
             examStrategyTips: output?.examStrategyTips || [],
         };
@@ -242,28 +253,36 @@ const questionSolverFlow = ai.defineFlow(
       console.log("[Question Solver Flow] Successfully received solution from AI model.");
       return {
         solution: output.solution,
-        relatedConcepts: output.relatedConcepts || [],
-        examStrategyTips: output.examStrategyTips || [],
+        relatedConcepts: output.relatedConcepts || [], // Ensure arrays even if undefined
+        examStrategyTips: output.examStrategyTips || [], // Ensure arrays even if undefined
       };
 
     } catch (promptError: any) {
       console.error(`[Question Solver Flow] CRITICAL ERROR during prompt execution with model ${finalModelToUse}. Error details:`, JSON.stringify(promptError, Object.getOwnPropertyNames(promptError), 2));
+      
       let errorMessage = `AI modeli (${finalModelToUse}) ile iletişimde bir hata oluştu.`;
       if (promptError?.message) {
           if (promptError.message.includes('400 Bad Request') && (promptError.message.includes('generationConfig') || promptError.message.includes('generation_config'))) {
               errorMessage = `Seçilen model (${finalModelToUse}) bazı yapılandırma ayarlarını desteklemiyor olabilir. Detay: ${promptError.message.substring(0,150)}`;
-          } else if (promptError.message.includes('SAFETY') || promptError.message.includes('block_reason')) {
+          } else if (promptError.message.includes('SAFETY') || promptError.message.includes('block_reason') || (promptError.cause as any)?.message?.includes('SAFETY')) {
               errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen sorunuzu gözden geçirin. Model: ${finalModelToUse}. Detay: ${promptError.message.substring(0,150)}`;
           } else if (promptError.message.includes('Must have a text part if there is a media part')) {
                 errorMessage = `Görsel ile birlikte metin girmeniz gerekmektedir veya model (${finalModelToUse}) bu tür bir girdiyi desteklemiyor. Detay: ${promptError.message.substring(0,150)}`;
           } else if (promptError.message.includes('500 Internal Server Error') || promptError.message.includes('internal error has occurred') || promptError.message.includes('Deadline exceeded') || promptError.message.includes('504 Gateway Timeout')) {
               errorMessage = `AI modeli (${finalModelToUse}) yanıt vermesi çok uzun sürdü veya dahili bir sunucu hatasıyla karşılaştı. Lütfen daha sonra tekrar deneyin veya farklı bir soru/model deneyin. Detay: ${promptError.message.substring(0,150)}`;
           } else if (promptError.name === 'GenkitError' && promptError.message.includes('Schema validation failed')){
-              errorMessage = `AI modeli (${finalModelToUse}) beklenen yanıt şemasına uymayan bir çıktı üretti (Schema validation failed). Lütfen farklı bir soru deneyin veya modelin yanıtını kontrol edin. Detay: ${promptError.message.substring(0,350)}`;
+              let zodErrorDetails = "";
+              if (promptError.details && Array.isArray(promptError.details)) {
+                zodErrorDetails = promptError.details.map((d: any) => `[${d.path?.join('.') || 'root'}]: ${d.message}`).join('; ');
+              }
+              errorMessage = `AI modeli (${finalModelToUse}) beklenen yanıt şemasına uymayan bir çıktı üretti (Schema validation failed). Detay: ${zodErrorDetails || promptError.message.substring(0,350)}.`;
           } else {
              errorMessage += ` Detay: ${promptError.message.substring(0,300)}`;
           }
+      } else if (typeof promptError === 'string') {
+        errorMessage += ` Detay: ${promptError.substring(0,300)}`;
       }
+
       return {
           solution: errorMessage,
           relatedConcepts: ["Model Hatası"],
@@ -272,4 +291,6 @@ const questionSolverFlow = ai.defineFlow(
     }
   }
 );
+    
+
     
