@@ -113,7 +113,7 @@ export default function LandingPage() {
   const autoPlayIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const startAutoPlay = () => {
-    stopAutoPlay(); 
+    stopAutoPlay();
     autoPlayIntervalRef.current = setInterval(() => {
       setCurrentTestimonialIndex((prevIndex) => (prevIndex + 1) % testimonials.length);
     }, 5000);
@@ -127,12 +127,12 @@ export default function LandingPage() {
 
   useEffect(() => {
     startAutoPlay();
-    return () => stopAutoPlay(); 
+    return () => stopAutoPlay();
   }, []);
 
   const handleDotClick = (index: number) => {
     setCurrentTestimonialIndex(index);
-    startAutoPlay(); 
+    startAutoPlay();
   };
 
 
@@ -305,15 +305,15 @@ export default function LandingPage() {
             </p>
             <div className="flex justify-center items-center">
               <Image
-                src="/sponsor-matematikenstitusu.png" 
+                src="/sponsor-matematikenstitusu.png"
                 alt="Sponsor Matematik Enstitüsü Logosu"
-                width={800} 
+                width={800}
                 height={200}
                 className="rounded-lg shadow-md border border-border object-contain max-h-[100px] sm:max-h-[150px]"
               />
             </div>
              <p className="text-sm text-muted-foreground mt-8">
-              Sponsor olmak ve projemize destek vermek için lütfen bizimle <Link href="/#contact" className="text-primary hover:underline">iletişime geçin</Link>.
+              Sponsor olmak ve projemize destek vermek için lütfen bizimle <Link href="#contact" className="text-primary hover:underline">iletişime geçin</Link>.
             </p>
           </div>
         </section>
@@ -335,3 +335,5 @@ export default function LandingPage() {
     </div>
   );
 }
+
+    
