@@ -61,7 +61,7 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
             modelToUse = customIdLower;
             console.warn(`[Question Solver Action] Admin specified a direct Genkit model name: '${modelToUse}'. Ensure this model is supported.`);
         } else {
-            console.warn(`[Question Solver Action] Admin specified an UNKNOWN customModelIdentifier: '${adminModelChoice}'. Falling back to universal default for all users.`);
+            console.warn(`[Question Solver Action] Admin specified an UNKNOWN customModelIdentifier: '${adminModelChoice}'. Falling back to universal default.`);
             modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; 
         }
         break;
@@ -71,6 +71,7 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
     modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default for all users
   }
   
+  // Absolute fallback for modelToUse.
   if (typeof modelToUse !== 'string' || !modelToUse.startsWith('googleai/')) { 
       console.error(`[Question Solver Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to 'googleai/gemini-2.5-flash-preview-05-20'.`);
       modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
@@ -105,8 +106,8 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
       if (input.isAdmin) {
         return {
             solution: `AI akışından (${modelToUse}) geçersiz veya eksik bir yanıt alındı (Admin Gördü). ${errorDetail}. Lütfen tekrar deneyin veya farklı bir soru sorun.`,
-            relatedConcepts: result?.relatedConcepts || ["Hata"],
-            examStrategyTips: result?.examStrategyTips || ["Tekrar deneyin"],
+            relatedConcepts: (result && Array.isArray(result.relatedConcepts)) ? result.relatedConcepts : ["Hata"],
+            examStrategyTips: (result && Array.isArray(result.examStrategyTips)) ? result.examStrategyTips : ["Tekrar deneyin"],
         };
       }
       return {
@@ -146,6 +147,7 @@ const promptInputSchema = SolveQuestionInputSchema.extend({
     isPremiumUser: z.boolean().optional(),
     isCustomModelSelected: z.boolean().optional(),
     isGemini25PreviewSelected: z.boolean().optional(),
+    // isAdmin is already part of SolveQuestionInputSchema
 });
 
 const questionSolverPrompt = ai.definePrompt({
@@ -159,6 +161,9 @@ Matematiksel sembolleri (örn: x^2, H_2O, √, π, ±, ≤, ≥) metin içinde a
 Cevapların her zaman Türkçe olmalıdır.
 
 Kullanıcının üyelik planı: {{{userPlan}}}.
+{{#if isAdmin}}
+(Admin Kullanıcı Notu: Şu anda admin olarak test yapıyorsunuz. Model ve detay seviyesi seçimleriniz önceliklidir.)
+{{/if}}
 İstenen Çözüm Detay Seviyesi: {{{solutionDetailLevel}}}.
 
 {{#if isProUser}}
@@ -225,7 +230,6 @@ const questionSolverFlow = ai.defineFlow(
     outputSchema: SolveQuestionOutputSchema,
   },
   async (enrichedInput: z.infer<typeof promptInputSchema>, modelToUseParam: string): Promise<SolveQuestionOutput> => {
-    // ACİL DURUM: Tüm akış gövdesini try-catch içine al
     try {
       let finalModelToUse = modelToUseParam;
       console.log(`[Question Solver Flow] Initial modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}, Admin: ${enrichedInput.isAdmin}`);
@@ -255,9 +259,12 @@ const questionSolverFlow = ai.defineFlow(
       if (enrichedInput.isProUser) {
           maxTokensForOutput = Math.max(maxTokensForOutput, 8000);
       }
-      if (finalModelToUse.includes('flash')) {
+      
+      // Ensure maxOutputTokens doesn't exceed model limits (Genkit handles some of this, but good to be aware)
+      if (finalModelToUse.includes('flash')) { // A general check for flash models
         maxTokensForOutput = Math.min(maxTokensForOutput, 8192); 
       }
+
 
       const callOptions: { model: string; config?: Record<string, any> } = { 
         model: finalModelToUse,
@@ -268,29 +275,35 @@ const questionSolverFlow = ai.defineFlow(
         }
       };
       
-      const promptInputForLog = { ...enrichedInput, resolvedModelUsed: finalModelToUse, calculatedMaxOutputTokens: maxTokensForOutput };
-      console.log(`[Question Solver Flow] Calling prompt with model: ${finalModelToUse} and options:`, JSON.stringify(callOptions.config), `for plan: ${enrichedInput.userPlan}, customModel (raw): ${enrichedInput.customModelIdentifier}, detail: ${enrichedInput.solutionDetailLevel}`);
+      // Use a copy of enrichedInput for logging that includes resolved model and tokens
+      const promptInputForLogging = { ...enrichedInput, resolvedModelUsed: finalModelToUse, calculatedMaxOutputTokens: maxTokensForOutput };
+      console.log(`[Question Solver Flow] Calling prompt with model: ${finalModelToUse} and options:`, JSON.stringify(callOptions.config), `for user plan: ${enrichedInput.userPlan}, customModel (raw): ${enrichedInput.customModelIdentifier}, detail: ${enrichedInput.solutionDetailLevel}`);
+      console.log(`[Question Solver Flow] Input to prompt (enrichedInput):`, JSON.stringify(enrichedInput));
 
-      // İçteki try-catch bloğu prompt çağrısı için
+
       try {
-        const { output } = await questionSolverPrompt(promptInputForLog, callOptions);
+        // IMPORTANT: Call the prompt with 'enrichedInput', not 'promptInputForLogging'
+        const { output } = await questionSolverPrompt(enrichedInput, callOptions);
 
         if (output === null || typeof output !== 'object' || typeof output.solution !== 'string') {
           const rawOutputPreview = JSON.stringify(output, null, 2).substring(0, 500) + "...";
           console.error(`[Question Solver Flow] AI returned null or malformed output (not matching schema). Model: ${finalModelToUse}. Output Preview:`, rawOutputPreview);
           
-          let errorMessageForUser = enrichedInput.isAdmin 
-              ? `AI Modeli (${finalModelToUse}), boş veya beklenen temel yapıda olmayan bir yanıt döndürdü (Admin Gördü). Ham Çıktı: ${rawOutputPreview}`
-              : `AI Soru Çözücü şu anda bir sorun yaşıyor gibi görünüyor. Lütfen biraz sonra tekrar deneyin veya farklı bir soru sormayı deneyin.`;
-          
-          if (output === null && enrichedInput.isAdmin) {
-              errorMessageForUser = `AI Modeli (${finalModelToUse}), beklenen yanıt şemasına uymayan bir çıktı üretti (Admin Gördü). Detay: Model, yanıt olarak 'null' (boş bir nesne) döndürdü. Bu genellikle modelin soruyu işleyemediği veya geçerli bir JSON oluşturamadığı anlamına gelir.`;
+          let errorMessageForUser: string;
+          if (enrichedInput.isAdmin) {
+              if (output === null) {
+                  errorMessageForUser = `AI Modeli (${finalModelToUse}), beklenen yanıt şemasına uymayan bir çıktı üretti (Admin Gördü). Detay: Model, yanıt olarak 'null' (boş bir nesne) döndürdü. Bu genellikle modelin soruyu işleyemediği veya geçerli bir JSON oluşturamadığı anlamına gelir.`;
+              } else {
+                  errorMessageForUser = `AI Modeli (${finalModelToUse}), boş veya beklenen temel yapıda olmayan bir yanıt döndürdü (Admin Gördü). Ham Çıktı: ${rawOutputPreview}`;
+              }
+          } else {
+             errorMessageForUser = `AI Soru Çözücü şu anda bir sorun yaşıyor gibi görünüyor. Lütfen biraz sonra tekrar deneyin veya farklı bir soru sormayı deneyin.`;
           }
-
+          
           return {
               solution: errorMessageForUser,
-              relatedConcepts: [], 
-              examStrategyTips: [], 
+              relatedConcepts: (output && Array.isArray(output.relatedConcepts)) ? output.relatedConcepts : [], 
+              examStrategyTips: (output && Array.isArray(output.examStrategyTips)) ? output.examStrategyTips : [], 
           };
         }
         
@@ -302,11 +315,20 @@ const questionSolverFlow = ai.defineFlow(
         };
 
       } catch (promptError: any) {
-        console.error(`[Question Solver Flow] INNER CATCH: CRITICAL ERROR during prompt execution with model ${finalModelToUse}. Error object:`, promptError, "Error Message:", promptError?.message, "Error Cause:", promptError?.cause);
+        console.error(`[Question Solver Flow] INNER CATCH: CRITICAL ERROR during prompt execution with model ${finalModelToUse}. Error object:`, promptError, "Error Message:", promptError?.message, "Error Cause:", promptError?.cause, "Error Details:", JSON.stringify(promptError.details, null, 2));
         
         let simpleErrorMsg = "Bir Genkit/AI hatası oluştu.";
         if (promptError && typeof promptError.message === 'string') {
-          simpleErrorMsg = promptError.message.substring(0, 300); 
+          simpleErrorMsg = promptError.message; // Show full message to admin if it's a GenkitError
+          if (promptError.name === 'GenkitError' && promptError.message.includes('Schema validation failed')) {
+            let zodErrors = "Şema Doğrulama Hatası.";
+            if (promptError.details && Array.isArray(promptError.details)) {
+                zodErrors = promptError.details.map((detail: any) => `[${detail.path?.join('.') || 'root'}]: ${detail.message}`).join('; ');
+            }
+            simpleErrorMsg = `AI modeli (${finalModelToUse}) gelen yanıt beklenen şemayla uyuşmuyor: ${zodErrors}`;
+          } else if (promptError.message.includes('SAFETY') || promptError.message.includes('block_reason')) {
+             simpleErrorMsg = `İçerik güvenlik filtrelerine takılmış olabilir. Model: ${finalModelToUse}. Detay: ${promptError.message.substring(0, 150)}`;
+          }
         } else if (typeof promptError === 'string') {
           simpleErrorMsg = promptError.substring(0,300);
         }
@@ -321,9 +343,9 @@ const questionSolverFlow = ai.defineFlow(
             examStrategyTips: [],
         };
       }
-    } catch (flowError: any) { // En dıştaki try-catch
+    } catch (flowError: any) { 
       console.error(`[Question Solver Flow] OUTER CATCH: Unhandled exception in flow execution. Model attempted: ${modelToUseParam}. Error object:`, flowError, "Error Message:", flowError?.message);
-      const userVisibleMessage = enrichedInput?.isAdmin // enrichedInput burada tanımsız olabilir, dikkatli olalım
+      const userVisibleMessage = enrichedInput?.isAdmin 
         ? `AI Soru Çözücü akışında beklenmedik bir genel hata oluştu (Admin Gördü). Model denenen: ${modelToUseParam || 'bilinmiyor'}. Detay: ${flowError?.message?.substring(0,200) || 'Bilinmeyen akış hatası'}`
         : `Soru çözümü oluşturulurken çok beklenmedik bir sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.`;
       
