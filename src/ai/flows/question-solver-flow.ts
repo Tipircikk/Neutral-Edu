@@ -30,7 +30,7 @@ const SolveQuestionOutputSchema = z.object({
 export type SolveQuestionOutput = z.infer<typeof SolveQuestionOutputSchema>;
 
 export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQuestionOutput> {
-  console.log(`[Question Solver Action] Received input. User Plan: ${input.userPlan}, Admin Model ID (raw): '${input.customModelIdentifier}', HasText: ${!!input.questionText}, HasImage: ${!!input.imageDataUri}, IsAdmin: ${!!input.isAdmin}, DetailLevel: ${input.solutionDetailLevel}`);
+  console.log(`[Question Solver Action] Received input. Admin Model ID (raw): '${input.customModelIdentifier}', HasText: ${!!input.questionText}, HasImage: ${!!input.imageDataUri}, IsAdmin: ${!!input.isAdmin}, DetailLevel: ${input.solutionDetailLevel}`);
 
   if (!input.questionText && !input.imageDataUri) {
     return {
@@ -61,18 +61,18 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
             modelToUse = customIdLower;
             console.warn(`[Question Solver Action] Admin specified a direct Genkit model name: '${modelToUse}'. Ensure this model is supported.`);
         } else {
-            console.warn(`[Question Solver Action] Admin specified an UNKNOWN customModelIdentifier: '${adminModelChoice}'. Falling back to universal default.`);
-            modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default
+            console.warn(`[Question Solver Action] Admin specified an UNKNOWN customModelIdentifier: '${adminModelChoice}'. Falling back to universal default for all users.`);
+            modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; 
         }
         break;
     }
   } else {
-    console.log(`[Question Solver Action] No valid custom model specified by admin (received: '${adminModelChoice}'). Using universal default 'googleai/gemini-2.5-flash-preview-05-20'.`);
+    console.log(`[Question Solver Action] No valid custom model specified by admin. Using universal default 'googleai/gemini-2.5-flash-preview-05-20' for all users.`);
     modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default for all users
   }
   
   if (typeof modelToUse !== 'string' || !modelToUse.startsWith('googleai/')) { 
-      console.error(`[Question Solver Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to googleai/gemini-2.5-flash-preview-05-20.`);
+      console.error(`[Question Solver Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to 'googleai/gemini-2.5-flash-preview-05-20'.`);
       modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
   }
   console.log(`[Question Solver Action] Final model determined for flow: ${modelToUse}`);
@@ -87,7 +87,7 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
     isPremiumUser,
     isCustomModelSelected: !!input.customModelIdentifier,
     isGemini25PreviewSelected,
-    isAdmin: !!input.isAdmin, // Ensure boolean
+    isAdmin: !!input.isAdmin, 
     solutionDetailLevel: input.solutionDetailLevel || "orta",
   };
 
@@ -146,7 +146,6 @@ const promptInputSchema = SolveQuestionInputSchema.extend({
     isPremiumUser: z.boolean().optional(),
     isCustomModelSelected: z.boolean().optional(),
     isGemini25PreviewSelected: z.boolean().optional(),
-    // isAdmin is already in SolveQuestionInputSchema, no need to extend here
 });
 
 const questionSolverPrompt = ai.definePrompt({
@@ -222,128 +221,116 @@ Davranış Kuralları:
 const questionSolverFlow = ai.defineFlow(
   {
     name: 'questionSolverFlow',
-    inputSchema: promptInputSchema, // Uses the extended schema defined above
+    inputSchema: promptInputSchema, 
     outputSchema: SolveQuestionOutputSchema,
   },
   async (enrichedInput: z.infer<typeof promptInputSchema>, modelToUseParam: string): Promise<SolveQuestionOutput> => {
-    
-    let finalModelToUse = modelToUseParam;
-    console.log(`[Question Solver Flow] Initial modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
-
-    if (typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
-        console.warn(`[Question Solver Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting to universal default.`);
-        finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default for all users
-    }
-    console.log(`[Question Solver Flow] Corrected/Final model INSIDE FLOW to: ${finalModelToUse}`);
-    
-    const standardTemperature = 0.5; 
-    const standardSafetySettings = [
-        { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-        { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-        { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-        { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
-    ];
-    
-    let maxTokensForOutput = 4096; // Default
-    if (enrichedInput.solutionDetailLevel === 'detayli' || enrichedInput.isProUser) {
-        maxTokensForOutput = 8000; // Increased from 8192 to 8000 as per Genkit docs for some models
-    } else if (enrichedInput.solutionDetailLevel === 'orta') {
-        maxTokensForOutput = 4096;
-    } else { // temel
-        maxTokensForOutput = 2048;
-    }
-    // Ensure pro users potentially get more if their detail level implies less
-    if (enrichedInput.isProUser) {
-        maxTokensForOutput = Math.max(maxTokensForOutput, 8000);
-    }
-    // Max cap for safety with flash models
-    if (finalModelToUse.includes('flash')) {
-      maxTokensForOutput = Math.min(maxTokensForOutput, 8192); // Gemini 1.5 Flash supports up to 8192
-    }
-
-
-    const callOptions: { model: string; config?: Record<string, any> } = { 
-      model: finalModelToUse,
-      config: {
-        temperature: standardTemperature,
-        safetySettings: standardSafetySettings,
-        maxOutputTokens: maxTokensForOutput, 
-      }
-    };
-    
-    const promptInputForLog = { ...enrichedInput, resolvedModelUsed: finalModelToUse, calculatedMaxOutputTokens: maxTokensForOutput };
-    console.log(`[Question Solver Flow] Calling prompt with model: ${finalModelToUse} and options:`, JSON.stringify(callOptions.config), `for plan: ${enrichedInput.userPlan}, customModel (raw): ${enrichedInput.customModelIdentifier}, detail: ${enrichedInput.solutionDetailLevel}`);
-
+    // ACİL DURUM: Tüm akış gövdesini try-catch içine al
     try {
-      const { output } = await questionSolverPrompt(promptInputForLog, callOptions);
+      let finalModelToUse = modelToUseParam;
+      console.log(`[Question Solver Flow] Initial modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}, Admin: ${enrichedInput.isAdmin}`);
 
-      if (output === null || typeof output !== 'object' || typeof output.solution !== 'string') {
-        const rawOutputPreview = JSON.stringify(output, null, 2).substring(0, 500) + "...";
-        console.error(`[Question Solver Flow] AI returned null or malformed output. Model: ${finalModelToUse}. Output Preview:`, rawOutputPreview);
+      if (typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
+          console.warn(`[Question Solver Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received. Defaulting to universal 'googleai/gemini-2.5-flash-preview-05-20'.`);
+          finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
+      }
+      console.log(`[Question Solver Flow] Corrected/Final model INSIDE FLOW to: ${finalModelToUse}`);
+      
+      const standardTemperature = 0.5; 
+      const standardSafetySettings = [
+          { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+          { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+      ];
+      
+      let maxTokensForOutput = 4096; 
+      if (enrichedInput.solutionDetailLevel === 'detayli' || enrichedInput.isProUser) {
+          maxTokensForOutput = 8000; 
+      } else if (enrichedInput.solutionDetailLevel === 'orta') {
+          maxTokensForOutput = 4096;
+      } else { 
+          maxTokensForOutput = 2048;
+      }
+      if (enrichedInput.isProUser) {
+          maxTokensForOutput = Math.max(maxTokensForOutput, 8000);
+      }
+      if (finalModelToUse.includes('flash')) {
+        maxTokensForOutput = Math.min(maxTokensForOutput, 8192); 
+      }
+
+      const callOptions: { model: string; config?: Record<string, any> } = { 
+        model: finalModelToUse,
+        config: {
+          temperature: standardTemperature,
+          safetySettings: standardSafetySettings,
+          maxOutputTokens: maxTokensForOutput, 
+        }
+      };
+      
+      const promptInputForLog = { ...enrichedInput, resolvedModelUsed: finalModelToUse, calculatedMaxOutputTokens: maxTokensForOutput };
+      console.log(`[Question Solver Flow] Calling prompt with model: ${finalModelToUse} and options:`, JSON.stringify(callOptions.config), `for plan: ${enrichedInput.userPlan}, customModel (raw): ${enrichedInput.customModelIdentifier}, detail: ${enrichedInput.solutionDetailLevel}`);
+
+      // İçteki try-catch bloğu prompt çağrısı için
+      try {
+        const { output } = await questionSolverPrompt(promptInputForLog, callOptions);
+
+        if (output === null || typeof output !== 'object' || typeof output.solution !== 'string') {
+          const rawOutputPreview = JSON.stringify(output, null, 2).substring(0, 500) + "...";
+          console.error(`[Question Solver Flow] AI returned null or malformed output (not matching schema). Model: ${finalModelToUse}. Output Preview:`, rawOutputPreview);
+          
+          let errorMessageForUser = enrichedInput.isAdmin 
+              ? `AI Modeli (${finalModelToUse}), boş veya beklenen temel yapıda olmayan bir yanıt döndürdü (Admin Gördü). Ham Çıktı: ${rawOutputPreview}`
+              : `AI Soru Çözücü şu anda bir sorun yaşıyor gibi görünüyor. Lütfen biraz sonra tekrar deneyin veya farklı bir soru sormayı deneyin.`;
+          
+          if (output === null && enrichedInput.isAdmin) {
+              errorMessageForUser = `AI Modeli (${finalModelToUse}), beklenen yanıt şemasına uymayan bir çıktı üretti (Admin Gördü). Detay: Model, yanıt olarak 'null' (boş bir nesne) döndürdü. Bu genellikle modelin soruyu işleyemediği veya geçerli bir JSON oluşturamadığı anlamına gelir.`;
+          }
+
+          return {
+              solution: errorMessageForUser,
+              relatedConcepts: [], 
+              examStrategyTips: [], 
+          };
+        }
         
-        let errorMessageForUser = enrichedInput.isAdmin 
-            ? `AI Modeli (${finalModelToUse}), boş veya beklenen temel yapıda olmayan bir yanıt döndürdü (Admin Gördü). Ham Çıktı: ${rawOutputPreview}`
-            : `AI Soru Çözücü şu anda bir sorun yaşıyor gibi görünüyor. Lütfen biraz sonra tekrar deneyin veya farklı bir soru sormayı deneyin.`;
+        console.log("[Question Solver Flow] Successfully received and validated (implicitly by Genkit) solution from AI model.");
+        return {
+          solution: output.solution,
+          relatedConcepts: output.relatedConcepts || [], 
+          examStrategyTips: output.examStrategyTips || [], 
+        };
+
+      } catch (promptError: any) {
+        console.error(`[Question Solver Flow] INNER CATCH: CRITICAL ERROR during prompt execution with model ${finalModelToUse}. Error object:`, promptError, "Error Message:", promptError?.message, "Error Cause:", promptError?.cause);
         
-        // Special check for the specific "null" root object error message from schema validation
-        if (output === null && enrichedInput.isAdmin) {
-            errorMessageForUser = `AI Modeli (${finalModelToUse}), beklenen yanıt şemasına uymayan bir çıktı üretti (Admin Gördü). Detay: Model, yanıt olarak 'null' (boş bir nesne) döndürdü. Bu genellikle modelin soruyu işleyemediği veya geçerli bir JSON oluşturamadığı anlamına gelir.`;
+        let simpleErrorMsg = "Bir Genkit/AI hatası oluştu.";
+        if (promptError && typeof promptError.message === 'string') {
+          simpleErrorMsg = promptError.message.substring(0, 300); 
+        } else if (typeof promptError === 'string') {
+          simpleErrorMsg = promptError.substring(0,300);
         }
 
+        const userVisibleMessage = enrichedInput.isAdmin 
+          ? `AI Soru Çözücüsü (${finalModelToUse || 'belirlenemeyen'}) bir hata ile karşılaştı. Detay (Admin): ${simpleErrorMsg}`
+          : `AI Soru Çözücü şu anda bir sorun yaşıyor gibi görünüyor. Lütfen biraz sonra tekrar deneyin veya farklı bir soru sormayı deneyin.`;
+
         return {
-            solution: errorMessageForUser,
-            relatedConcepts: [], // Ensure arrays are returned
-            examStrategyTips: [], // Ensure arrays are returned
+            solution: userVisibleMessage,
+            relatedConcepts: ["Hata"],
+            examStrategyTips: [],
         };
       }
+    } catch (flowError: any) { // En dıştaki try-catch
+      console.error(`[Question Solver Flow] OUTER CATCH: Unhandled exception in flow execution. Model attempted: ${modelToUseParam}. Error object:`, flowError, "Error Message:", flowError?.message);
+      const userVisibleMessage = enrichedInput?.isAdmin // enrichedInput burada tanımsız olabilir, dikkatli olalım
+        ? `AI Soru Çözücü akışında beklenmedik bir genel hata oluştu (Admin Gördü). Model denenen: ${modelToUseParam || 'bilinmiyor'}. Detay: ${flowError?.message?.substring(0,200) || 'Bilinmeyen akış hatası'}`
+        : `Soru çözümü oluşturulurken çok beklenmedik bir sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.`;
       
-      console.log("[Question Solver Flow] Successfully received and validated (implicitly by Genkit) solution from AI model.");
       return {
-        solution: output.solution,
-        relatedConcepts: output.relatedConcepts || [], // Ensure arrays even if model omits optional ones
-        examStrategyTips: output.examStrategyTips || [], // Ensure arrays
-      };
-
-    } catch (promptError: any) {
-      // This catch block will now primarily handle errors other than "root null from model",
-      // such as API errors, content safety blocks, or more complex schema validation issues
-      // if the output was an object but still didn't match the schema.
-      console.error(`[Question Solver Flow] CRITICAL ERROR during prompt execution with model ${finalModelToUse}. Error details:`, JSON.stringify(promptError, Object.getOwnPropertyNames(promptError), 2));
-      
-      let errorMessageForUser = `AI modeli (${finalModelToUse}) ile iletişimde bir hata oluştu.`; 
-      let technicalDetail = "Bilinmeyen bir Genkit/AI hatası.";
-
-      if (promptError.name === 'GenkitError' && promptError.message.includes('Schema validation failed')) {
-          technicalDetail = `Şema Doğrulama Hatası: ${promptError.message.substring(0,350)}.`;
-          if (promptError.message.includes("Provided data: null")) { // This might still happen if Zod is stricter
-              technicalDetail += " Model, yanıt olarak 'null' döndürdü ve şema bunu kabul etmedi.";
-          }
-      } else if (promptError.message) {
-          if (promptError.message.includes('400 Bad Request') && (promptError.message.includes('generationConfig') || promptError.message.includes('generation_config'))) {
-              technicalDetail = `Seçilen model (${finalModelToUse}) bazı yapılandırma ayarlarını desteklemiyor olabilir. Detay: ${promptError.message.substring(0,150)}`;
-          } else if (promptError.message.includes('SAFETY') || promptError.message.includes('block_reason') || (promptError.cause as any)?.message?.includes('SAFETY')) {
-              technicalDetail = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen sorunuzu gözden geçirin. Model: ${finalModelToUse}. Detay: ${promptError.message.substring(0,150)}`;
-          } else if (promptError.message.includes('Must have a text part if there is a media part')) {
-                technicalDetail = `Görsel ile birlikte metin girmeniz gerekmektedir veya model (${finalModelToUse}) bu tür bir girdiyi desteklemiyor. Detay: ${promptError.message.substring(0,150)}`;
-          } else if (promptError.message.includes('500 Internal Server Error') || promptError.message.includes('internal error has occurred') || promptError.message.includes('Deadline exceeded') || promptError.message.includes('504 Gateway Timeout')) {
-              technicalDetail = `AI modeli (${finalModelToUse}) yanıt vermesi çok uzun sürdü veya dahili bir sunucu hatasıyla karşılaştı. Detay: ${promptError.message.substring(0,150)}`;
-          } else {
-             technicalDetail = promptError.message.substring(0,300);
-          }
-      } else if (typeof promptError === 'string') {
-        technicalDetail = promptError.substring(0,300);
-      }
-
-      if (!enrichedInput.isAdmin) {
-         errorMessageForUser = `Soru çözümü oluşturulurken beklenmedik bir sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.`;
-      } else {
-         errorMessageForUser = `AI Soru Çözücüsü (${finalModelToUse}) bir hata ile karşılaştı (Admin Gördü). Detay: ${technicalDetail}`;
-      }
-
-      return {
-          solution: errorMessageForUser,
-          relatedConcepts: ["Model Hatası"],
-          examStrategyTips: [],
+        solution: userVisibleMessage,
+        relatedConcepts: ["Kritik Akış Hatası"],
+        examStrategyTips: [],
       };
     }
   }
