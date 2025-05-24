@@ -113,7 +113,7 @@ export default function LandingPage() {
   const autoPlayIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const startAutoPlay = () => {
-    stopAutoPlay();
+    stopAutoPlay(); 
     autoPlayIntervalRef.current = setInterval(() => {
       setCurrentTestimonialIndex((prevIndex) => (prevIndex + 1) % testimonials.length);
     }, 5000);
@@ -127,12 +127,12 @@ export default function LandingPage() {
 
   useEffect(() => {
     startAutoPlay();
-    return () => stopAutoPlay();
+    return () => stopAutoPlay(); 
   }, []);
 
   const handleDotClick = (index: number) => {
     setCurrentTestimonialIndex(index);
-    startAutoPlay();
+    startAutoPlay(); 
   };
 
 
@@ -252,7 +252,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Testimonials Section */}
+        {/* Testimonials Section - Updated Slider */}
         <section id="testimonials" className="py-12 md:py-16 lg:py-24 bg-background/90">
           <div className="container mx-auto px-4">
             <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4 text-foreground">Sizin Gibi Öğrenciler Tarafından Seviliyor</h2>
@@ -296,7 +296,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Sponsors Section - THIS IS THE SECTION WE ARE TRYING TO PLACE CORRECTLY */}
+        {/* Sponsors Section */}
         <section id="sponsors" className="py-12 md:py-16 lg:py-24 bg-background/80">
           <div className="container mx-auto px-4 text-center">
             <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4 text-foreground">Sponsorlarımız</h2>
@@ -305,9 +305,9 @@ export default function LandingPage() {
             </p>
             <div className="flex justify-center items-center">
               <Image
-                src="/sponsor-matematikenstitusu.png"
+                src="/sponsor-matematikenstitusu.png" 
                 alt="Sponsor Matematik Enstitüsü Logosu"
-                width={800}
+                width={800} 
                 height={200}
                 className="rounded-lg shadow-md border border-border object-contain max-h-[100px] sm:max-h-[150px]"
               />
