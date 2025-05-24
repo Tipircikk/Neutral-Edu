@@ -18,6 +18,7 @@ const GenerateFlashcardsInputSchema = z.object({
   difficulty: z.enum(["easy", "medium", "hard"]).optional().default("medium").describe("Bilgi kartlarının YKS'ye göre zorluk seviyesi."),
   userPlan: z.enum(["free", "premium", "pro"]).describe("Kullanıcının mevcut üyelik planı."),
   customModelIdentifier: z.string().optional().describe("Adminler için özel model seçimi."),
+  isAdmin: z.boolean().optional().describe("Kullanıcının admin olup olmadığını belirtir."),
 });
 export type GenerateFlashcardsInput = z.infer<typeof GenerateFlashcardsInputSchema>;
 
@@ -34,13 +35,14 @@ const GenerateFlashcardsOutputSchema = z.object({
 export type GenerateFlashcardsOutput = z.infer<typeof GenerateFlashcardsOutputSchema>;
 
 export async function generateFlashcards(input: GenerateFlashcardsInput): Promise<GenerateFlashcardsOutput> {
-  console.log(`[Flashcard Generator Action] Received input. User Plan: ${input.userPlan}, Admin Model ID (raw): '${input.customModelIdentifier}'`);
+  console.log(`[Flashcard Generator Action] Received input. User Plan: ${input.userPlan}, Admin Model ID (raw): '${input.customModelIdentifier}', isAdmin: ${input.isAdmin}`);
 
   let modelToUse: string;
+  const adminModelChoice: string | undefined = input.customModelIdentifier;
 
-  if (input.customModelIdentifier && typeof input.customModelIdentifier === 'string' && input.customModelIdentifier.trim() !== "") {
-    const customIdLower = input.customModelIdentifier.toLowerCase().trim();
-    console.log(`[Flashcard Generator Action] Admin specified customModelIdentifier: '${customIdLower}'`);
+  if (typeof adminModelChoice === 'string' && adminModelChoice.trim() !== "") {
+    const customIdLower = adminModelChoice.toLowerCase().trim();
+    console.log(`[Flashcard Generator Action] Admin specified customModelIdentifier (processed): '${customIdLower}' from input: '${adminModelChoice}'`);
     switch (customIdLower) {
       case 'default_gemini_flash':
         modelToUse = 'googleai/gemini-2.0-flash';
@@ -56,33 +58,36 @@ export async function generateFlashcards(input: GenerateFlashcardsInput): Promis
             modelToUse = customIdLower;
             console.warn(`[Flashcard Generator Action] Admin specified a direct Genkit model name: '${modelToUse}'. Ensure this model is supported.`);
         } else {
-            console.warn(`[Flashcard Generator Action] Admin specified an UNKNOWN customModelIdentifier: '${input.customModelIdentifier}'. Falling back to universal default for ALL users in this tool.`);
-            modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default
+            console.warn(`[Flashcard Generator Action] Admin specified an UNKNOWN customModelIdentifier: '${adminModelChoice}'. Falling back to universal default.`);
+            modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
         }
         break;
     }
   } else {
-    console.log(`[Flashcard Generator Action] No custom model specified by admin. Using universal default for ALL users in this tool.`);
-    modelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default for all users
+    console.log(`[Flashcard Generator Action] No valid custom model specified by admin (received: '${adminModelChoice}'). Using universal default 'googleai/gemini-2.5-flash-preview-05-20'.`);
+    modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
   }
 
-  // Absolute fallback if modelToUse is somehow still invalid
+  // Absolute fallback if modelToUse is somehow still invalid after the logic above
+  // This ensures modelToUse is always a string starting with 'googleai/' before being passed to the flow.
   if (typeof modelToUse !== 'string' || !modelToUse.startsWith('googleai/')) {
-      console.error(`[Flashcard Generator Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to gemini-2.5-flash-preview-05-20.`);
+      console.error(`[Flashcard Generator Action] CRITICAL FALLBACK: modelToUse was invalid ('${modelToUse}', type: ${typeof modelToUse}). Defaulting to 'googleai/gemini-2.5-flash-preview-05-20'.`);
       modelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
   }
   console.log(`[Flashcard Generator Action] Final model determined for flow: ${modelToUse}`);
 
   const isProUser = input.userPlan === 'pro';
   const isPremiumUser = input.userPlan === 'premium';
+  // isGemini25PreviewSelected should be based on the FINAL modelToUse
   const isGemini25PreviewSelected = modelToUse === 'googleai/gemini-2.5-flash-preview-05-20';
 
   const enrichedInput = {
     ...input,
     isProUser,
     isPremiumUser,
-    isCustomModelSelected: !!input.customModelIdentifier,
+    isCustomModelSelected: !!input.customModelIdentifier, // Keep original admin choice for logging/prompt
     isGemini25PreviewSelected,
+    isAdmin: !!input.isAdmin,
   };
   return flashcardGeneratorFlow(enrichedInput, modelToUse);
 }
@@ -159,8 +164,8 @@ const flashcardGeneratorFlow = ai.defineFlow(
     console.log(`[Flashcard Generator Flow] Initial modelToUseParam: '${finalModelToUse}', type: ${typeof finalModelToUse}`);
 
     if (typeof finalModelToUse !== 'string' || !finalModelToUse.startsWith('googleai/')) {
-        console.warn(`[Flashcard Generator Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting to universal default.`);
-        finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20'; // Universal default
+        console.warn(`[Flashcard Generator Flow] Invalid or non-string modelToUseParam ('${finalModelToUse}', type: ${typeof finalModelToUse}) received in flow. Defaulting to universal default 'googleai/gemini-2.5-flash-preview-05-20'.`);
+        finalModelToUse = 'googleai/gemini-2.5-flash-preview-05-20';
         console.log(`[Flashcard Generator Flow] Corrected/Defaulted model INSIDE FLOW to: ${finalModelToUse}`);
     }
     
@@ -172,23 +177,20 @@ const flashcardGeneratorFlow = ai.defineFlow(
         { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
     ];
     
-    // Max tokens calculation
-    // Increased estimate per card and the cap for gemini-2.5-flash-preview-05-20
-    let maxTokensForOutput = (enrichedInput.numFlashcards || 5) * 300; // Estimate 300 tokens per card
+    let maxTokensForOutput = (enrichedInput.numFlashcards || 5) * 300; 
     if (enrichedInput.isProUser || enrichedInput.isPremiumUser) {
-        maxTokensForOutput = Math.max(maxTokensForOutput, 2048); 
+        maxTokensForOutput = Math.max(maxTokensForOutput, 4096); 
     } else {
-        maxTokensForOutput = Math.max(maxTokensForOutput, 1024); 
+        maxTokensForOutput = Math.max(maxTokensForOutput, 2048); 
     }
 
-    // Specific model adjustments
     if (finalModelToUse === 'googleai/gemini-2.5-flash-preview-05-20') {
-        maxTokensForOutput = Math.min(maxTokensForOutput, 4096); // Increased cap for this specific model
+        maxTokensForOutput = Math.min(maxTokensForOutput, 4096); 
         console.log(`[Flashcard Generator Flow] Model is ${finalModelToUse}. Capping maxOutputTokens to ${maxTokensForOutput}.`);
     } else if (finalModelToUse === 'googleai/gemini-1.5-flash-latest' || finalModelToUse === 'googleai/gemini-2.0-flash' ) {
-         maxTokensForOutput = Math.min(maxTokensForOutput, 8192); // General cap for other capable models
+         maxTokensForOutput = Math.min(maxTokensForOutput, 8192); 
     } else {
-        maxTokensForOutput = Math.min(maxTokensForOutput, 8192); // General cap for any other models
+        maxTokensForOutput = Math.min(maxTokensForOutput, 8192); 
     }
 
 
@@ -197,6 +199,7 @@ const flashcardGeneratorFlow = ai.defineFlow(
         config: {
             temperature: standardTemperature,
             safetySettings: standardSafetySettings,
+            // No generationConfig wrapper for Genkit, maxOutputTokens is direct
             maxOutputTokens: maxTokensForOutput,
         }
     };
@@ -208,12 +211,28 @@ const flashcardGeneratorFlow = ai.defineFlow(
         const {output} = await prompt(promptInputForLog, callOptions);
         if (!output || !output.flashcards || !Array.isArray(output.flashcards)) { 
           console.error(`[Flashcard Generator Flow] AI did not produce valid flashcards or flashcards is not an array. Model: ${finalModelToUse}. Input text length: ${enrichedInput.textContent.length}. Num cards requested: ${enrichedInput.numFlashcards}. Output:`, JSON.stringify(output, null, 2).substring(0,500));
-          if (output === null) {
-             throw new Error(`AI YKS Bilgi Kartı Uzmanı (${finalModelToUse}), belirtilen metin için 'null' yanıt döndürdü. Bu genellikle modelin JSON şemasını üretemediği anlamına gelir.`);
+          if (output === null) { // Specifically check for null
+             // User is not admin, return generic error
+            if (!enrichedInput.isAdmin) {
+                 return {
+                    flashcards: [],
+                    summaryTitle: `AI modeli (${finalModelToUse}) bilgi kartı oluşturamadı (null yanıt). Sunucu yoğun olabilir veya beklenmedik bir hata oluştu. Lütfen biraz sonra tekrar deneyin veya farklı bir girdi kullanmayı deneyin.`
+                 };
+            }
+             // Admin sees more technical detail
+             throw new Error(`AI modeli (${finalModelToUse}), belirtilen metin için 'null' yanıt döndürdü. Bu genellikle modelin JSON şemasını üretemediği veya bir API sorunu olduğu anlamına gelir.`);
           }
-          throw new Error(`AI YKS Bilgi Kartı Uzmanı (${finalModelToUse}), belirtilen metin için bilgi kartı oluşturamadı veya 'flashcards' alanı bir dizi değil. Lütfen metni ve ayarları kontrol edin.`);
+           // User is not admin, return generic error
+          if (!enrichedInput.isAdmin) {
+            return {
+                flashcards: [],
+                summaryTitle: `AI modeli (${finalModelToUse}) bilgi kartı oluşturamadı. Sunucu yoğun olabilir veya beklenmedik bir hata oluştu. Lütfen biraz sonra tekrar deneyin veya farklı bir girdi kullanmayı deneyin.`
+            };
+          }
+          // Admin sees more technical detail
+          throw new Error(`AI modeli (${finalModelToUse}), belirtilen metin için bilgi kartı oluşturamadı veya 'flashcards' alanı bir dizi değil. Lütfen metni ve ayarları kontrol edin.`);
         }
-        // Log if the number of cards generated is less than requested
+        
         if (output.flashcards.length < (enrichedInput.numFlashcards || 0)) {
             console.warn(`[Flashcard Generator Flow] AI generated ${output.flashcards.length} flashcards, but ${enrichedInput.numFlashcards} were requested. Model: ${finalModelToUse}. Text length: ${enrichedInput.textContent.length}.`);
         }
@@ -221,17 +240,23 @@ const flashcardGeneratorFlow = ai.defineFlow(
     } catch (error: any) {
         console.error(`[Flashcard Generator Flow] Error during generation with model ${finalModelToUse}. Error details:`, JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
         let errorMessage = `AI modeli (${finalModelToUse}) ile bilgi kartı oluşturulurken bir hata oluştu.`;
-        if (error.message) {
-            errorMessage += ` Detay: ${error.message.substring(0, 300)}`;
-            if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
-              errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir. Lütfen konunuzu gözden geçirin. Model: ${finalModelToUse}. Detay: ${error.message.substring(0, 150)}`;
-            } else if (error.name === 'GenkitError' && error.message.includes('Schema validation failed')) {
-              errorMessage = `AI modeli (${finalModelToUse}) beklenen yanıta uymayan bir çıktı üretti (Schema validation failed). Detay: ${error.message.substring(0,350)}`;
-            } else if (error.message.includes('400 Bad Request') && error.message.includes("Unknown name \"generationConfig\"")) {
-              errorMessage = `AI modeli (${finalModelToUse}) yapılandırmada 'generationConfig' anahtarını tanımadı. MaxOutputTokens doğrudan config altında olmalı. Detay: ${error.message.substring(0,250)}`;
-            } else if (error.message.includes('400 Bad Request')) { 
-              errorMessage = `AI modeli (${finalModelToUse}) geçersiz bir istek aldığını belirtti (400 Bad Request). İstek parametrelerini kontrol edin. Model: ${finalModelToUse}, Token Limiti: ${maxTokensForOutput}. Detay: ${error.message.substring(0,250)}`;
+
+        if (enrichedInput.isAdmin) { // Admin sees more detailed errors
+            if (error.message) {
+                errorMessage += ` Detay: ${error.message.substring(0, 350)}`;
+                if (error.message.includes('SAFETY') || error.message.includes('block_reason')) {
+                  errorMessage = `İçerik güvenlik filtrelerine takılmış olabilir (Admin Gördü). Lütfen konunuzu gözden geçirin. Model: ${finalModelToUse}. Detay: ${error.message.substring(0, 150)}`;
+                } else if (error.name === 'GenkitError' && error.message.includes('Schema validation failed')) {
+                  errorMessage = `AI modeli (${finalModelToUse}) beklenen yanıta uymayan bir çıktı üretti (Schema validation failed - Admin Gördü). Detay: ${error.message.substring(0,350)}`;
+                } else if (error.message.includes('400 Bad Request') && error.message.includes("Unknown name \"generationConfig\"")) {
+                   // This error shouldn't happen now as generationConfig wrapper is removed. Kept for posterity.
+                  errorMessage = `AI modeli (${finalModelToUse}) yapılandırmada 'generationConfig' anahtarını tanımadı (Admin Gördü). MaxOutputTokens doğrudan config altında olmalı. Detay: ${error.message.substring(0,250)}`;
+                } else if (error.message.includes('400 Bad Request')) { 
+                  errorMessage = `AI modeli (${finalModelToUse}) geçersiz bir istek aldığını belirtti (400 Bad Request - Admin Gördü). İstek parametrelerini kontrol edin. Model: ${finalModelToUse}, Token Limiti: ${maxTokensForOutput}. Detay: ${error.message.substring(0,250)}`;
+                }
             }
+        } else { // Non-admin users see a generic message
+             errorMessage = `Bilgi kartları oluşturulurken bir sorunla karşılaşıldı (${finalModelToUse}). Sunucu yoğun olabilir veya beklenmedik bir hata oluştu. Lütfen biraz sonra tekrar deneyin veya farklı bir girdi kullanmayı deneyin.`;
         }
 
         return {
