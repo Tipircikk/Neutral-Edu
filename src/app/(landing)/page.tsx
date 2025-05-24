@@ -261,8 +261,8 @@ export default function LandingPage() {
             </p>
             <div className="flex justify-center items-center">
               <Image
-                src="/sponsor-logo.png" 
-                alt="Sponsor Logosu"
+                src="/sponsor-matematikenstitusu.png" 
+                alt="Sponsor Matematik Enstitüsü Logosu"
                 width={800}
                 height={200}
                 className="rounded-lg shadow-md border border-border object-contain max-h-[100px] sm:max-h-[150px]"
@@ -335,5 +335,3 @@ export default function LandingPage() {
     </div>
   );
 }
-
-    
