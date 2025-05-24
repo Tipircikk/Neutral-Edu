@@ -153,6 +153,8 @@ export default function QuestionSolverPage() {
   const { userProfile, loading: userProfileLoading, checkAndResetQuota, decrementQuota } = useUser();
   const [canProcess, setCanProcess] = useState(false);
   const [adminSelectedModel, setAdminSelectedModel] = useState<string | undefined>(undefined);
+  const [solutionDetailLevel, setSolutionDetailLevel] = useState<SolveQuestionInput["solutionDetailLevel"]>("orta");
+
 
   const [loadingMessage, setLoadingMessage] = useState("Çözüm oluşturuluyor...");
   const loadingMessageIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -256,8 +258,10 @@ export default function QuestionSolverPage() {
       const input: SolveQuestionInput = {
         questionText: questionText.trim() || undefined,
         imageDataUri: imageDataUri || undefined,
+        solutionDetailLevel: solutionDetailLevel,
         userPlan: currentProfile.plan,
         customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
+        isAdmin: userProfile?.isAdmin,
       };
       const result = await solveQuestion(input);
       setAnswer(result);
@@ -266,7 +270,7 @@ export default function QuestionSolverPage() {
       }
 
       if (result && typeof result.solution === 'string' && Array.isArray(result.relatedConcepts) && Array.isArray(result.examStrategyTips)) {
-        if (result.solution.startsWith("AI modeli") || result.solution.startsWith("Sunucu tarafında") || result.solution.includes("Hata:") || result.solution.includes("Error:")) {
+        if (result.solution.startsWith("AI modeli") || result.solution.startsWith("Sunucu tarafında") || result.solution.includes("Hata:") || result.solution.includes("Error:") || result.solution.includes("AI Soru Çözücü şu anda bir sorun yaşıyor")) {
            toast({ title: "Çözüm Bilgisi", description: result.solution.substring(0,100) + "...", variant: "default" });
         } else {
            toast({ title: "Çözüm Hazır!", description: "Sorunuz için bir çözüm oluşturuldu." });
@@ -345,7 +349,7 @@ export default function QuestionSolverPage() {
                   disabled={isModelSelectDisabled}
                 >
                   <SelectTrigger id="adminModelSelectSolver">
-                    <SelectValue placeholder="Varsayılan Modeli Kullan (Tüm Üyelikler: Gemini 2.5 Flash Preview)" />
+                    <SelectValue placeholder="Varsayılan Modeli Kullan (Gemini 2.5 Flash Preview)" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="experimental_gemini_2_5_flash_preview_05_20">Gemini 2.5 Flash Preview (Varsayılan)</SelectItem>
@@ -383,6 +387,23 @@ export default function QuestionSolverPage() {
                   </div>
                 )}
             </div>
+             <div>
+                <Label htmlFor="solutionDetailLevel" className="block text-sm font-medium text-foreground mb-1">Çözüm Detay Seviyesi</Label>
+                <Select
+                  value={solutionDetailLevel}
+                  onValueChange={(value: SolveQuestionInput["solutionDetailLevel"]) => setSolutionDetailLevel(value)}
+                  disabled={isFormElementsDisabled}
+                >
+                  <SelectTrigger id="solutionDetailLevel">
+                    <SelectValue placeholder="Detay seviyesi seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="temel">Temel Seviye</SelectItem>
+                    <SelectItem value="orta">Orta Seviye</SelectItem>
+                    <SelectItem value="detayli">Detaylı Seviye</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             <Button type="submit" className="w-full" disabled={isSubmitButtonDisabled}> {isSolving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />} Çözüm İste </Button>
           </CardContent>
         </Card>
