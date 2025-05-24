@@ -5,89 +5,137 @@ import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { UploadCloud, Sparkles, Lightbulb, MessageCircleQuestion, FileUp, BotMessageSquare, BookOpenCheck, ArrowRight, Zap, Clock, Brain, FileText, ThumbsUp } from "lucide-react";
+import { Presentation, HelpCircle, FileTextIcon, LayoutGrid, CalendarDays, Wand2, FileUp, BotMessageSquare, BookOpenCheck, ArrowRight, Zap, Clock, Brain, ThumbsUp, Users, ShieldCheck } from "lucide-react";
 import LandingHeader from "@/components/layout/LandingHeader";
 import Footer from "@/components/layout/Footer";
+import { useState, useEffect, useRef } from "react";
 
 const features = [
   {
-    icon: <UploadCloud className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
-    title: "Kolay PDF Yükleme",
-    description: "PDF dosyalarınızı sürükleyip bırakın veya seçin. Gerisini biz hallederiz, metni sorunsuz bir şekilde çıkarırız.",
+    icon: <Presentation className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
+    title: "AI Konu Anlatımı ve Özetleme",
+    description: "YKS konularını yapay zekadan detaylıca öğrenin veya uzun metinleri/PDF'leri saniyeler içinde anlaşılır özetlere dönüştürün. Farklı anlatım seviyeleri ve hoca tarzları seçin!",
   },
   {
-    icon: <Sparkles className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
-    title: "Yapay Zeka Destekli Özetler",
-    description: "Gelişmiş yapay zekamız uzun belgeleri kısa özetlere yoğunlaştırır, anahtar noktaları ve ana kavramları vurgular.",
+    icon: <HelpCircle className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
+    title: "AI Test Oluşturucu ve Soru Çözücü",
+    description: "Belirlediğiniz YKS konularından pratik testler oluşturun veya zorlandığınız sorulara adım adım çözümler alın. (Soru Çözücü Beta)",
+  },
+   {
+    icon: <LayoutGrid className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
+    title: "AI Bilgi Kartları ve Sınav Analizi",
+    description: "Önemli kavramlardan etkileşimli bilgi kartları oluşturun veya deneme sınavı raporlarınızı analiz ederek gelişim alanlarınızı keşfedin.",
   },
   {
-    icon: <Lightbulb className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
-    title: "Basitleştirilmiş Açıklamalar",
-    description: "Karmaşık konular, öğrenci anlayışı için mükemmel, anlaşılması kolay bir dile indirgenir.",
-  },
-  {
-    icon: <MessageCircleQuestion className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
-    title: "Örnek Sorular ve İpuçları",
-    description: "Anlamayı test etmek için özetlenmiş içeriğe dayalı YKS odaklı sınav ipuçları ve örnek sorularla öğrenmeyi pekiştirin.",
+    icon: <CalendarDays className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
+    title: "AI Çalışma Planı ve Yardımcı Araçlar",
+    description: "Kişiselleştirilmiş YKS çalışma planı taslakları edinin ve Pomodoro, Geri Sayım gibi yardımcı araçlarla verimliliğinizi artırın.",
   },
 ];
 
 const benefits = [
  {
     icon: <Clock className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
-    title: "Çalışma Süresinden Tasarruf Edin",
-    description: "Okuma saatlerini azaltın ve sınavlarınız ve ödevleriniz için gerçekten önemli olan şeylere odaklanın.",
+    title: "Verimli ve Odaklı Çalışma",
+    description: "Yapay zeka destekli araçlarla öğrenme sürenizi optimize edin, YKS için gerçekten önemli olan bilgilere ve stratejilere odaklanın.",
   },
   {
     icon: <Brain className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
-    title: "Sadece Anahtar Noktaları Alın",
-    description: "Yapay zekamız karmaşık bilgileri en önemli çıkarımlara ve ana fikirlere indirger.",
+    title: "Kapsamlı Konu Anlayışı",
+    description: "AI destekli konu anlatımları, özetler, bilgi kartları ve testlerle konuları derinlemesine kavrayın, ana fikirleri kolayca yakalayın.",
   },
   {
     icon: <Zap className="h-8 w-8 md:h-10 md:w-10 text-primary mb-4" />,
-    title: "Akıllı AI Destekli",
-    description: "Öğrencilere özel doğru ve anlayışlı özetler için son teknoloji yapay zekadan yararlanın.",
+    title: "Akıllı Sınav Hazırlığı ve Analiz",
+    description: "YKS odaklı testler, soru çözümleri, sınav raporu analizleri ve kişiye özel çalışma planlarıyla hedefinize daha emin adımlarla ilerleyin.",
   },
 ];
 
 const howItWorksSteps = [
   {
-    icon: <FileUp className="h-10 w-10 md:h-12 md:w-12 text-primary mb-4" />,
-    title: "1. Dosyanızı Yükleyin",
-    description: "Daha iyi anlamanız gereken herhangi bir PDF belgesini (veya diğer AI araçlarımız için metin/konu) seçin.",
+    icon: <Wand2 className="h-10 w-10 md:h-12 md:w-12 text-primary mb-4" />,
+    title: "1. Aracınızı Seçin",
+    description: "İhtiyacınıza uygun AI aracını (Konu Anlatımı, Soru Çözücü, Test Oluşturucu vb.) seçin.",
   },
   {
-    icon: <BotMessageSquare className="h-10 w-10 md:h-12 md:w-12 text-primary mb-4" />,
-    title: "2. Yapay Zeka İşlesin",
-    description: "Akıllı sistemimiz girdinizi işler ve saniyeler içinde yapılandırılmış, öğrenci dostu bir çıktı oluşturur.",
+    icon: <FileUp className="h-10 w-10 md:h-12 md:w-12 text-primary mb-4" />,
+    title: "2. Girdinizi Sağlayın",
+    description: "Öğrenmek istediğiniz konuyu, PDF'inizi, soru metnini/görselini, sınav raporunuzu veya çalışma tercihlerinizi sisteme girin.",
   },
   {
     icon: <BookOpenCheck className="h-10 w-10 md:h-12 md:w-12 text-primary mb-4" />,
-    title: "3. İnceleyin ve Öğrenin",
-    description: "Özetinize, sorularınıza, testinize veya planınıza erişin. Daha akıllı çalışın, daha iyi öğrenin!",
+    title: "3. AI Destekli Çıktınızı Anında Alın!",
+    description: "Yapay zekanın sizin için hazırladığı detaylı konu anlatımlarına, kişiselleştirilmiş testlere, özetlere, analizlere veya planlara saniyeler içinde erişin!",
   },
 ];
 
 const testimonials = [
   {
-    quote: "NeutralEdu AI, finallerime çalışma şeklimi değiştirdi. Daha az zamanda daha fazla konuyu kapsayabiliyorum!",
-    name: "Ayşe L., Üniversite Öğrencisi",
-    avatarFallback: "AL",
+    quote: "NeutralEdu AI, YKS hazırlık sürecimde en büyük yardımcım oldu. Özellikle konu anlatımları ve test oluşturucu harika!",
+    name: "Elif A., 12. Sınıf Öğrencisi",
+    avatarFallback: "EA",
   },
   {
-    quote: "Yapay zeka özetleri inanılmaz derecede doğru ve tam olarak odaklanmam gerekenleri vurguluyor. Gerçek bir ezber bozan.",
-    name: "Mehmet Y., Yüksek Lisans Öğrencisi",
-    avatarFallback: "MY",
+    quote: "Deneme sınavı analizleri sayesinde hangi konulara daha çok ağırlık vermem gerektiğini net bir şekilde gördüm. Teşekkürler!",
+    name: "Ahmet C., Mezun Öğrenci",
+    avatarFallback: "AC",
   },
   {
-    quote: "Uzun araştırma makaleleri eskiden beni bunaltırdı. Şimdi, ana fikri dakikalar içinde alıyorum. Şiddetle tavsiye ederim!",
-    name: "Zeynep K., Doktora Adayı",
-    avatarFallback: "ZK",
+    quote: "PDF'leri bu kadar hızlı ve anlaşılır özetlemesi inanılmaz. Çalışma süremden büyük tasarruf sağlıyorum.",
+    name: "Zeynep T., Üniversite Hazırlık",
+    avatarFallback: "ZT",
   },
+  {
+    quote: "AI Soru Çözücü, takıldığım en zor soruları bile anlamamı sağladı. Kesinlikle tavsiye ederim.",
+    name: "Burak S., Öğrenci",
+    avatarFallback: "BS",
+  },
+  {
+    quote: "Çalışma planı oluşturucu sayesinde hangi konuya ne zaman çalışacağımı artık biliyorum. Çok organize oldum!",
+    name: "Selin M., Öğrenci",
+    avatarFallback: "SM",
+  },
+   {
+    quote: "Bilgi kartları özelliği konuları tekrar etmek için mükemmel. Çok pratik!",
+    name: "Fatma G., Öğrenci",
+    avatarFallback: "FG",
+  },
+  {
+    quote: "Bu platform sayesinde YKS'ye daha bilinçli ve motive bir şekilde hazırlanıyorum. Emeği geçenlere teşekkürler!",
+    name: "Mehmet K., Öğrenci",
+    avatarFallback: "MK",
+  }
 ];
 
 
 export default function LandingPage() {
+  const [currentTestimonialIndex, setCurrentTestimonialIndex] = useState(0);
+  const autoPlayIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const startAutoPlay = () => {
+    stopAutoPlay(); 
+    autoPlayIntervalRef.current = setInterval(() => {
+      setCurrentTestimonialIndex((prevIndex) => (prevIndex + 1) % testimonials.length);
+    }, 5000);
+  };
+
+  const stopAutoPlay = () => {
+    if (autoPlayIntervalRef.current) {
+      clearInterval(autoPlayIntervalRef.current);
+    }
+  };
+
+  useEffect(() => {
+    startAutoPlay();
+    return () => stopAutoPlay(); 
+  }, []);
+
+  const handleDotClick = (index: number) => {
+    setCurrentTestimonialIndex(index);
+    startAutoPlay(); 
+  };
+
+
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <LandingHeader />
@@ -96,27 +144,27 @@ export default function LandingPage() {
         <section className="py-16 md:py-24 lg:py-32 bg-gradient-to-b from-background to-background/90">
           <div className="container mx-auto px-4 text-center">
             <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight text-foreground mb-6">
-              Herhangi bir konuyu saniyeler içinde öğrenci dostu bir özete dönüştürün
+              YKS Hazırlığında Yapay Zeka Destekli Kapsamlı Yol Arkadaşınız
             </h1>
             <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto mb-10">
-              NeutralEdu AI, karmaşık PDF'leri daha hızlı anlamanıza yardımcı olmak için gelişmiş yapay zeka kullanır. Daha az okuyun, daha çok öğrenin.
+              NeutralEdu AI, konuları anlamaktan test oluşturmaya, sınav analizinden çalışma planlamasına kadar YKS'ye hazırlık sürecinizi A'dan Z'ye destekler. Akıllı araçlarla daha verimli çalışın, hedeflerinize ulaşın!
             </p>
             <div className="flex flex-col sm:flex-row justify-center gap-4">
               <Button size="lg" asChild className="text-md sm:text-lg px-6 sm:px-8 py-3 sm:py-6 shadow-lg hover:shadow-primary/50 transition-shadow">
-                <Link href="/signup">Hemen Başla</Link>
+                <Link href="/signup">Hemen Ücretsiz Başla</Link>
               </Button>
               <Button size="lg" variant="outline" asChild className="text-md sm:text-lg px-6 sm:px-8 py-3 sm:py-6 shadow-md hover:shadow-accent/50 transition-shadow">
-                <Link href="/pricing">Fiyatları Gör</Link>
+                <Link href="/pricing">Planları İncele</Link>
               </Button>
             </div>
             <div className="mt-12 md:mt-16 lg:mt-24 max-w-4xl mx-auto px-2">
               <Image
                 src="https://placehold.co/1200x600.png"
-                alt="NeutralEdu AI Uygulama Demosu"
+                alt="NeutralEdu AI Uygulama Arayüzü"
                 width={1200}
                 height={600}
                 className="rounded-xl shadow-2xl border border-border"
-                data-ai-hint="app dashboard screenshot"
+                data-ai-hint="AI education platform"
                 priority
               />
             </div>
@@ -126,9 +174,9 @@ export default function LandingPage() {
         {/* Benefits Section */}
         <section id="benefits" className="py-12 md:py-16 lg:py-24 bg-background">
           <div className="container mx-auto px-4">
-            <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4 text-foreground">Çalışma Potansiyelinizin Kilidini Açın</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4 text-foreground">NeutralEdu AI ile Kazanın</h2>
             <p className="text-md sm:text-lg text-muted-foreground text-center mb-10 md:mb-12 max-w-2xl mx-auto">
-              NeutralEdu AI, akademik yolculuğunuzda size net bir avantaj sağlamak için tasarlanmıştır.
+              YKS hazırlık sürecinizi daha verimli, etkili ve akıllı hale getirin.
             </p>
             <div className="grid md:grid-cols-3 gap-6 md:gap-8">
               {benefits.map((benefit, index) => (
@@ -149,11 +197,11 @@ export default function LandingPage() {
         {/* Features Section */}
         <section id="features" className="py-12 md:py-16 lg:py-24 bg-background/90">
           <div className="container mx-auto px-4">
-            <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4 text-foreground">Daha Hızlı Anlayın, Daha Akıllı Çalışın</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4 text-foreground">Kapsamlı YKS Hazırlık Araçları</h2>
             <p className="text-md sm:text-lg text-muted-foreground text-center mb-10 md:mb-12 max-w-2xl mx-auto">
-              Öğrenmenizi hızlandıracak ve anlamanızı artıracak özelliklerle dolu.
+              Öğrenmenizi hızlandıracak, anlayışınızı artıracak ve sınav performansınızı yükseltecek özelliklerle dolu.
             </p>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-2 gap-6 md:gap-8">
               {features.map((feature, index) => (
                 <Card key={index} className="bg-card hover:shadow-xl transition-shadow duration-300 ease-in-out transform hover:-translate-y-1">
                   <CardHeader className="items-center text-center">
@@ -165,6 +213,11 @@ export default function LandingPage() {
                   </CardContent>
                 </Card>
               ))}
+            </div>
+             <div className="text-center mt-10 md:mt-12">
+              <Button size="lg" asChild className="text-md sm:text-lg px-6 sm:px-8 py-3 sm:py-6 shadow-lg hover:shadow-primary/50 transition-shadow">
+                <Link href="/dashboard/ai-tools">Tüm Araçları Gör <ArrowRight className="ml-2 h-5 w-5" /></Link>
+              </Button>
             </div>
           </div>
         </section>
@@ -193,39 +246,81 @@ export default function LandingPage() {
             </div>
             <div className="text-center mt-10 md:mt-12">
               <Button size="lg" asChild className="text-md sm:text-lg px-6 sm:px-8 py-3 sm:py-6 shadow-lg hover:shadow-primary/50 transition-shadow">
-                <Link href="/signup">Şimdi Dene <ArrowRight className="ml-2 h-5 w-5" /></Link>
+                <Link href="/signup">Şimdi Ücretsiz Dene <ArrowRight className="ml-2 h-5 w-5" /></Link>
               </Button>
             </div>
           </div>
         </section>
 
-        {/* Testimonials Section */}
-        <section id="testimonials" className="py-12 md:py-16 lg:py-24 bg-background">
+        {/* Sponsors Section Placeholder */}
+        <section id="sponsors" className="py-12 md:py-16 lg:py-24 bg-background/80">
+          <div className="container mx-auto px-4 text-center">
+            <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4 text-foreground">Sponsorlarımız</h2>
+            <p className="text-md sm:text-lg text-muted-foreground text-center mb-10 md:mb-12 max-w-2xl mx-auto">
+              Bu projeyi mümkün kılan değerli sponsorlarımıza teşekkür ederiz.
+            </p>
+            <div className="flex justify-center items-center">
+              <Image
+                src="https://placehold.co/800x200.png" 
+                alt="Sponsor Logoları"
+                width={800}
+                height={200}
+                className="rounded-lg shadow-md border border-border"
+                data-ai-hint="sponsor logos banner" 
+              />
+            </div>
+             <p className="text-sm text-muted-foreground mt-8">
+              Sponsor olmak ve projemize destek vermek için lütfen bizimle <Link href="#contact" className="text-primary hover:underline">iletişime geçin</Link>.
+            </p>
+          </div>
+        </section>
+
+        {/* Testimonials Section - Updated Slider */}
+        <section id="testimonials" className="py-12 md:py-16 lg:py-24 bg-background/90">
           <div className="container mx-auto px-4">
             <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4 text-foreground">Sizin Gibi Öğrenciler Tarafından Seviliyor</h2>
             <p className="text-md sm:text-lg text-muted-foreground text-center mb-10 md:mb-12 max-w-2xl mx-auto">
               Başkalarının NeutralEdu AI hakkında ne söylediğini duyun.
             </p>
-            <div className="grid md:grid-cols-3 gap-6 md:gap-8">
-              {testimonials.map((testimonial, index) => (
-                <Card key={index} className="bg-card flex flex-col">
-                  <CardContent className="pt-6 flex-grow">
-                    <ThumbsUp className="h-8 w-8 text-primary mb-4" />
-                    <blockquote className="text-sm sm:text-base text-muted-foreground italic border-l-4 border-primary pl-4">
-                      "{testimonial.quote}"
-                    </blockquote>
-                  </CardContent>
-                  <CardFooter className="pt-4 mt-auto">
-                    <p className="text-xs sm:text-sm font-semibold text-foreground">{testimonial.name}</p>
-                  </CardFooter>
-                </Card>
+            <div className="relative w-full max-w-2xl mx-auto overflow-hidden">
+              <div
+                className="flex transition-transform duration-500 ease-in-out"
+                style={{ transform: `translateX(-${currentTestimonialIndex * 100}%)` }}
+              >
+                {testimonials.map((testimonial, index) => (
+                  <div key={testimonial.name + "-" + index} className="w-full flex-shrink-0 px-2">
+                    <Card className="bg-card flex flex-col h-full">
+                      <CardContent className="pt-6 flex-grow">
+                        <ThumbsUp className="h-8 w-8 text-primary mb-4" />
+                        <blockquote className="text-sm sm:text-base text-muted-foreground italic border-l-4 border-primary pl-4">
+                          "{testimonial.quote}"
+                        </blockquote>
+                      </CardContent>
+                      <CardFooter className="pt-4 mt-auto">
+                        <p className="text-xs sm:text-sm font-semibold text-foreground">{testimonial.name}</p>
+                      </CardFooter>
+                    </Card>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-center space-x-2 mt-6">
+              {testimonials.map((_, index) => (
+                <button
+                  key={`dot-${index}`}
+                  onClick={() => handleDotClick(index)}
+                  className={`h-3 w-3 rounded-full transition-colors duration-300 ${
+                    currentTestimonialIndex === index ? 'bg-primary scale-125' : 'bg-muted hover:bg-muted-foreground/50'
+                  }`}
+                  aria-label={`Yorum ${index + 1} git`}
+                />
               ))}
             </div>
           </div>
         </section>
 
         {/* Pricing Section Link */}
-        <section id="pricing-link" className="py-12 md:py-16 lg:py-24 bg-background/90">
+        <section id="pricing-link" className="py-12 md:py-16 lg:py-24 bg-background">
           <div className="container mx-auto px-4 text-center">
             <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4 text-foreground">Başlamaya Hazır mısınız?</h2>
             <p className="text-md sm:text-lg text-muted-foreground text-center mb-10 md:mb-12 max-w-2xl mx-auto">
@@ -241,5 +336,6 @@ export default function LandingPage() {
     </div>
   );
 }
+
 
     
