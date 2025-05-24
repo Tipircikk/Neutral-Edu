@@ -138,7 +138,7 @@ export default function LandingPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
-      <LandingHeader />
+      {/* LandingHeader is handled by the layout, so not repeated here */}
       <main className="flex-grow">
         {/* Hero Section */}
         <section className="py-16 md:py-24 lg:py-32 bg-gradient-to-b from-background to-background/90">
@@ -252,7 +252,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Testimonials Section - Updated Slider */}
+        {/* Testimonials Section */}
         <section id="testimonials" className="py-12 md:py-16 lg:py-24 bg-background/90">
           <div className="container mx-auto px-4">
             <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4 text-foreground">Sizin Gibi Öğrenciler Tarafından Seviliyor</h2>
@@ -262,7 +262,7 @@ export default function LandingPage() {
             <div className="relative w-full max-w-2xl mx-auto overflow-hidden">
               <div
                 className="flex transition-transform duration-500 ease-in-out"
-                style={{ transform: \`translateX(-\${currentTestimonialIndex * 100}%)\` }}
+                style={{ transform: `translateX(-${currentTestimonialIndex * 100}%)` }}
               >
                 {testimonials.map((testimonial, index) => (
                   <div key={testimonial.name + "-" + index} className="w-full flex-shrink-0 px-2">
@@ -284,19 +284,19 @@ export default function LandingPage() {
             <div className="flex justify-center space-x-2 mt-6">
               {testimonials.map((_, index) => (
                 <button
-                  key={\`dot-\${index}\`}
+                  key={`dot-${index}`}
                   onClick={() => handleDotClick(index)}
-                  className={\`h-3 w-3 rounded-full transition-colors duration-300 \${
+                  className={`h-3 w-3 rounded-full transition-colors duration-300 ${
                     currentTestimonialIndex === index ? 'bg-primary scale-125' : 'bg-muted hover:bg-muted-foreground/50'
-                  }\`}
-                  aria-label={\`Yorum \${index + 1} git\`}
+                  }`}
+                  aria-label={`Yorum ${index + 1} git`}
                 />
               ))}
             </div>
           </div>
         </section>
 
-        {/* Sponsors Section */}
+        {/* Sponsors Section - THIS IS THE SECTION WE ARE TRYING TO PLACE CORRECTLY */}
         <section id="sponsors" className="py-12 md:py-16 lg:py-24 bg-background/80">
           <div className="container mx-auto px-4 text-center">
             <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4 text-foreground">Sponsorlarımız</h2>
@@ -331,7 +331,7 @@ export default function LandingPage() {
           </div>
         </section>
       </main>
-      <Footer appName="NeutralEdu AI" />
+      {/* Footer is handled by the layout */}
     </div>
   );
 }
