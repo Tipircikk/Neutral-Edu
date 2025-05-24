@@ -252,7 +252,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Sponsors Section Placeholder */}
+        {/* Sponsors Section */}
         <section id="sponsors" className="py-12 md:py-16 lg:py-24 bg-background/80">
           <div className="container mx-auto px-4 text-center">
             <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4 text-foreground">Sponsorlarımız</h2>
@@ -261,16 +261,15 @@ export default function LandingPage() {
             </p>
             <div className="flex justify-center items-center">
               <Image
-                src="https://placehold.co/800x200.png" 
-                alt="Sponsor Logoları"
+                src="/sponsor-logo.png" 
+                alt="Sponsor Logosu"
                 width={800}
                 height={200}
-                className="rounded-lg shadow-md border border-border"
-                data-ai-hint="sponsor logos banner" 
+                className="rounded-lg shadow-md border border-border object-contain max-h-[100px] sm:max-h-[150px]"
               />
             </div>
              <p className="text-sm text-muted-foreground mt-8">
-              Sponsor olmak ve projemize destek vermek için lütfen bizimle <Link href="#contact" className="text-primary hover:underline">iletişime geçin</Link>.
+              Sponsor olmak ve projemize destek vermek için lütfen bizimle <Link href="/#contact" className="text-primary hover:underline">iletişime geçin</Link>.
             </p>
           </div>
         </section>
@@ -337,3 +336,4 @@ export default function LandingPage() {
   );
 }
 
+    
