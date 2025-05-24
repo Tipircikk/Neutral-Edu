@@ -252,28 +252,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Sponsors Section */}
-        <section id="sponsors" className="py-12 md:py-16 lg:py-24 bg-background/80">
-          <div className="container mx-auto px-4 text-center">
-            <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4 text-foreground">Sponsorlarımız</h2>
-            <p className="text-md sm:text-lg text-muted-foreground text-center mb-10 md:mb-12 max-w-2xl mx-auto">
-              Bu projeyi mümkün kılan değerli sponsorlarımıza teşekkür ederiz.
-            </p>
-            <div className="flex justify-center items-center">
-              <Image
-                src="/sponsor-matematikenstitusu.png" 
-                alt="Sponsor Matematik Enstitüsü Logosu"
-                width={800}
-                height={200}
-                className="rounded-lg shadow-md border border-border object-contain max-h-[100px] sm:max-h-[150px]"
-              />
-            </div>
-             <p className="text-sm text-muted-foreground mt-8">
-              Sponsor olmak ve projemize destek vermek için lütfen bizimle <Link href="/#contact" className="text-primary hover:underline">iletişime geçin</Link>.
-            </p>
-          </div>
-        </section>
-
         {/* Testimonials Section - Updated Slider */}
         <section id="testimonials" className="py-12 md:py-16 lg:py-24 bg-background/90">
           <div className="container mx-auto px-4">
@@ -284,7 +262,7 @@ export default function LandingPage() {
             <div className="relative w-full max-w-2xl mx-auto overflow-hidden">
               <div
                 className="flex transition-transform duration-500 ease-in-out"
-                style={{ transform: `translateX(-${currentTestimonialIndex * 100}%)` }}
+                style={{ transform: \`translateX(-\${currentTestimonialIndex * 100}%)\` }}
               >
                 {testimonials.map((testimonial, index) => (
                   <div key={testimonial.name + "-" + index} className="w-full flex-shrink-0 px-2">
@@ -306,15 +284,37 @@ export default function LandingPage() {
             <div className="flex justify-center space-x-2 mt-6">
               {testimonials.map((_, index) => (
                 <button
-                  key={`dot-${index}`}
+                  key={\`dot-\${index}\`}
                   onClick={() => handleDotClick(index)}
-                  className={`h-3 w-3 rounded-full transition-colors duration-300 ${
+                  className={\`h-3 w-3 rounded-full transition-colors duration-300 \${
                     currentTestimonialIndex === index ? 'bg-primary scale-125' : 'bg-muted hover:bg-muted-foreground/50'
-                  }`}
-                  aria-label={`Yorum ${index + 1} git`}
+                  }\`}
+                  aria-label={\`Yorum \${index + 1} git\`}
                 />
               ))}
             </div>
+          </div>
+        </section>
+
+        {/* Sponsors Section */}
+        <section id="sponsors" className="py-12 md:py-16 lg:py-24 bg-background/80">
+          <div className="container mx-auto px-4 text-center">
+            <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4 text-foreground">Sponsorlarımız</h2>
+            <p className="text-md sm:text-lg text-muted-foreground text-center mb-10 md:mb-12 max-w-2xl mx-auto">
+              Bu projeyi mümkün kılan değerli sponsorlarımıza teşekkür ederiz.
+            </p>
+            <div className="flex justify-center items-center">
+              <Image
+                src="/sponsor-matematikenstitusu.png" 
+                alt="Sponsor Matematik Enstitüsü Logosu"
+                width={800}
+                height={200}
+                className="rounded-lg shadow-md border border-border object-contain max-h-[100px] sm:max-h-[150px]"
+              />
+            </div>
+             <p className="text-sm text-muted-foreground mt-8">
+              Sponsor olmak ve projemize destek vermek için lütfen bizimle <Link href="/#contact" className="text-primary hover:underline">iletişime geçin</Link>.
+            </p>
           </div>
         </section>
 
