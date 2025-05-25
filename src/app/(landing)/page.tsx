@@ -138,7 +138,7 @@ export default function LandingPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
-      {/* LandingHeader is handled by the layout, so not repeated here */}
+      <LandingHeader />
       <main className="flex-grow">
         {/* Hero Section */}
         <section className="py-16 md:py-24 lg:py-32 bg-gradient-to-b from-background to-background/90">
@@ -306,7 +306,7 @@ export default function LandingPage() {
             <div className="flex justify-center items-center">
               <Image
                 src="/images/sponsor-matematikenstitusu.png"
-                alt="Sponsor Matematik Enstitüsü Logosu"
+                alt="Matematik Enstitüsü Sponsor Logosu"
                 width={800}
                 height={200}
                 className="rounded-lg shadow-md border border-border object-contain max-h-[100px] sm:max-h-[150px]"
@@ -335,5 +335,3 @@ export default function LandingPage() {
     </div>
   );
 }
-
-    
