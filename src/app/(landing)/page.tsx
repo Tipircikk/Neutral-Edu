@@ -262,7 +262,7 @@ export default function LandingPage() {
             <div className="relative w-full max-w-2xl mx-auto overflow-hidden">
               <div
                 className="flex transition-transform duration-500 ease-in-out"
-                style={{ transform: `translateX(-${currentTestimonialIndex * 100}%)` }}
+                style={{ transform: \`translateX(-\${currentTestimonialIndex * 100}%)\` }}
               >
                 {testimonials.map((testimonial, index) => (
                   <div key={testimonial.name + "-" + index} className="w-full flex-shrink-0 px-2">
@@ -284,12 +284,12 @@ export default function LandingPage() {
             <div className="flex justify-center space-x-2 mt-6">
               {testimonials.map((_, index) => (
                 <button
-                  key={`dot-${index}`}
+                  key={\`dot-\${index}\`}
                   onClick={() => handleDotClick(index)}
-                  className={`h-3 w-3 rounded-full transition-colors duration-300 ${
+                  className={\`h-3 w-3 rounded-full transition-colors duration-300 \${
                     currentTestimonialIndex === index ? 'bg-primary scale-125' : 'bg-muted hover:bg-muted-foreground/50'
-                  }`}
-                  aria-label={`Yorum ${index + 1} git`}
+                  }\`}
+                  aria-label={\`Yorum \${index + 1} git\`}
                 />
               ))}
             </div>
