@@ -68,10 +68,6 @@ export default function TestGeneratorPage() {
     setShowExplanations({});
     setTestOutput(null);
     setIsTestFinished(false);
-    // Optionally reset form inputs too
-    // setTopic("");
-    // setNumQuestions(5);
-    // setDifficulty("medium");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -106,13 +102,13 @@ export default function TestGeneratorPage() {
 
 
     try {
-
       const input: GenerateTestInput = {
         topic,
         numQuestions,
         difficulty,
         userPlan: currentProfile.plan,
         customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
+        isAdmin: !!userProfile?.isAdmin,
       };
       const result = await generateTest(input);
 
@@ -140,8 +136,14 @@ export default function TestGeneratorPage() {
       }
     } catch (error: any) {
       console.error("Test oluşturma hatası:", error);
-      toast({ title: "Test Oluşturma Hatası", description: error.message || "Test oluşturulurken beklenmedik bir hata oluştu.", variant: "destructive" });
-      setTestOutput({ testTitle: error.message || "Beklenmedik bir hata oluştu.", questions: [] });
+      let displayErrorMessage = "Test oluşturulurken beklenmedik bir hata oluştu.";
+      if (userProfile?.isAdmin) {
+         displayErrorMessage = error.message || "Test oluşturulurken beklenmedik bir hata oluştu. (Admin)";
+      } else {
+         displayErrorMessage = "Sunucu yoğun olabilir veya beklenmedik bir hata oluştu. Lütfen biraz sonra tekrar deneyin.";
+      }
+      toast({ title: "Test Oluşturma Hatası", description: displayErrorMessage, variant: "destructive" });
+      setTestOutput({ testTitle: displayErrorMessage, questions: [] });
     } finally {
       setIsGenerating(false);
     }
@@ -312,9 +314,9 @@ export default function TestGeneratorPage() {
                   <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
-                  <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
-                  <SelectItem value="experimental_gemini_2_5_flash_preview_05_20">Deneysel (Gemini 2.5 Flash Preview 05-20)</SelectItem>
+                  <SelectItem value="experimental_gemini_2_5_flash_preview_05_20">Gemini 2.5 Flash Preview (Varsayılan)</SelectItem>
+                  <SelectItem value="default_gemini_flash">Gemini 2.0 Flash</SelectItem>
+                  <SelectItem value="experimental_gemini_1_5_flash">Gemini 1.5 Flash</SelectItem>
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz.</p>
@@ -336,6 +338,10 @@ export default function TestGeneratorPage() {
       {!testOutput && (
         <form onSubmit={handleSubmit}>
             <Card>
+            <CardHeader>
+                <CardTitle className="text-lg">Test Ayarları</CardTitle>
+                <CardDescription>Testinizi oluşturmak için aşağıdaki bilgileri girin.</CardDescription>
+            </CardHeader>
             <CardContent className="pt-6 space-y-4">
                 <div>
                 <Label htmlFor="topic" className="block text-sm font-medium text-foreground mb-1">Test Konusu</Label>
@@ -527,3 +533,5 @@ export default function TestGeneratorPage() {
     </div>
   );
 }
+
+  

@@ -11,6 +11,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import type { UserProfile } from '@/types';
 
 const SolveQuestionInputSchema = z.object({
   questionText: z.string().optional().describe('Öğrencinin çözülmesini istediği, YKS kapsamındaki soru metni.'),
@@ -85,37 +86,36 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
   const isGemini25PreviewSelected = modelToUse === 'googleai/gemini-2.5-flash-preview-05-20';
 
   const enrichedInput = {
-    ...input, // input already contains isAdmin
+    ...input,
     isProUser,
     isPremiumUser,
     isCustomModelSelected: !!input.customModelIdentifier,
     isGemini25PreviewSelected,
-    // isAdmin: !!input.isAdmin, // Already included via ...input
+    isAdmin: !!input.isAdmin,
     solutionDetailLevel: input.solutionDetailLevel || "orta",
   };
 
   try {
     const result = await questionSolverFlow(enrichedInput, modelToUse);
-
-    // Check if the flow returned a generic error despite admin privileges
+    console.log(`[Question Solver Action] Flow result. Admin flag: ${input.isAdmin}, Solution:`, result.solution.substring(0,100) + "...");
     if (input.isAdmin && result.solution === GENERIC_USER_ERROR_MESSAGE) {
-        console.warn(`[Question Solver Action] Admin user received generic error from flow. Input isAdmin: ${input.isAdmin}, Flow enrichedInput.isAdmin: ${enrichedInput.isAdmin}. Overriding with admin-specific error.`);
+        console.warn(`[Question Solver Action] Admin user received generic error from flow. Input isAdmin: ${input.isAdmin}, Flow enrichedInput.isAdmin: ${enrichedInput.isAdmin}. This might indicate isAdmin flag propagation issue within the flow or the flow itself returned a generic error.`);
         return {
-            solution: `[Admin Gördü - Olası Admin Bayrak Uyuşmazlığı] AI Soru Çözücü (${modelToUse || 'belirlenemeyen'}) bir sorunla karşılaştı. Akış, admin olmadığınızı düşünmüş olabilir. Akış loglarını kontrol edin.`,
-            relatedConcepts: ["Admin Bayrak Uyuşmazlığı"],
-            examStrategyTips: ["Akış loglarını kontrol edin."],
+            solution: `[Admin Gördü - Olası Bayrak Uyuşmazlığı veya Akış Hatası] AI Soru Çözücü (${modelToUse}) genel bir hata mesajı döndürdü: "${result.solution}". Akış loglarını kontrol edin. EnrichedInput.isAdmin: ${enrichedInput.isAdmin}`,
+            relatedConcepts: (result.relatedConcepts && result.relatedConcepts.length > 0) ? result.relatedConcepts : ["Admin Bayrak Uyuşmazlığı"],
+            examStrategyTips: (result.examStrategyTips && result.examStrategyTips.length > 0) ? result.examStrategyTips : ["Akış loglarını kontrol edin."],
         };
     }
     console.log("[Question Solver Action] Successfully received result from questionSolverFlow.");
-    return result; // Return the direct result from the flow
+    return result;
   } catch (error: any) { // OUTER CATCH for solveQuestion server action
-    console.error(`[Question Solver Action] CRITICAL error during server action execution (outer try-catch). Admin Flag from input: ${input.isAdmin}. Error:`, JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+    console.error(`[Question Solver Action] CRITICAL error during server action execution (outer try-catch). Admin Flag from input: ${input.isAdmin}. Model: ${modelToUse}. Error:`, JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
     let errorMessage = 'Bilinmeyen bir sunucu hatası oluştu.';
     if (error instanceof Error) {
         errorMessage = error.message;
     } else if (typeof error === 'string') {
         errorMessage = error;
-    } else if (input.isAdmin) { // Provide more details for admin if error object is not standard
+    } else if (input.isAdmin) {
         try {
             errorMessage = `Detaylandırılamayan nesne hatası (Admin): ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`;
         } catch (e) {
@@ -123,7 +123,7 @@ export async function solveQuestion(input: SolveQuestionInput): Promise<SolveQue
         }
     }
 
-    const adminOuterCatchError = `[Admin Gördü - Sunucu Aksiyonu Hatası] Model: ${modelToUse || 'belirlenemeyen model'}. Detay: ${errorMessage.substring(0, 500)}`;
+    const adminOuterCatchError = `[Admin Gördü - Sunucu Aksiyonu Hatası] Model: ${modelToUse}. Detay: ${errorMessage.substring(0, 500)}`;
     const userOuterCatchError = `Soru çözümü oluşturulurken beklenmedik bir sunucu hatası oluştu. Lütfen daha sonra tekrar deneyin.`;
 
     return {
@@ -139,7 +139,6 @@ const promptInputSchema = SolveQuestionInputSchema.extend({
     isPremiumUser: z.boolean().optional(),
     isCustomModelSelected: z.boolean().optional(),
     isGemini25PreviewSelected: z.boolean().optional(),
-    // isAdmin is already part of SolveQuestionInputSchema and thus enrichedInput
 });
 
 const questionSolverPrompt = ai.definePrompt({
@@ -200,7 +199,7 @@ Eğer soru çözülemiyorsa veya girdi yetersizse, "solution" alanına nedenini 
     *   Soruyu, İSTENEN ÇÖZÜM DETAY SEVİYESİNE ({{{solutionDetailLevel}}}) göre ana adımları mantığıyla birlikte, AÇIKLAYARAK çöz.
         *   'temel' seviye için: Çözümü ana adımlarıyla, çok kısa ve öz bir şekilde ver. Sonucu net belirt.
         *   'orta' seviye için: Her adımı kısa açıklamalarla destekle. Temel kavramlara değin. Sonucu net belirt.
-        *   'detayli' seviye için: Her adımı mantığıyla, ara hesaplamalarla ve kullanılan formüllerle çok detaylı açıkla. {{{#if isProUser}}}Pro kullanıcıya özel olarak, varsa alternatif çözüm yollarına, sık yapılan hatalara ve konseptlere derinlemesine değin.{{{/if}}} Sonucu net bir şekilde belirt (örn: Cevap B).
+        *   'detayli' seviye için: Her adımı mantığıyla, ara hesaplamalarla ve kullanılan formüllerle çok detaylı açıkla. {{#if isProUser}}Pro kullanıcıya özel olarak, varsa alternatif çözüm yollarına, sık yapılan hatalara ve konseptlere derinlemesine değin.{{/if}} Sonucu net bir şekilde belirt (örn: Cevap B).
     *   Her bir önemli matematiksel işlemi veya mantıksal çıkarımı net bir şekilde belirt.
     *   Eğer girdi yetersiz, anlamsız veya YKS standartlarında çözülemeyecek kadar belirsizse, bu alana "Bu soruyu çözebilmek için daha fazla bilgiye/netliğe veya görseldeki ifadenin metin olarak yazılmasına ihtiyacım var." gibi bir geri bildirim yaz.
 2.  **relatedConcepts (string dizisi, isteğe bağlı, boş olabilir)**:
@@ -267,11 +266,10 @@ const questionSolverFlow = ai.defineFlow(
 
     const loggableEnrichedInput = {...enrichedInput, imageDataUri: enrichedInput.imageDataUri ? `Image data URI provided (length: ${enrichedInput.imageDataUri.length})` : undefined};
     console.log(`[Question Solver Flow] Calling prompt with model: ${finalModelToUse} and options:`, JSON.stringify(callOptions.config), `for user plan: ${enrichedInput.userPlan}, customModel (raw): ${enrichedInput.customModelIdentifier}, detail: ${enrichedInput.solutionDetailLevel}, isAdmin: ${enrichedInput.isAdmin}`);
-    console.log(`[Question Solver Flow] Input to prompt (loggableEnrichedInput):`, JSON.stringify(loggableEnrichedInput).substring(0, 1000) + (JSON.stringify(loggableEnrichedInput).length > 1000 ? "..." : ""));
+    console.log(`[Question Solver Flow] Input to prompt (enrichedInput):`, JSON.stringify(loggableEnrichedInput).substring(0, 1000) + (JSON.stringify(loggableEnrichedInput).length > 1000 ? "..." : ""));
 
 
     try {
-      // Critical: Use enrichedInput, NOT loggableEnrichedInput for the actual prompt call
       const { output } = await questionSolverPrompt(enrichedInput, callOptions);
 
       if (output === null || typeof output !== 'object' || typeof output.solution !== 'string') {
@@ -281,7 +279,7 @@ const questionSolverFlow = ai.defineFlow(
         let errorMessageForUser: string;
         if (enrichedInput.isAdmin) {
             if (output === null) {
-                errorMessageForUser = `[Admin Gördü - Akış İçi Hata] AI Modeli (${finalModelToUse}), beklenen yanıt şemasına uymayan bir çıktı üretti. Detay: Model, yanıt olarak 'null' (boş bir nesne) döndürdü. Bu genellikle modelin soruyu işleyemediği veya geçerli bir JSON oluşturamadığı anlamına gelir. Raw output: ${rawOutputPreview}`;
+                errorMessageForUser = `[Admin Gördü - Akış İçi Hata] AI Modeli (${finalModelToUse}), beklenen yanıt şemasına uymayan bir çıktı üretti. Detay: Model, yanıt olarak 'null' (boş bir nesne) döndürdü. Raw output: ${rawOutputPreview}`;
             } else {
                 errorMessageForUser = `[Admin Gördü - Akış İçi Hata] AI Modeli (${finalModelToUse}), boş veya beklenen temel yapıda olmayan bir yanıt döndürdü. Yanıtın 'solution' alanı bir metin (string) değil veya nesne yapısı hatalı. Raw Çıktı: ${rawOutputPreview}`;
             }
@@ -306,36 +304,34 @@ const questionSolverFlow = ai.defineFlow(
     } catch (promptError: any) {
       console.error(`[Question Solver Flow] INNER CATCH: CRITICAL ERROR during prompt execution with model ${finalModelToUse}. Admin Flag from enrichedInput: ${enrichedInput.isAdmin}. Error details:`, JSON.stringify(promptError, Object.getOwnPropertyNames(promptError), 2));
 
-      let detailedAdminErrorForLog = `Genkit/AI Hatası: ${promptError?.name || 'Bilinmeyen Hata Adı'} - ${promptError?.message || 'Hata mesajı yok.'}. `;
+      let detailedAdminError = `Genkit/AI Hatası: ${promptError?.name || 'Bilinmeyen Hata Adı'} - ${promptError?.message || 'Hata mesajı yok.'}. `;
       if (promptError?.cause) {
-          try { detailedAdminErrorForLog += `Neden: ${JSON.stringify(promptError.cause)}. `; }
-          catch (e) { detailedAdminErrorForLog += `Neden: (Serileştirilemedi). `; }
+          try { detailedAdminError += `Neden: ${JSON.stringify(promptError.cause)}. `; }
+          catch (e) { detailedAdminError += `Neden: (Serileştirilemedi). `; }
       }
-      if (promptError?.details) { // This is where Zod errors often appear
-          try { detailedAdminErrorForLog += `Detaylar: ${JSON.stringify(promptError.details)}. `; }
-          catch (e) { detailedAdminErrorForLog += `Detaylar: (Serileştirilemedi). `; }
+      if (promptError?.details) { 
+          try { detailedAdminError += `Detaylar: ${JSON.stringify(promptError.details)}. `; }
+          catch (e) { detailedAdminError += `Detaylar: (Serileştirilemedi). `; }
       }
       if (promptError instanceof Error && promptError.stack) {
-          detailedAdminErrorForLog += `Stack (kısmi): ${promptError.stack.substring(0, 300)}...`;
+          detailedAdminError += `Stack (kısmi): ${promptError.stack.substring(0, 300)}...`;
       }
       if (typeof promptError === 'object' && promptError !== null && !promptError.message) {
-           detailedAdminErrorForLog += ` Tam Hata Nesnesi: ${JSON.stringify(promptError, Object.getOwnPropertyNames(promptError), 2).substring(0, 500)}...`;
+           detailedAdminError += ` Tam Hata Nesnesi: ${JSON.stringify(promptError, Object.getOwnPropertyNames(promptError), 2).substring(0, 500)}...`;
       }
 
-      // Specific error message refinements for admins
       if (promptError?.name === 'GenkitError' && promptError?.message?.includes('Schema validation failed')) {
           let zodErrors = "Şema Doğrulama Hatası.";
           if (promptError.details && Array.isArray(promptError.details)) {
               zodErrors = promptError.details.map((detail: any) => `[${detail.path?.join('.') || 'root'}]: ${detail.message}`).join('; ');
           }
-          detailedAdminErrorForLog = `AI modeli (${finalModelToUse}) gelen yanıt beklenen şemayla uyuşmuyor: ${zodErrors.substring(0, 400)}. Raw Prompt Error Details: ${JSON.stringify(promptError.details).substring(0,300)}`;
+          detailedAdminError = `AI modeli (${finalModelToUse}) gelen yanıt beklenen şemayla uyuşmuyor: ${zodErrors.substring(0, 400)}. Raw Prompt Error Details: ${JSON.stringify(promptError.details).substring(0,300)}`;
       } else if (promptError?.message?.includes('SAFETY') || promptError?.message?.includes('block_reason')) {
-          detailedAdminErrorForLog = `İçerik güvenlik filtrelerine takılmış olabilir. Model: ${finalModelToUse}. Detay: ${promptError.message.substring(0, 200)}`;
+          detailedAdminError = `İçerik güvenlik filtrelerine takılmış olabilir. Model: ${finalModelToUse}. Detay: ${promptError.message.substring(0, 200)}`;
       }
 
-
       const userVisibleMessage = enrichedInput.isAdmin
-        ? `[Admin Gördü - Akış İçi Hata] AI Soru Çözücüsü (${finalModelToUse || 'belirlenemeyen'}) bir hata ile karşılaştı. Detay: ${detailedAdminErrorForLog.substring(0,1000)}`
+        ? `[Admin Gördü - Akış İçi Hata] AI Soru Çözücüsü (${finalModelToUse}) bir hata ile karşılaştı. Detay: ${detailedAdminError.substring(0,1000)}`
         : GENERIC_USER_ERROR_MESSAGE;
 
       return {
@@ -347,5 +343,4 @@ const questionSolverFlow = ai.defineFlow(
   }
 );
     
-
-    
+  
