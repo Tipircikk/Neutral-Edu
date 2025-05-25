@@ -94,7 +94,7 @@ const testimonials = [
     quote: "Çalışma planı oluşturucu sayesinde hangi konuya ne zaman çalışacağımı artık biliyorum. Çok organize oldum!",
     name: "Selin M., Öğrenci",
     avatarFallback: "SM",
-  },
+   },
    {
     quote: "Bilgi kartları özelliği konuları tekrar etmek için mükemmel. Çok pratik!",
     name: "Fatma G., Öğrenci",
@@ -222,6 +222,9 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* Diagnostic Heading 2 */}
+        <h1 style={{ color: 'magenta', fontSize: '4rem', textAlign: 'center' }}>%%% DIAGNOSTIC MARKER 2 %%%</h1>
+
         {/* How It Works Section */}
         <section id="how-it-works" className="py-12 md:py-16 lg:py-24 bg-background">
           <div className="container mx-auto px-4">
@@ -296,11 +299,14 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* Diagnostic Heading */}
+        
+
         {/* Sponsors Section - Corrected Placement and Image Path */}
-        <section id="sponsors" className="py-12 md:py-16 lg:py-24 bg-background/80">
+        <section id="sponsors" className="py-12 md:py-16 lg:py-24 bg-background/80" style={{ border: '5px solid red' }}>
           <div className="container mx-auto px-4 text-center">
             {/* DIAGNOSTIC_COMMENT: SPONSORS_SECTION_HTML_SHOULD_BE_HERE */}
-            <h1 style={{fontSize: "3rem", color: "lime", fontWeight: "bold", border: "5px dashed hotpink", padding: "20px"}}>!!! SPONSORLAR BÖLÜMÜ BURADA GÖRÜNMELİ !!! (YAZILARLA BİRLİKTE)</h1>
+            
             <h2 className="text-3xl sm:text-4xl font-bold text-center mb-4 text-foreground">Sponsorlarımız</h2>
             <p className="text-md sm:text-lg text-muted-foreground text-center mb-10 md:mb-12 max-w-2xl mx-auto">
               Bu projeyi mümkün kılan değerli sponsorlarımıza teşekkür ederiz.

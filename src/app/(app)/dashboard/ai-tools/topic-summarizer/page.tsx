@@ -78,10 +78,11 @@ export default function TopicSummarizerPage() {
         outputFormat,
         userPlan: currentProfile.plan,
         customModelIdentifier: userProfile?.isAdmin ? adminSelectedModel : undefined,
+        isAdmin: !!userProfile?.isAdmin,
       };
       const result = await summarizeTopic(input);
 
-      if (result && result.topicSummary) {
+      if (result && result.topicSummary && !result.topicSummary.startsWith("Sunucu yoğun olabilir") && !result.topicSummary.startsWith("AI modeli")) {
         setSummaryOutput(result);
         toast({ title: "Özet Hazır!", description: "Konu veya metin başarıyla özetlendi." });
         if (decrementQuota) {
@@ -105,8 +106,9 @@ export default function TopicSummarizerPage() {
       }
     } catch (error: any) {
       console.error("Konu özetleme hatası:", error);
-      toast({ title: "Özetleme Hatası", description: error.message || "Konu özetlenirken beklenmedik bir hata oluştu.", variant: "destructive" });
-       setSummaryOutput({ topicSummary: error.message || "Beklenmedik bir hata oluştu.", keyConcepts: [], yksConnections: [], sourceReliability: "Hata oluştu." });
+      const errorMessageForUser = userProfile?.isAdmin ? (error.message || "Konu özetlenirken beklenmedik bir hata oluştu.") : "Sunucu yoğun olabilir veya beklenmedik bir hata oluştu. Lütfen biraz sonra tekrar deneyin veya farklı bir girdi kullanmayı deneyin.";
+      toast({ title: "Özetleme Hatası", description: errorMessageForUser, variant: "destructive" });
+       setSummaryOutput({ topicSummary: errorMessageForUser, keyConcepts: [], yksConnections: [], sourceReliability: "Hata oluştu." });
     } finally {
       setIsSummarizing(false);
     }
@@ -161,12 +163,12 @@ export default function TopicSummarizerPage() {
                   disabled={isModelSelectDisabled}
                 >
                   <SelectTrigger id="adminModelSelectTopicSum">
-                    <SelectValue placeholder="Varsayılan Modeli Kullan (Plan Bazlı)" />
+                    <SelectValue placeholder="Varsayılan Modeli Kullan (Tüm Üyelikler için Gemini 2.5 Flash Preview)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="default_gemini_flash">Varsayılan (Gemini 2.0 Flash)</SelectItem>
-                    <SelectItem value="experimental_gemini_1_5_flash">Deneysel (Gemini 1.5 Flash)</SelectItem>
-                    <SelectItem value="experimental_gemini_2_5_flash_preview_05_20">Deneysel (Gemini 2.5 Flash Preview 05-20)</SelectItem>
+                    <SelectItem value="experimental_gemini_2_5_flash_preview_05_20">Gemini 2.5 Flash Preview (Varsayılan)</SelectItem>
+                    <SelectItem value="default_gemini_flash">Gemini 2.0 Flash</SelectItem>
+                    <SelectItem value="experimental_gemini_1_5_flash">Gemini 1.5 Flash</SelectItem>
                   </SelectContent>
                 </Select>
                  <p className="text-xs text-muted-foreground">Farklı AI modellerini test edebilirsiniz.</p>
@@ -306,3 +308,4 @@ export default function TopicSummarizerPage() {
     </div>
   );
 }
+
