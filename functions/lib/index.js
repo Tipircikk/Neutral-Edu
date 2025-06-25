@@ -42,132 +42,124 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generatePdfSummary = exports.generateLessonContent = exports.solveQuestionFromImage = void 0;
+exports.generateInteractiveQuestions = exports.getYouTubeTranscript = exports.generateLessonFromKeywords = void 0;
 const functions = __importStar(require("firebase-functions"));
 const logger = __importStar(require("firebase-functions/logger"));
 const generative_ai_1 = require("@google/generative-ai");
-const puppeteer = __importStar(require("puppeteer"));
-const marked_1 = require("marked");
-// API anahtarını fonksiyon yapılandırmasından al
-const API_KEY = (_a = functions.config().gemini) === null || _a === void 0 ? void 0 : _a.key;
+const youtube_transcript_1 = require("youtube-transcript");
+// Initialize Gemini
 let genAI;
+const API_KEY = (_a = functions.config().gemini) === null || _a === void 0 ? void 0 : _a.key;
 if (API_KEY) {
     genAI = new generative_ai_1.GoogleGenerativeAI(API_KEY);
 }
 else {
-    logger.error("GEMINI_API_KEY ortam değişkeni ayarlanmadı. Fonksiyonlar çalışmayacak.");
+    logger.error("GEMINI_API_KEY environment variable not set. Functions will not work.");
 }
-// v1 onCall fonksiyonu
-exports.solveQuestionFromImage = functions.https.onCall(async (data, context) => {
-    var _a;
-    logger.info("solveQuestionFromImage tetiklendi", { uid: (_a = context.auth) === null || _a === void 0 ? void 0 : _a.uid });
-    if (!context.auth) {
-        throw new functions.https.HttpsError('unauthenticated', 'Bu işlemi yapmak için giriş yapmalısınız.');
-    }
+exports.generateLessonFromKeywords = functions.https.onCall(async (data, context) => {
     if (!genAI) {
-        throw new functions.https.HttpsError('internal', 'AI servisi yapılandırılamadı.');
-    }
-    const { imageBase64, mimeType } = data;
-    if (!imageBase64 || !mimeType) {
-        throw new functions.https.HttpsError('invalid-argument', 'Resim verisi eksik.');
-    }
-    try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
-        const prompt = `Lütfen bu resimdeki matematik veya fen sorusunu analiz et. Cevabını MUTLAKA ve SADECE aşağıdaki JSON formatında ver. JSON dışında hiçbir metin ekleme.
-      {
-        "problemText": "Yazıya dökülmüş soru metni",
-        "subject": "Ders adı (Örn: Matematik, Fizik)",
-        "difficulty": "Zorluk seviyesi (Kolay, Orta, Zor)",
-        "steps": ["Adım adım çözümün her bir satırı bu dizide olacak"],
-        "finalAnswer": "Sonuç ve varsa doğru şık (Örn: x = 4, Cevap A)"
-      }`;
-        const imagePart = { inlineData: { data: imageBase64, mimeType: mimeType } };
-        const result = await model.generateContent([prompt, imagePart]);
-        const text = result.response.text();
-        // Gemini'nin döndürebileceği ```json bloğunu temizle
-        const jsonString = text.replace(/^```json\s*/, "").replace(/```$/, "");
-        return JSON.parse(jsonString);
-    }
-    catch (error) {
-        logger.error("Gemini API ile resim işlenirken hata:", error);
-        throw new functions.https.HttpsError('internal', 'AI soruyu analiz ederken bir hata oluştu.');
-    }
-});
-exports.generateLessonContent = functions.https.onCall(async (data, context) => {
-    if (!context.auth) {
-        throw new functions.https.HttpsError('unauthenticated', 'Bu işlemi yapmak için giriş yapmalısınız.');
-    }
-    if (!genAI) {
-        throw new functions.https.HttpsError('internal', 'AI servisi yapılandırılamadı.');
+        logger.error("Gemini AI is not initialized. Check API key.");
+        throw new functions.https.HttpsError("failed-precondition", "AI service is not configured.");
     }
     const { title, subject, gradeLevel, keywords } = data;
     if (!title || !subject || !gradeLevel || !keywords) {
-        throw new functions.https.HttpsError('invalid-argument', 'Eksik bilgi: Başlık, konu, sınıf ve anahtar kelimeler zorunludur.');
+        throw new functions.https.HttpsError('invalid-argument', 'Missing required fields: title, subject, gradeLevel, keywords.');
     }
-    const prompt = `
-      Bir eğitim içeriği yazarı olarak, aşağıdaki bilgileri kullanarak detaylı, anlaşılır ve ilgi çekici bir ders özeti hazırla.
-      İçerik, Markdown formatında olmalı, başlıklar ve alt başlıklar içermelidir.
-      - Sınıf Seviyesi: ${gradeLevel}
-      - Ders: ${subject}
-      - Ana Konu: ${title}
-      - İşlenmesi İstenen Detaylar: ${keywords}
-      Lütfen sadece istenen formatta ders içeriğini üret. Başka bir açıklama ekleme.
-    `;
+    const prompt = `You are an expert curriculum developer. Your task is to generate a comprehensive lesson plan based on the following details.
+The output must be in Turkish and formatted as a clean, well-structured Markdown document.
+
+Lesson Title: "${title}"
+Subject: "${subject}"
+Grade Level: "${gradeLevel}"
+Keywords/Summary:
+---
+${keywords}
+---
+
+Please generate the lesson content. Include headings (##), subheadings (###), lists (* or -), bold text, and other Markdown elements to create a rich, readable, and engaging educational text.
+The content should be detailed and suitable for the specified grade level.
+Do not include any text or explanation outside of the Markdown content itself.`;
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
-        const result = await model.generateContent(prompt);
-        return { content: result.response.text() };
+        const result = await genAI.getGenerativeModel({ model: "gemini-1.5-flash" }).generateContent(prompt);
+        const content = result.response.text();
+        return { content };
     }
     catch (error) {
-        logger.error("Ders içeriği üretilirken hata:", error);
-        throw new functions.https.HttpsError('internal', 'AI içerik üretirken bir hata oluştu.');
+        logger.error("Gemini API error:", error);
+        throw new functions.https.HttpsError("internal", "Failed to generate lesson content.", error);
     }
 });
-exports.generatePdfSummary = functions.runWith({ timeoutSeconds: 300, memory: '1GB' }).https.onCall(async (data, context) => {
-    if (!context.auth) {
-        throw new functions.https.HttpsError('unauthenticated', 'Bu işlemi yapmak için giriş yapmalısınız.');
-    }
-    if (!genAI) {
-        throw new functions.https.HttpsError('internal', 'AI servisi yapılandırılamadı.');
-    }
-    const { lessonContent, summaryPrompt } = data;
-    if (!lessonContent || !summaryPrompt) {
-        throw new functions.https.HttpsError('invalid-argument', 'Ders içeriği ve özetleme isteği zorunludur.');
+exports.getYouTubeTranscript = functions.https.onCall(async (data, context) => {
+    var _a, _b;
+    const videoUrl = data.url;
+    if (!videoUrl || typeof videoUrl !== 'string') {
+        throw new functions.https.HttpsError('invalid-argument', 'The function must be called with one argument "url" containing the video URL to process.');
     }
     try {
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
-        const fullPrompt = `Aşağıdaki metni, şu isteğe göre yeniden düzenleyip özetle: "${summaryPrompt}". Yanıtı sadece Markdown formatında ver. Başka hiçbir açıklama ekleme.\n\n---METİN---\n${lessonContent}`;
-        const result = await model.generateContent(fullPrompt);
-        const summarizedContent = result.response.text();
-        const htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8" />
-          <title>Ders Özeti</title>
-          <style>
-            body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; }
-            h1, h2, h3 { color: #2c3e50; }
-            code { background-color: #f4f4f4; padding: 2px 4px; border-radius: 4px; }
-            pre { background-color: #f4f4f4; padding: 1em; border-radius: 5px; overflow-x: auto; }
-            blockquote { border-left: 5px solid #ccc; padding-left: 1.5em; margin-left: 0; }
-          </style>
-        </head>
-        <body>
-          ${(0, marked_1.marked)(summarizedContent)}
-        </body>
-        </html>
-      `;
-        const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
-        const page = await browser.newPage();
-        await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
-        const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
-        await browser.close();
-        return { pdfBase64: pdfBuffer.toString('base64') };
+        const transcript = await youtube_transcript_1.YoutubeTranscript.fetchTranscript(videoUrl);
+        if (!transcript || transcript.length === 0) {
+            throw new functions.https.HttpsError('not-found', 'No transcript found for this video. It might be disabled or unavailable.');
+        }
+        const fullText = transcript.map((item) => item.text).join(' ');
+        return { transcript: fullText };
     }
     catch (error) {
-        logger.error("generatePdfSummary fonksiyonunda hata:", error);
-        throw new functions.https.HttpsError('internal', 'PDF özeti oluşturulurken bir hata oluştu.');
+        logger.error("Transcript fetch error:", error);
+        if ((_a = error.message) === null || _a === void 0 ? void 0 : _a.includes("subtitles")) {
+            throw new functions.https.HttpsError('not-found', 'Transcripts are disabled for this video.');
+        }
+        if ((_b = error.message) === null || _b === void 0 ? void 0 : _b.includes("No transcripts are available")) {
+            throw new functions.https.HttpsError('not-found', 'No transcripts are available for this video.');
+        }
+        throw new functions.https.HttpsError('internal', 'An unexpected error occurred while fetching the transcript.', error.message);
+    }
+});
+exports.generateInteractiveQuestions = functions.https.onCall(async (data, context) => {
+    if (!genAI) {
+        logger.error("Gemini AI is not initialized. Check API key.");
+        throw new functions.https.HttpsError("failed-precondition", "AI service is not configured.");
+    }
+    const { transcript } = data;
+    if (!transcript) {
+        throw new functions.https.HttpsError('invalid-argument', 'The function must be called with "transcript" data.');
+    }
+    const prompt = `
+        You are an expert instructional designer creating interactive video quizzes.
+        Based on the following video transcript, your task is to generate exactly 3 multiple-choice questions.
+        For each question, you must also provide the most relevant timestamp (in total seconds) where the answer can be found.
+        The timestamps should be spread out and cover different parts of the video.
+
+        You MUST return the output as a valid JSON array of objects. Do not include any text, explanation, or markdown formatting like \`\`\`json before or after the JSON array.
+
+        The JSON structure for each object must be:
+        {
+          "timestamp": <number>, // The time in total seconds.
+          "question": "<The question text>",
+          "options": ["<Option A>", "<Option B>", "<Option C>", "<Option D>"],
+          "correctAnswer": "<The text of the correct option>" // This must be an exact match to one of the options.
+        }
+
+        Here is the transcript:
+        ---
+        ${transcript}
+        ---
+    `;
+    try {
+        const result = await genAI.getGenerativeModel({ model: "gemini-1.5-flash" }).generateContent(prompt);
+        let textResponse = result.response.text();
+        // Clean the response to ensure it's valid JSON
+        textResponse = textResponse.trim().replace(/^```json\s*/, '').replace(/```$/, '');
+        // Basic validation
+        if (!textResponse.startsWith('[') || !textResponse.endsWith(']')) {
+            logger.error("AI did not return a valid JSON array.", { rawResponse: textResponse });
+            throw new Error("AI response was not in the expected format.");
+        }
+        const questions = JSON.parse(textResponse);
+        return { questions };
+    }
+    catch (error) {
+        logger.error("Interactive questions generation failed:", error);
+        throw new functions.https.HttpsError("internal", "Failed to generate interactive questions from the transcript.", error.message);
     }
 });
 //# sourceMappingURL=index.js.map

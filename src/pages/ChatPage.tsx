@@ -6,8 +6,6 @@ import { doc, updateDoc, arrayUnion, onSnapshot } from 'firebase/firestore';
 import { Send, Loader, ArrowLeft, Bot, User, Paperclip } from 'lucide-react';
 import toast from 'react-hot-toast';
 import genAI from '../lib/gemini';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 
 interface Message {
     role: 'user' | 'model';
@@ -87,31 +85,40 @@ const ChatPage = () => {
         };
 
         const coachRef = doc(db, 'coaches', coachId);
+        // Optimistic UI update for user message
         setCoach(prev => prev ? { ...prev, chatHistory: [...prev.chatHistory, userMessage] } : null);
+        
         try {
+            // Update Firestore with user message in the background
             await updateDoc(coachRef, { chatHistory: arrayUnion(userMessage) });
 
             const systemPrompt = `Sen, ${coach.coachName} adında bir kişisel öğrenci koçusun. Kullanıcının hedefi ${coach.examType} sınavını ${coach.targetDate} tarihinde başarmak. Odaklanacağınız dersler: ${coach.subjects.join(', ')}. İletişim tonun şöyle olmalı: ${coach.communicationTone.join(', ')}. Kullanıcıyla şu şekillerde etkileşim kurman bekleniyor: ${coach.interactions.join(', ')}. Kişilik özelliklerin: ${coach.personality}. Kısa, net ve samimi cevaplar ver. Kullanıcının sorularına bu kimlikle cevap ver.`;
-            const history = coach.chatHistory.map(msg => ({
-                role: msg.role,
-                parts: [{ text: msg.content }]
-            }));
-            history.push({ role: 'user', parts: [{ text: userMessageContent }] });
-
-            const result = await genAI.models.generateContent({
-                model: 'gemini-1.5-flash',
-                contents: [
-                    { role: 'user', parts: [{ text: systemPrompt }] },
-                    ...history,
-                    { role: 'user', parts: [{ text: userMessageContent }] }
-                ]
+            
+            const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash', systemInstruction: systemPrompt });
+            
+            const chat = model.startChat({
+                history: coach.chatHistory.map(msg => ({
+                    role: msg.role,
+                    parts: [{ text: msg.content }]
+                })),
+                generationConfig: {
+                    maxOutputTokens: 2000,
+                },
             });
-            const text = result.text ?? '';
+
+            const result = await chat.sendMessage(userMessageContent);
+            const response = result.response;
+            const text = response.text();
+            
             const aiMessage: Message = { role: 'model', content: text, timestamp: new Date() };
+
+            // Update Firestore with AI's response
             await updateDoc(coachRef, { chatHistory: arrayUnion(aiMessage) });
+
         } catch (error) {
             console.error("AI cevabı alınırken hata oluştu:", error);
             toast.error("Üzgünüm, AI koçunuz şu anda cevap veremiyor.");
+            // Revert optimistic update on error
             setCoach(prev => prev ? { ...prev, chatHistory: prev.chatHistory.slice(0, -1) } : null);
         } finally {
             setIsSending(false);
@@ -160,11 +167,7 @@ const ChatPage = () => {
                             ? 'bg-indigo-600 text-white rounded-br-none' 
                             : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-bl-none'
                         }`}>
-                           {msg.role === 'model' ? (
-                               <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                           ) : (
-                               <p style={{whiteSpace: 'pre-wrap'}}>{msg.content}</p>
-                           )}
+                           <p style={{whiteSpace: 'pre-wrap'}}>{msg.content}</p>
                         </div>
                          {msg.role === 'user' && (
                              <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center flex-shrink-0 font-bold">
