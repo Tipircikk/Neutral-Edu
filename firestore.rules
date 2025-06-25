@@ -1,0 +1,64 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users Collection Rules
+    match /users/{userId} {
+      // Allow users to read and update their own document.
+      allow read, update, delete: if request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      
+      // Allow a user to create their own document upon sign-up.
+      allow create: if request.auth.uid == userId;
+
+      // Allow admins to read any user's document.
+      allow get: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Allow admins to list all users.
+    match /users/{userId} {
+       allow list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Coaches Subcollection Rules
+    match /users/{userId}/coaches/{coachId} {
+        // A user can manage their own coaches.
+        allow read, write, create, delete: if request.auth != null && request.auth.uid == userId;
+        
+        // Admins can view anyone's coaches for support/moderation.
+        allow get, list: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Add rules for other collections like 'lessons' here.
+    // For now, let's allow any authenticated user to read lessons
+    // and only admins to write them.
+    match /lessons/{lessonId} {
+      allow read: if resource.data.status == 'approved' || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow create, update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // 'coaches' koleksiyonu için kurallar. Kullanıcı başına birden fazla koça izin verir.
+    match /coaches/{coachId} {
+      // LIST: Bir kullanıcının koç listesini sorgulamasına izin verir.
+      // Güvenlik, istemcinin sorgusunun ("where('userId', '==', currentUser.uid)")
+      // aşağıdaki 'get' kuralı tarafından doğrulanmasıyla sağlanır.
+      allow list: if request.auth != null;
+
+      // GET: Bir kullanıcının, yalnızca 'userId' alanı kendi kimliğiyle eşleşiyorsa
+      // tek bir koç belgesini okumasına izin verir.
+      allow get: if request.auth.uid != null && resource.data.userId == request.auth.uid;
+      
+      // CREATE: Bir kullanıcının, oluşturulan belgedeki 'userId' alanı
+      // kendi kimliğiyle eşleşiyorsa yeni bir koç oluşturmasına izin verir.
+      allow create: if request.auth.uid != null && request.resource.data.userId == request.auth.uid;
+      
+      // UPDATE, DELETE: Bir kullanıcının, yalnızca sahip olduğu bir koçu
+      // (belgedeki 'userId' kendi kimliğiyle eşleşiyorsa) güncellemesine veya silmesine izin verir.
+      allow update, delete: if request.auth.uid != null && resource.data.userId == request.auth.uid;
+    }
+
+    match /quizzes/{quizId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+} 
