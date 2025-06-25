@@ -5,13 +5,13 @@ import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
 
 const firebaseConfig = {
-  apiKey: "API_KEY",
-  authDomain: "AUTH_DOMAIN",
-  projectId: "PROJECT_ID",
-  storageBucket: "STORAGE_BUCKET",
-  messagingSenderId: "MESSAGING_SENDER_ID", 
-  appId: "APP_ID",
-  measurementId: "MEASUREMENT_ID"
+  apiKey: "AIzaSyBpUGDa-HNj5U2tCiqt1BQiCai5XQT7-xQ",
+  authDomain: "neutraledumain.firebaseapp.com",
+  projectId: "neutraledumain",
+  storageBucket: "neutraledumain.firebasestorage.app",
+  messagingSenderId: "721523329830",
+  appId: "1:721523329830:web:b5339e7a1df59db0250fe7",
+  measurementId: "G-LQYC0X8TZD"
 };
 
 const app = initializeApp(firebaseConfig);

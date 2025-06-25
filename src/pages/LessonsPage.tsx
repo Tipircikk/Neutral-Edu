@@ -46,23 +46,13 @@ const AiContentGenerator: React.FC<{ lesson: Lesson | null }> = ({ lesson }) => 
         const toastId = toast.loading("Yapay zeka içeriği oluşturuyor...");
 
         try {
-            const systemPrompt = `Bir eğitim materyali hazırlama uzmanısın. Sana verilen ders içeriğini ve kullanıcı isteğini temel alarak, konuyu zengin ve anlaşılır bir şekilde açıklayan bir metin oluştur. Cevabını mutlaka Markdown formatında yapılandır. Başlıklar (##), alt başlıklar (###), listeler (* veya -) ve önemli kısımlar için kalın metin (**metin**) kullan. Anlaşılır, eğitici ve ilgi çekici bir dil kullan.
+            const systemPrompt = `Bir eğitim materyali hazırlama uzmanısın. Sana verilen ders içeriğini ve kullanıcı isteğini temel alarak, konuyu zengin ve anlaşılır bir şekilde açıklayan bir metin oluştur. Cevabını mutlaka Markdown formatında yapılandır. Başlıklar (##), alt başlıklar (###), listeler (* veya -) ve önemli kısımlar için kalın metin (**metin**) kullan. Anlaşılır, eğitici ve ilgi çekici bir dil kullan.\n\n### Ders İçeriği Özeti:\nBaşlık: ${lesson.title}\nKonu: ${lesson.subject}\nSeviye: ${lesson.gradeLevel}\nAna İçerik: ${lesson.content.substring(0, 500)}...\n\n### Kullanıcının İsteği:\n"${prompt}"\n\n### Oluşturulacak İçerik (Sadece Markdown):`;
 
-            ### Ders İçeriği Özeti:
-            Başlık: ${lesson.title}
-            Konu: ${lesson.subject}
-            Seviye: ${lesson.gradeLevel}
-            Ana İçerik: ${lesson.content.substring(0, 500)}...
-
-            ### Kullanıcının İsteği:
-            "${prompt}"
-
-            ### Oluşturulacak İçerik (Sadece Markdown):`;
-
-            const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
-            const result = await model.generateContent(systemPrompt);
-            const response = result.response;
-            const text = response.text();
+            const result = await ai.models.generateContent({
+                model: 'gemini-1.5-flash',
+                contents: systemPrompt
+            });
+            const text = result.text;
 
             setGeneratedContent(text);
             toast.dismiss(toastId);

@@ -166,28 +166,17 @@ const AdminPage = () => {
     const toastId = toast.loading("AI ders içeriğini hazırlıyor...");
 
     try {
-        const prompt = `You are an expert curriculum developer. Your task is to generate a comprehensive lesson plan based on the following details.
-The output must be in Turkish and formatted as a clean, well-structured Markdown document.
-
-Lesson Title: "${lessonPrompt.title}"
-Subject: "${lessonPrompt.subject}"
-Grade Level: "${lessonPrompt.gradeLevel}"
-Keywords: "${lessonPrompt.keywords}"
-
-Please generate the lesson content. Include headings, lists, bold text, and other Markdown elements to create a rich, readable, and engaging educational text.
-The content should be detailed and suitable for the specified grade level.
-Do not include any text or explanation outside of the Markdown content itself.`;
-        
+        const prompt = `You are an expert curriculum developer. Your task is to generate a comprehensive lesson plan based on the following details.\nThe output must be in Turkish and formatted as a clean, well-structured Markdown document.\n\nLesson Title: "${lessonPrompt.title}"\nSubject: "${lessonPrompt.subject}"\nGrade Level: "${lessonPrompt.gradeLevel}"\nKeywords: "${lessonPrompt.keywords}"\n\nPlease generate the lesson content. Include headings, lists, bold text, and other Markdown elements to create a rich, readable, and engaging educational text.\nThe content should be detailed and suitable for the specified grade level.\nDo not include any text or explanation outside of the Markdown content itself.`;
         const result = await ai.models.generateContent({
-          model: modelName,
-          contents: prompt,
+            model: modelName,
+            contents: prompt,
         });
         const content = result.text;
         
         toast.dismiss(toastId);
 
         if (!content) {
-          throw new Error("AI içerik üretirken boş yanıt döndürdü.");
+            throw new Error("AI içerik üretirken boş yanıt döndürdü.");
         }
 
         setGeneratedContent(content);

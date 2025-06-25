@@ -26,48 +26,13 @@ const TopicExplainerPage: React.FC = () => {
         const toastId = toast.loading("Yapay zeka sizin için çalışıyor...");
 
         try {
-            const systemPrompt = `Bir uzman eğitimci ve içerik üreticisi olarak davran. Görevin, verilen konu ve sınıf seviyesine uygun, kapsamlı ve anlaşılır bir ders içeriği oluşturmak. Çıktın, aşağıdaki yapıya sadık kalarak Markdown formatında olmalıdır:
-
-            # {Konu Başlığı}
-            **Sınıf Düzeyi:** {Sınıf Düzeyi}
-
-            ---
-
-            ## 📚 Ders Planı ve Hedefler
-            - **Ana Tema:** Bu dersin ana fikri ve odak noktası.
-            - **Öğrenme Hedefleri:**
-                - Bu dersin sonunda öğrenci neyi bilecek? (En az 3 hedef)
-                - Öğrenci hangi becerileri kazanacak?
-
-            ---
-
-            ## ✨ Detaylı Konu Anlatımı
-            *Konuya ilgi çekici bir giriş yap. Örneğin, "Merhaba sevgili {Sınıf Düzeyi} kahramanı! Bugün {Konu} dünyasına dalıyoruz..." gibi samimi bir dil kullan.*
-
-            ### {Alt Başlık 1}
-            *Konunun ilk önemli bölümünü açıkla. Gerekirse listeler veya örnekler kullan.*
-
-            ### {Alt Başlık 2}
-            *Konunun ikinci önemli bölümünü açıkla. Karmaşık fikirleri basitleştir.*
-
-            **Önemli Not:** *Konuyla ilgili kritik bir ipucu veya uyarı ekle.*
-
-            ---
-
-            ## 💡 Örnek Soru ve Çözümü
-            *Konuyu pekiştirecek, seviyeye uygun bir örnek soru ve adım adım çözümünü sun.*
-
-            ## สรุป (Özet)
-            *Tüm konuyu 2-3 cümleyle özetle.*
-            `;
-
+            const systemPrompt = `Bir uzman eğitimci ve içerik üreticisi olarak davran. Görevin, verilen konu ve sınıf seviyesine uygun, kapsamlı ve anlaşılır bir ders içeriği oluşturmak. Çıktın, aşağıdaki yapıya sadık kalarak Markdown formatında olmalıdır:\n\n# {Konu Başlığı}\n**Sınıf Düzeyi:** {Sınıf Düzeyi}\n---\n## 📚 Ders Planı ve Hedefler\n- **Ana Tema:** Bu dersin ana fikri ve odak noktası.\n- **Öğrenme Hedefleri:**\n    - Bu dersin sonunda öğrenci neyi bilecek? (En az 3 hedef)\n    - Öğrenci hangi becerileri kazanacak?\n---\n## ✨ Detaylı Konu Anlatımı\n*Konuya ilgi çekici bir giriş yap. Örneğin, "Merhaba sevgili {Sınıf Düzeyi} kahramanı! Bugün {Konu} dünyasına dalıyoruz..." gibi samimi bir dil kullan.*\n### {Alt Başlık 1}\n*Konunun ilk önemli bölümünü açıkla. Gerekirse listeler veya örnekler kullan.*\n### {Alt Başlık 2}\n*Konunun ikinci önemli bölümünü açıkla. Karmaşık fikirleri basitleştir.*\n**Önemli Not:** *Konuyla ilgili kritik bir ipucu veya uyarı ekle.*\n---\n## 💡 Örnek Soru ve Çözümü\n*Konuyu pekiştirecek, seviyeye uygun bir örnek soru ve adım adım çözümünü sun.*\n## สรุป (Özet)\n*Tüm konuyu 2-3 cümleyle özetle.*`;
             const userPrompt = `Konu: ${topic}, Sınıf Seviyesi: ${gradeLevel}`;
-            
-            const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
-            const result = await model.generateContent([systemPrompt, userPrompt]);
-            
-            const response = result.response;
-            const text = response.text();
+            const result = await ai.models.generateContent({
+                model: 'gemini-1.5-flash',
+                contents: [systemPrompt, userPrompt]
+            });
+            const text = result.text;
 
             setGeneratedContent(text);
             toast.dismiss(toastId);
